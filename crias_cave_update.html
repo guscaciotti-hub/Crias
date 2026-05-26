@@ -296,12 +296,13 @@
   /* MONSTER REVEAL */
   #reveal {
     background: #0a0610;
-    display: flex !important;
-    align-items: center;
-    justify-content: center;
-    flex-direction: row;
-    gap: 0;
     padding: 0;
+  }
+  /* Layout split quando ativo */
+  #reveal.active {
+    flex-direction: row;
+    align-items: stretch;
+    gap: 0;
   }
   /* Arte ilustrativa: ocupa metade esquerda, cover */
   .reveal-art {
