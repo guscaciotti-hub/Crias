@@ -1309,11 +1309,86 @@ const NPCS_TEMPLATE = [
     dialog: ['Eu guardo a Cúpula. Se queres entrar, prova teu vínculo com a Cria.'],
     trainer: { level: 5, defeated: false, reward: 140 } },
   { id: 'cave_portal', x: 18, y: 1, emoji: '🕳️', name: 'Entrada da Caverna', type: 'cave_portal',
-    dialog: ['As profundezas chamam... Você entra na Caverna Sombria?', 'Crias poderosas habitam as trevas. Prepare sua Cria antes de avançar.'] },
+    dialog: ['As profundezas chamam... Você entra na Caverna Sombria?', 'Crias poderosas habitam as trevas. Prepare sua Cria.'] },
 ];
 
 const WILD_ZONES = [
   { x: 18, y: 1 }, { x: 18, y: 2 }, { x: 18, y: 3 }
+];
+
+// ============================================================================
+// CAVE 1 — CAVERNA SOMBRIA
+// ============================================================================
+const CAVE1_GRID = 20;
+const CAVE1_TILE = 78;
+const CAVE1_W = CAVE1_GRID * CAVE1_TILE;
+const CAVE1_H = CAVE1_GRID * CAVE1_TILE;
+
+const CAVE1_COLLISION = [
+  [1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1],
+  [1,1,1,1,1,1,1,1,1,0,0,1,1,1,1,1,1,1,1,1],
+  [1,1,1,0,0,0,0,0,0,0,0,0,0,0,1,1,0,0,1,1],
+  [1,1,0,0,0,0,0,0,0,0,0,0,0,0,0,2,2,0,1,1],
+  [1,0,0,0,0,0,1,1,0,0,0,0,0,0,0,2,2,0,1,1],
+  [1,0,0,0,0,1,1,1,0,0,0,0,0,0,2,2,2,0,1,1],
+  [1,0,2,2,0,1,1,1,0,0,0,0,0,0,2,2,2,0,1,1],
+  [1,0,2,2,0,0,0,0,0,0,0,0,0,0,2,2,2,0,1,1],
+  [1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,2,0,1,1],
+  [1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,2,0,1,1],
+  [1,1,0,0,0,0,0,0,0,0,1,1,0,0,2,2,2,0,0,1],
+  [1,1,0,0,0,0,0,0,0,0,1,1,0,0,2,2,2,0,0,1],
+  [1,1,1,0,0,0,0,0,0,0,0,0,0,0,0,2,2,0,0,1],
+  [1,1,1,0,0,0,0,0,0,0,0,0,0,0,0,0,2,0,1,1],
+  [1,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,1,1],
+  [1,1,0,0,0,0,0,0,0,0,0,0,0,1,1,1,1,1,1,1],
+  [1,1,1,0,0,0,0,0,0,1,1,1,1,1,1,1,1,1,1,1],
+  [1,1,1,1,1,0,0,0,0,0,0,1,1,1,1,1,1,1,1,1],
+  [1,1,1,1,1,1,0,0,0,0,1,1,1,1,1,1,1,1,1,1],
+  [1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1],
+];
+
+const CAVE1_BATTLE_ZONES = [
+  { id:1, cx:4,  cy:3,  r:1.8, minLv:2, maxLv:3 },
+  { id:2, cx:11, cy:2,  r:1.8, minLv:2, maxLv:3 },
+  { id:3, cx:7,  cy:8,  r:1.8, minLv:3, maxLv:4 },
+  { id:4, cx:2,  cy:10, r:1.8, minLv:2, maxLv:3 },
+  { id:5, cx:17, cy:9,  r:1.8, minLv:3, maxLv:4 },
+  { id:6, cx:7,  cy:12, r:1.8, minLv:3, maxLv:4 },
+  { id:7, cx:3,  cy:15, r:1.8, minLv:2, maxLv:3 },
+  { id:8, cx:12, cy:14, r:1.8, minLv:3, maxLv:4 },
+];
+
+const CAVE1_CRYSTALS = [
+  {x:1.5,y:3.5,color:'#4dc3ff',s:1.2},{x:16.5,y:2.5,color:'#4dc3ff',s:1.0},
+  {x:17.5,y:3.5,color:'#8b5cf6',s:0.8},{x:8.5,y:4.5,color:'#4dc3ff',s:0.9},
+  {x:13.5,y:5.5,color:'#8b5cf6',s:1.1},{x:0.5,y:6.5,color:'#4dc3ff',s:1.3},
+  {x:12.5,y:9.5,color:'#8b5cf6',s:0.8},{x:5.5,y:11.5,color:'#4dc3ff',s:1.0},
+  {x:8.5,y:13.5,color:'#8b5cf6',s:1.2},{x:11.5,y:13.5,color:'#4dc3ff',s:0.9},
+  {x:3.5,y:16.5,color:'#8b5cf6',s:1.0},{x:9.5,y:16.5,color:'#4dc3ff',s:1.1},
+  {x:14.5,y:14.5,color:'#8b5cf6',s:0.8},{x:6.5,y:7.5,color:'#4dc3ff',s:0.7},
+  {x:2.5,y:14.5,color:'#8b5cf6',s:0.9},{x:4.5,y:1.5,color:'#4dc3ff',s:0.8},
+];
+
+const CAVE1_TORCHES = [
+  {x:2,y:2},{x:13,y:2},{x:1,y:7},{x:9,y:9},
+  {x:7,y:11},{x:14,y:11},{x:2,y:14},{x:8,y:16}
+];
+
+const CAVE1_BRIDGE = [
+  {x:14,y:8},{x:14,y:9},{x:15,y:8},{x:15,y:9}
+];
+
+const CAVE1_CRATES = [{x:17,y:2},{x:17,y:10}];
+
+const CAVE1_NPCS_TEMPLATE = [
+  { id:'spirit', x:9, y:3, emoji:'🕯️', name:'Espírito Ancã', type:'wisdom',
+    dialog:['Esta caverna guarda segredos da Primeira Era...','Oito zonas de batalha existem aqui. Sobreviva a todas.','Cuidado: nas profundezas mora o Espectro Korax.'] },
+  { id:'korax', x:8, y:9, emoji:'💀', name:'Espectro Korax', type:'trainer',
+    dialog:['INTRUSO... você ousa adentrar as profundezas?','Sua Cria vai virar pó aqui! PREPARE-SE!'],
+    trainer: { level:7, defeated:false, reward:250 } },
+  { id:'chest', x:17, y:10, emoji:'📦', name:'Caixa Ancestral', type:'treasure',
+    dialog:['Uma caixa coberta de cristais antigos... um tesouro das profundezas!'],
+    loot: { potions:3, coins:80, given:false } },
 ];
 
 // ============================================================================
@@ -1464,6 +1539,9 @@ function newGameState(playerName, monster) {
     enteredCave: false,
     encountersDefeated: 0,
     trainerWins: 0,
+    scene: 'world',
+    cavePlayer: { x: 8, y: 18, dir: 'up' },
+    cave1: { npcs: JSON.parse(JSON.stringify(CAVE1_NPCS_TEMPLATE)), bossDefeated: false, treasureFound: false },
   };
 }
 
@@ -1794,6 +1872,13 @@ document.getElementById('menuBtn').addEventListener('click', openMenu);
 // MOVEMENT
 // ============================================================================
 function canWalkTo(x, y) {
+  if (state && state.scene === 'cave1') {
+    if (x < 0 || x >= CAVE1_GRID || y < 0 || y >= CAVE1_GRID) return false;
+    const cell = CAVE1_COLLISION[y][x];
+    if (cell === 1 || cell === 2) return false;
+    for (const npc of state.cave1.npcs) if (npc.x === x && npc.y === y) return false;
+    return true;
+  }
   if (x < 0 || x >= GRID || y < 0 || y >= GRID) return false;
   if (COLLISION[y][x] === 1) return false;
   for (const npc of state.npcs) if (npc.x === x && npc.y === y) return false;
@@ -1804,20 +1889,33 @@ function tryMove(dir) {
   if (movingTo) return;
   const dx = dir === 'left' ? -1 : dir === 'right' ? 1 : 0;
   const dy = dir === 'up' ? -1 : dir === 'down' ? 1 : 0;
-  state.player.dir = dir;
   lastFacing = dir;
-  const nx = state.player.x + dx, ny = state.player.y + dy;
-  if (!canWalkTo(nx, ny)) return;
-  movingTo = { fromX: state.player.x, fromY: state.player.y, toX: nx, toY: ny, startTime: performance.now() };
+  if (state.scene === 'cave1') {
+    state.cavePlayer.dir = dir;
+    const nx = state.cavePlayer.x + dx, ny = state.cavePlayer.y + dy;
+    if (!canWalkTo(nx, ny)) return;
+    movingTo = { fromX: state.cavePlayer.x, fromY: state.cavePlayer.y, toX: nx, toY: ny, startTime: performance.now() };
+  } else {
+    state.player.dir = dir;
+    const nx = state.player.x + dx, ny = state.player.y + dy;
+    if (!canWalkTo(nx, ny)) return;
+    movingTo = { fromX: state.player.x, fromY: state.player.y, toX: nx, toY: ny, startTime: performance.now() };
+  }
 }
 
 function update(t) {
   if (movingTo) {
     const elapsed = t - movingTo.startTime;
     if (elapsed >= MOVE_DURATION) {
-      state.player.x = movingTo.toX;
-      state.player.y = movingTo.toY;
-      craPosHistory.unshift({ x: movingTo.fromX, y: movingTo.fromY, dir: state.player.dir });
+      if (state.scene === 'cave1') {
+        state.cavePlayer.x = movingTo.toX;
+        state.cavePlayer.y = movingTo.toY;
+      } else {
+        state.player.x = movingTo.toX;
+        state.player.y = movingTo.toY;
+      }
+      const _pos = state.scene === 'cave1' ? state.cavePlayer : state.player;
+      craPosHistory.unshift({ x: movingTo.fromX, y: movingTo.fromY, dir: _pos.dir });
       if (craPosHistory.length > 4) craPosHistory.length = 4;
       movingTo = null;
       onTileStep();
@@ -1834,31 +1932,53 @@ function update(t) {
 }
 
 function isInCaveArea() {
-  // Cave path zone
-  return state.player.x === 18 && state.player.y >= 1 && state.player.y <= 4;
+  return state && state.scene === 'cave1';
 }
 
+
 function onTileStep() {
-  // Step particles (grass texture)
+  if (state.scene === 'cave1') { onCaveTileStep(); return; }
   const px = state.player.x * TILE + TILE/2;
   const py = state.player.y * TILE + TILE;
   FX.step(px, py, true);
   FX.sfx.step();
-
-  // Cave check + wild encounter
   for (const z of WILD_ZONES) {
     if (z.x === state.player.x && z.y === state.player.y) {
       if (!state.enteredCave) {
         state.enteredCave = true;
-        showToast('🕳️ Você entrou na Caverna Misteriosa... cuidado!');
+        showToast('🕳️ Entrada da Caverna próxima! Pressione A para entrar.');
         FX.sfx.uiBig();
         saveGame();
-        return;
       }
-      if (Math.random() < 0.35) setTimeout(() => startWildEncounter(), 200);
       return;
     }
   }
+}
+
+function onCaveTileStep() {
+  const {x, y} = state.cavePlayer;
+  if (y >= 19) { setTimeout(() => exitCave1(), 200); return; }
+  if (FX.sfx.step) FX.sfx.step();
+  const zone = getCaveBattleZone(x, y);
+  if (zone) {
+    const rate = zone.minLv >= 3 ? 0.40 : 0.28;
+    if (Math.random() < rate) setTimeout(() => startCaveEncounter(zone), 200);
+  }
+}
+
+function getCaveBattleZone(x, y) {
+  for (const z of CAVE1_BATTLE_ZONES) {
+    if (Math.sqrt((x - z.cx) ** 2 + (y - z.cy) ** 2) <= z.r) return z;
+  }
+  return null;
+}
+
+function startCaveEncounter(zone) {
+  if (inBattle || inDialog || inMenu) return;
+  let pool = Object.keys(MONSTERS).filter(k => k !== 'shadowyn');
+  if (zone.minLv >= 3) { pool.push('shadowyn'); pool.push('shadowyn'); }
+  const enemy = generateMonster(pick(pool), randInt(zone.minLv, zone.maxLv));
+  startBattle(enemy, { wild: true });
 }
 
 function getFacingTile() {
@@ -1867,10 +1987,16 @@ function getFacingTile() {
   if (lastFacing === 'down') dy = 1;
   if (lastFacing === 'left') dx = -1;
   if (lastFacing === 'right') dx = 1;
-  return { x: state.player.x + dx, y: state.player.y + dy };
+  const _fpos = (state && state.scene === 'cave1') ? state.cavePlayer : state.player;
+  return { x: _fpos.x + dx, y: _fpos.y + dy };
 }
 function getInteractable() {
   const t = getFacingTile();
+  if (state.scene === 'cave1') {
+    for (const npc of state.cave1.npcs) if (npc.x === t.x && npc.y === t.y) return { npc, cave: true };
+    if ((t.x === 9 || t.x === 10) && t.y === 1) return { portal: 'cave_exit' };
+    return null;
+  }
   for (const npc of state.npcs) if (npc.x === t.x && npc.y === t.y) return { npc };
   return null;
 }
@@ -1883,7 +2009,16 @@ function updateActionButton() {
 }
 function tryInteract() {
   const i = getInteractable();
-  if (i) interactWithNPC(i.npc);
+  if (!i) return;
+  if (i.portal === 'cave_exit') {
+    showDialog('Escada de Saída', ['A escada sobe para o Nível 2... mas por agora só existe o Nível 1.','Retornando à entrada da caverna.'], () => exitCave1());
+    return;
+  }
+  if (i.cave) { interactWithCaveNPC(i.npc); return; }
+  if (i.npc) {
+    if (i.npc.type === 'cave_portal') { showDialog(i.npc.name, i.npc.dialog, () => enterCave1()); }
+    else { interactWithNPC(i.npc); }
+  }
 }
 
 // ============================================================================
@@ -1914,6 +2049,10 @@ function closeDialog() {
 document.getElementById('dialog').addEventListener('click', () => { FX.sfx.ui(); advanceDialog(); });
 
 function interactWithNPC(npc) {
+  if (npc.type === 'cave_portal') {
+    showDialog(npc.name, npc.dialog, () => enterCave1());
+    return;
+  }
   if (npc.type === 'home' && npc.healing) {
     const hurt = state.cria.hp < state.cria.maxHp;
     state.cria.hp = state.cria.maxHp;
@@ -2739,8 +2878,10 @@ function updateCamera(playerWorldX, playerWorldY) {
   camera.targetX = playerWorldX + TILE/2 - cw/2;
   camera.targetY = playerWorldY + TILE/2 - ch/2;
   // Clamp to map bounds
-  camera.targetX = Math.max(0, Math.min(MAP_W_PX - cw, camera.targetX));
-  camera.targetY = Math.max(0, Math.min(MAP_H_PX - ch, camera.targetY));
+  const _mW = (state && state.scene === 'cave1') ? CAVE1_W : MAP_W_PX;
+  const _mH = (state && state.scene === 'cave1') ? CAVE1_H : MAP_H_PX;
+  camera.targetX = Math.max(0, Math.min(_mW - cw, camera.targetX));
+  camera.targetY = Math.max(0, Math.min(_mH - ch, camera.targetY));
   // Smooth follow (slightly tighter since map is bigger)
   camera.x += (camera.targetX - camera.x) * 0.18;
   camera.y += (camera.targetY - camera.y) * 0.18;
@@ -2751,6 +2892,9 @@ function render(now) {
   ctx.fillStyle = '#0a0e1a';
   ctx.fillRect(0, 0, cw, ch);
   if (!assets.map) return;
+
+  // CAVE SCENE
+  if (state.scene === 'cave1') { renderCave1(now); return; }
 
   // Compute player world pixel position (interpolated)
   let pX = state.player.x * TILE, pY = state.player.y * TILE;
@@ -2948,6 +3092,7 @@ function renderHUD() {
   const sprite = monsterSprite(c, 'idle_0');
   const hpPct = (c.hp / c.maxHp) * 100;
   const xpPct = (c.xp / c.xpToNext) * 100;
+  const _cave_hud = state.scene === 'cave1' ? '<div style="font-size:10px;color:#8b5cf6;margin-top:2px;">🕳️ CAVERNA SOMBRIA</div>' : '';
   document.getElementById('hud').innerHTML = `
     <div class="hud-card">
       <div class="hud-mini-sprite" style="background-image:url(${sprite ? sprite.src : ''}); filter: drop-shadow(0 0 6px ${def.aura});"></div>
@@ -2956,6 +3101,7 @@ function renderHUD() {
         <div class="small">HP ${c.hp}/${c.maxHp}</div>
         <div class="hp-bar" style="width: 100px;"><div class="hp-bar-fill" style="width: ${hpPct}%;"></div></div>
         <div class="xp-bar" style="margin-top:3px;"><div class="xp-bar-fill" style="width: ${xpPct}%;"></div></div>
+        ${_cave_hud}
       </div>
     </div>
   `;
@@ -2988,6 +3134,9 @@ document.getElementById('btnCreate').addEventListener('click', () => {
 document.getElementById('btnEnter').addEventListener('click', () => {
   state = loadGame();
   if (state) {
+    if (!state.scene) state.scene = 'world';
+    if (!state.cave1) state.cave1 = { npcs: JSON.parse(JSON.stringify(CAVE1_NPCS_TEMPLATE)), bossDefeated: false, treasureFound: false };
+    if (!state.cavePlayer) state.cavePlayer = { x: 8, y: 18, dir: 'up' };
     document.getElementById('login').classList.remove('active');
     startGame();
   }
@@ -3015,6 +3164,329 @@ document.getElementById('btnAcceptMonster').addEventListener('click', () => {
   document.getElementById('reveal').classList.remove('active');
   startGame();
 });
+
+
+// ============================================================================
+// CAVE 1 — ENTRADA / SAÍDA / INTERAÇÃO
+// ============================================================================
+
+function enterCave1() {
+  if (state.scene === 'cave1') return;
+  if (FX.sfx.uiBig) FX.sfx.uiBig();
+  const flash = document.getElementById('fxFlash');
+  flash.classList.add('fade');
+  setTimeout(() => {
+    state.scene = 'cave1';
+    if (!state.cave1) state.cave1 = { npcs: JSON.parse(JSON.stringify(CAVE1_NPCS_TEMPLATE)), bossDefeated: false, treasureFound: false };
+    state.cavePlayer = { x: 8, y: 18, dir: 'up' };
+    craPosHistory = [];
+    camera.x = Math.max(0, state.cavePlayer.x * CAVE1_TILE - canvas.width / 2);
+    camera.y = Math.max(0, state.cavePlayer.y * CAVE1_TILE - canvas.height / 2);
+    camera.targetX = camera.x; camera.targetY = camera.y;
+    saveGame();
+    flash.classList.remove('fade');
+    setTimeout(() => showToast('🕳️ Caverna Sombria — Nível 1'), 400);
+  }, 500);
+}
+
+function exitCave1() {
+  if (state.scene !== 'cave1') return;
+  if (FX.sfx.uiBig) FX.sfx.uiBig();
+  const flash = document.getElementById('fxFlash');
+  flash.classList.add('fade');
+  setTimeout(() => {
+    state.scene = 'world';
+    state.player = { x: 18, y: 3, dir: 'down' };
+    craPosHistory = [];
+    camera.x = Math.max(0, state.player.x * TILE - canvas.width / 2);
+    camera.y = Math.max(0, state.player.y * TILE - canvas.height / 2);
+    camera.targetX = camera.x; camera.targetY = camera.y;
+    saveGame();
+    flash.classList.remove('fade');
+    setTimeout(() => showToast('Você saiu da Caverna Sombria.'), 400);
+  }, 500);
+}
+
+function interactWithCaveNPC(npc) {
+  if (FX.sfx.ui) FX.sfx.ui();
+  if (npc.type === 'wisdom') {
+    showDialog(npc.name, npc.dialog || ['...']);
+    return;
+  }
+  if (npc.type === 'trainer') {
+    if (npc.trainer.defeated) {
+      showDialog(npc.name, ['Você me derrotou... as sombras se curvam à sua força.']);
+      return;
+    }
+    showDialog(npc.name, npc.dialog, () => startTrainerBattle(npc));
+    return;
+  }
+  if (npc.type === 'treasure') {
+    if (npc.loot && !npc.loot.given) {
+      npc.loot.given = true;
+      state.potions += npc.loot.potions || 0;
+      state.coins += npc.loot.coins || 0;
+      showDialog(npc.name, ['Você abriu a Caixa Ancestral! +' + (npc.loot.potions||0) + ' poções e +' + (npc.loot.coins||0) + ' moedas!']);
+      saveGame();
+    } else {
+      showDialog(npc.name, ['A caixa está vazia. Você já coletou o tesouro.']);
+    }
+    return;
+  }
+  showDialog(npc.name, npc.dialog || ['...']);
+}
+
+// ============================================================================
+// CAVE 1 — RENDER
+// ============================================================================
+
+function renderCave1(now) {
+  const cw = canvas.width, ch = canvas.height;
+  ctx.fillStyle = '#120a1a';
+  ctx.fillRect(0, 0, cw, ch);
+
+  let pX = state.cavePlayer.x * CAVE1_TILE, pY = state.cavePlayer.y * CAVE1_TILE;
+  if (movingTo) {
+    const t = Math.min(1, (now - movingTo.startTime) / MOVE_DURATION);
+    pX = (movingTo.fromX + (movingTo.toX - movingTo.fromX) * t) * CAVE1_TILE;
+    pY = (movingTo.fromY + (movingTo.toY - movingTo.fromY) * t) * CAVE1_TILE;
+  }
+
+  camera.targetX = pX + CAVE1_TILE / 2 - cw / 2;
+  camera.targetY = pY + CAVE1_TILE / 2 - ch / 2;
+  camera.targetX = Math.max(0, Math.min(CAVE1_W - cw, camera.targetX));
+  camera.targetY = Math.max(0, Math.min(CAVE1_H - ch, camera.targetY));
+  camera.x += (camera.targetX - camera.x) * 0.18;
+  camera.y += (camera.targetY - camera.y) * 0.18;
+  const camX = Math.round(camera.x), camY = Math.round(camera.y);
+
+  drawCave1Tiles(camX, camY, cw, ch, now);
+
+  let cX = pX - CAVE1_TILE, cY = pY;
+  if (craPosHistory.length > 0) {
+    const hist = craPosHistory[0];
+    cX = hist.x * CAVE1_TILE; cY = hist.y * CAVE1_TILE;
+    if (movingTo) {
+      const prev = craPosHistory[1] || hist;
+      const t = Math.min(1, (now - movingTo.startTime) / MOVE_DURATION);
+      cX = (prev.x + (hist.x - prev.x) * t) * CAVE1_TILE;
+      cY = (prev.y + (hist.y - prev.y) * t) * CAVE1_TILE;
+    }
+  }
+
+  const margin = CAVE1_TILE * 2;
+  const renderables = [];
+  for (const npc of state.cave1.npcs) {
+    const wx = npc.x * CAVE1_TILE, wy = npc.y * CAVE1_TILE;
+    if (wx < camX - margin || wx > camX + cw + margin) continue;
+    if (wy < camY - margin || wy > camY + ch + margin) continue;
+    renderables.push({ type: 'npc', npc, x: wx, y: wy });
+  }
+  renderables.push({ type: 'cria', x: cX, y: cY });
+  renderables.push({ type: 'player', x: pX, y: pY });
+  renderables.sort((a, b) => a.y - b.y);
+  for (const r of renderables) {
+    const sx = r.x - camX, sy = r.y - camY;
+    if (r.type === 'npc') drawNPC(r.npc, sx, sy, now);
+    else if (r.type === 'cria') drawCriaSprite(sx, sy, now);
+    else if (r.type === 'player') drawPlayer(sx, sy, now);
+  }
+
+  const stairSx = 9 * CAVE1_TILE - camX + CAVE1_TILE;
+  const stairSy = 1 * CAVE1_TILE - camY - 10;
+  if (stairSx > -80 && stairSx < cw + 80 && stairSy > -20 && stairSy < ch + 20) {
+    ctx.font = 'bold 12px sans-serif';
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    const lbl = '⬆️ Saída Nível 2';
+    const tw = ctx.measureText(lbl).width;
+    ctx.fillStyle = 'rgba(0,0,0,0.75)';
+    ctx.fillRect(stairSx - tw / 2 - 5, stairSy - 10, tw + 10, 16);
+    ctx.fillStyle = '#ffd700';
+    ctx.fillText(lbl, stairSx, stairSy);
+  }
+
+  FX.draw(ctx, camX, camY);
+
+  const ppx = pX + CAVE1_TILE / 2 - camX;
+  const ppy = pY + CAVE1_TILE / 2 - camY;
+  const grad = ctx.createRadialGradient(ppx, ppy, 20, ppx, ppy, 270);
+  grad.addColorStop(0, 'rgba(0,0,20,0)');
+  grad.addColorStop(0.3, 'rgba(0,0,20,0.15)');
+  grad.addColorStop(0.6, 'rgba(0,0,15,0.55)');
+  grad.addColorStop(1, 'rgba(0,0,10,0.93)');
+  ctx.fillStyle = grad;
+  ctx.fillRect(0, 0, cw, ch);
+}
+
+function drawCave1Tiles(camX, camY, cw, ch, now) {
+  const T = CAVE1_TILE;
+  const sc = Math.max(0, Math.floor(camX / T));
+  const ec = Math.min(CAVE1_GRID - 1, Math.ceil((camX + cw) / T));
+  const sr = Math.max(0, Math.floor(camY / T));
+  const er = Math.min(CAVE1_GRID - 1, Math.ceil((camY + ch) / T));
+
+  for (let row = sr; row <= er; row++) {
+    for (let col = sc; col <= ec; col++) {
+      const cell = CAVE1_COLLISION[row][col];
+      const sx = col * T - camX, sy = row * T - camY;
+      if (cell === 1) {
+        const sh = (col * 3 + row * 7) % 20;
+        ctx.fillStyle = 'rgb(' + (44+sh) + ',' + (34+sh) + ',' + (39+sh) + ')';
+        ctx.fillRect(sx, sy, T, T);
+        ctx.fillStyle = 'rgba(15,10,18,0.55)';
+        ctx.fillRect(sx, sy + T - 3, T, 3);
+        ctx.fillRect(sx + T - 3, sy, 3, T);
+        ctx.fillStyle = 'rgba(75,60,70,0.3)';
+        ctx.fillRect(sx, sy, T, 2);
+        ctx.fillRect(sx, sy, 2, T);
+      } else if (cell === 2) {
+        const wave = Math.sin(now * 0.002 + col * 0.7 + row * 0.5) * 6;
+        const alpha = 0.65 + Math.sin(now * 0.003 + col + row) * 0.15;
+        ctx.fillStyle = 'rgba(8,44,110,0.95)';
+        ctx.fillRect(sx, sy, T, T);
+        ctx.fillStyle = 'rgba(25,110,200,' + alpha + ')';
+        ctx.fillRect(sx, sy + 6 + wave, T, T / 2);
+        ctx.fillStyle = 'rgba(90,170,255,0.25)';
+        ctx.fillRect(sx + (col % 3) * 8, sy + 10, 12, 3);
+        ctx.fillRect(sx + (row % 4) * 6 + 8, sy + 22, 8, 2);
+      } else {
+        const sh = (col * 5 + row * 3) % 14;
+        ctx.fillStyle = 'rgb(' + (38+sh) + ',' + (30+sh) + ',' + (33+sh) + ')';
+        ctx.fillRect(sx, sy, T, T);
+        if ((col + row) % 6 === 0) {
+          ctx.strokeStyle = 'rgba(0,0,0,0.12)';
+          ctx.lineWidth = 1;
+          ctx.beginPath();
+          ctx.moveTo(sx + 10, sy + 14);
+          ctx.lineTo(sx + 28, sy + 36);
+          ctx.stroke();
+        }
+      }
+    }
+  }
+
+  for (const b of CAVE1_BRIDGE) {
+    const sx = b.x * T - camX, sy = b.y * T - camY;
+    if (sx < -T || sx > cw + T || sy < -T || sy > ch + T) continue;
+    ctx.fillStyle = '#4a2e0a';
+    ctx.fillRect(sx, sy, T, T);
+    ctx.fillStyle = '#6a4420';
+    for (let i = 2; i < T - 2; i += 11) {
+      ctx.fillRect(sx + 2, sy + i, T - 4, 8);
+    }
+    ctx.fillStyle = '#3a1e05';
+    ctx.fillRect(sx, sy, T, 3);
+    ctx.fillRect(sx, sy + T - 3, T, 3);
+  }
+
+  for (const z of CAVE1_BATTLE_ZONES) {
+    const zx = z.cx * T - camX + T / 2;
+    const zy = z.cy * T - camY + T / 2;
+    const r = z.r * T;
+    if (zx + r < 0 || zx - r > cw || zy + r < 0 || zy - r > ch) continue;
+    const pulse = Math.sin(now * 0.0015 + z.id) * 0.07 + 0.16;
+    ctx.beginPath();
+    ctx.arc(zx, zy, r, 0, Math.PI * 2);
+    ctx.fillStyle = z.minLv >= 3 ? 'rgba(170,35,35,' + pulse + ')' : 'rgba(170,95,15,' + pulse + ')';
+    ctx.fill();
+    ctx.strokeStyle = z.minLv >= 3 ? 'rgba(255,70,70,0.35)' : 'rgba(255,155,45,0.35)';
+    ctx.lineWidth = 2;
+    ctx.stroke();
+    ctx.font = 'bold 13px sans-serif';
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.fillStyle = 'rgba(255,255,255,0.45)';
+    ctx.fillText('⚔️', zx, zy);
+  }
+
+  const stx = 9 * T - camX, sty = 1 * T - camY;
+  if (stx > -T * 2 && stx < cw + T && sty > -T && sty < ch + T) {
+    ctx.fillStyle = '#3a2408';
+    ctx.fillRect(stx, sty, T * 2, T);
+    ctx.fillStyle = '#5a3818';
+    for (let i = 0; i < 5; i++) {
+      ctx.fillRect(stx + 3 + i * 9, sty + 4 + i * 7, T * 2 - 6 - i * 18, T - 8 - i * 14);
+    }
+    ctx.font = '26px serif';
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.fillText('△', stx + T, sty + T / 2);
+  }
+
+  for (const c of CAVE1_CRYSTALS) {
+    const cx2 = c.x * T - camX;
+    const cy2 = c.y * T - camY;
+    if (cx2 < -T || cx2 > cw + T || cy2 < -T || cy2 > ch + T) continue;
+    drawCave1Crystal(cx2, cy2, c.color, c.s, now);
+  }
+
+  for (const t of CAVE1_TORCHES) {
+    const tx = t.x * T - camX + T * 0.5;
+    const ty = t.y * T - camY + T * 0.72;
+    if (tx < -T || tx > cw + T || ty < -T || ty > ch + T) continue;
+    drawCave1Torch(tx, ty, now);
+  }
+
+  for (const c of CAVE1_CRATES) {
+    const cx2 = c.x * T - camX + T * 0.15;
+    const cy2 = c.y * T - camY + T * 0.22;
+    if (cx2 < -T || cx2 > cw + T) continue;
+    const cw2 = T * 0.68;
+    ctx.fillStyle = '#5a2e08';
+    ctx.fillRect(cx2, cy2, cw2, cw2);
+    ctx.fillStyle = '#7a4e28';
+    ctx.fillRect(cx2 + 2, cy2 + 2, cw2 - 4, cw2 - 4);
+    ctx.fillStyle = '#3a1e00';
+    ctx.fillRect(cx2, cy2 + cw2 * 0.42, cw2, 4);
+    ctx.fillRect(cx2 + cw2 * 0.42, cy2, 4, cw2);
+  }
+}
+
+function drawCave1Crystal(cx, cy, color, scale, now) {
+  const s = (scale || 1) * 17;
+  const pulse = 1 + Math.sin(now * 0.002 + cx * 0.011) * 0.11;
+  const sp = s * pulse;
+  ctx.save();
+  ctx.translate(cx, cy);
+  const grd = ctx.createRadialGradient(0, 0, 1, 0, 0, sp * 1.6);
+  const c1 = color.startsWith('#') ? hexToRgba(color, 0.38) : color;
+  grd.addColorStop(0, c1);
+  grd.addColorStop(1, 'rgba(0,0,0,0)');
+  ctx.fillStyle = grd;
+  ctx.beginPath(); ctx.arc(0, 0, sp * 1.6, 0, Math.PI * 2); ctx.fill();
+  ctx.fillStyle = color;
+  ctx.beginPath();
+  ctx.moveTo(0, -sp); ctx.lineTo(sp * 0.5, 0);
+  ctx.lineTo(0, sp * 0.6); ctx.lineTo(-sp * 0.5, 0);
+  ctx.closePath(); ctx.fill();
+  ctx.fillStyle = 'rgba(255,255,255,0.48)';
+  ctx.beginPath();
+  ctx.moveTo(0, -sp); ctx.lineTo(sp * 0.28, -sp * 0.18);
+  ctx.lineTo(0, 0); ctx.lineTo(-sp * 0.18, -sp * 0.28);
+  ctx.closePath(); ctx.fill();
+  ctx.restore();
+}
+
+function hexToRgba(hex, alpha) {
+  const r = parseInt(hex.slice(1,3),16), g = parseInt(hex.slice(3,5),16), b = parseInt(hex.slice(5,7),16);
+  return 'rgba(' + r + ',' + g + ',' + b + ',' + alpha + ')';
+}
+
+function drawCave1Torch(tx, ty, now) {
+  const flicker = Math.sin(now * 0.013 + tx * 0.01) * 3;
+  ctx.fillStyle = '#4a2808';
+  ctx.fillRect(tx - 3, ty - 2, 6, 13);
+  const grd = ctx.createRadialGradient(tx, ty - 9 + flicker, 2, tx, ty - 9 + flicker, 24);
+  grd.addColorStop(0, 'rgba(255,195,45,0.9)');
+  grd.addColorStop(0.4, 'rgba(255,95,15,0.5)');
+  grd.addColorStop(1, 'rgba(255,40,0,0)');
+  ctx.fillStyle = grd;
+  ctx.beginPath(); ctx.arc(tx, ty - 9 + flicker, 24, 0, Math.PI * 2); ctx.fill();
+  ctx.fillStyle = '#ffcc33';
+  ctx.beginPath();
+  ctx.moveTo(tx, ty - 17 + flicker);
+  ctx.bezierCurveTo(tx + 6, ty - 10, tx + 4, ty - 3, tx, ty + 1);
+  ctx.bezierCurveTo(tx - 4, ty - 3, tx - 6, ty - 10, tx, ty - 17 + flicker);
+  ctx.fill();
+}
 
 function startGame() {
   saveGame();
