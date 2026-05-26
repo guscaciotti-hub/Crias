@@ -1608,18 +1608,24 @@ function loadImage(src, timeout) {
 }
 
 async function loadAssets() {
-  // Carregar mapa mundo (obrigatório)
-  assets.map = await loadImage(MAP_URL, 10000);
-  // Carregar mapa da caverna (opcional)
-  try { assets.cave1map = await loadImage(CAVE1_MAP_URL, 10000); } catch(e) { console.warn('Cave map load failed:', e.message); }
-  // Carregar sprites de monstros em paralelo (muito mais rápido)
+  // Apenas o mapa do mundo bloqueia o carregamento (obrigatório)
+  assets.map = await loadImage(MAP_URL, 15000);
+  // Mapa da caverna e sprites carregam em background (não bloqueiam)
+  loadImage(CAVE1_MAP_URL, 15000)
+    .then(img => { assets.cave1map = img; })
+    .catch(() => {});
   if (typeof MONSTER_SPRITES !== 'undefined') {
     const keys = Object.keys(MONSTER_SPRITES);
-    await Promise.allSettled(keys.map(k =>
-      loadImage('data:image/png;base64,' + MONSTER_SPRITES[k], 8000)
-        .then(img => { assets.monsters[k] = img; })
-        .catch(e => console.warn('Sprite failed:', k))
-    ));
+    // Carregar sprites sequencialmente em background para não sobrecarregar mobile
+    (async () => {
+      for (const k of keys) {
+        try {
+          const img = await loadImage('data:image/png;base64,' + MONSTER_SPRITES[k], 6000);
+          assets.monsters[k] = img;
+        } catch(e) {}
+        await new Promise(r => setTimeout(r, 10)); // pequena pausa entre sprites
+      }
+    })();
   }
 }
 
