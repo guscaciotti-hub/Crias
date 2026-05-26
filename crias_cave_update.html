@@ -531,6 +531,10 @@
   .party-slot-btn .ps-hp-fill { height:100%;border-radius:2px;background:linear-gradient(90deg,#50c878,#2a9a4a); }
   .creature-faint { animation: faintAnim 0.8s forwards; }
   @keyframes faintAnim { to { transform: translateY(40px); opacity: 0; } }
+  @keyframes orbManiPulse {
+    0%,100% { transform: scale(1); filter: drop-shadow(0 0 20px #4dc3ff); }
+    50% { transform: scale(1.15); filter: drop-shadow(0 0 50px #4dc3ff); }
+  }
   @keyframes captureOrb {
     0%   { transform: scale(0) rotate(0deg); opacity:0; }
     30%  { transform: scale(1.4) rotate(180deg); opacity:1; }
@@ -1409,9 +1413,10 @@ const NPCS_TEMPLATE = [
     dialog: ['Bem-vindo de volta. Sua Cria precisa descansar?','Pronto, fortalecida pela energia do Nexus.'] },
   { id: 'guia', x: 11, y: 9, emoji: '🧙', name: 'Guia Solis', type: 'wisdom',
     dialog: [
-      'O Core Orb central pulsa há mil eras. Toda Cria nasce dele.',
-      'Sua Cria veio porque ela escolheu você. Não foi acaso.',
-      'A Caverna no norte é onde Crias selvagens se manifestam. Vá quando estiver forte.'
+      'O Core Orb central pulsa há mil eras. Toda Cria Única nasce dele.',
+      'Criaturas Únicas como ' + (state && state.cria ? MONSTERS[state.cria.species].name : 'a sua') + ' são manifestações raras — não existem em grandes quantidades.',
+      'Para despertar outra Cria Única no Core Orb, você precisará de um Orbe da Criação.',
+      'Esses artefatos são extremamente raros. Fique atento em suas explorações.'
     ]},
   { id: 'shop', x: 18, y: 10, emoji: '🧔', name: 'Vendedor Bartô', type: 'shop',
     dialog: ['Orbes de Captura! Use pra capturar Crias selvagens na Caverna.', `Orbe Comum: 80 moedas | Orbe Avançado: 200 moedas`],
@@ -1427,7 +1432,7 @@ const NPCS_TEMPLATE = [
     dialog: ['Eu sou Rocco e tô na batalha desde criancinha. Vem!'],
     trainer: { level: 3, defeated: false, reward: 60 } },
   { id: 'sage', x: 5, y: 17, emoji: '🥋', name: 'Mestre Yuri', type: 'trainer',
-    dialog: ['Provando teu valor antes de partir pra Caverna?'],
+    dialog: ['Provando teu valor antes de partir pra Caverna?', 'Derrote-me e te darei algo especial — um Orbe da Criação.'],
     trainer: { level: 4, defeated: false, reward: 100 } },
   { id: 'arena', x: 11, y: 5, emoji: '🎭', name: 'Mestre Augusto', type: 'arena',
     dialog: [
@@ -1675,7 +1680,7 @@ function newGameState(playerName, monster) {
     player: { x: 12, y: 11, dir: 'down' },
     coins: 80,
     potions: 1,
-    items: { orbeComum: 3, orbeAvancado: 0, orbeElite: 0, orbeMitico: 0 },
+    items: { orbeComum: 3, orbeAvancado: 0, orbeElite: 0, orbeMitico: 0, orbeCriacao: 0 },
     npcs: JSON.parse(JSON.stringify(NPCS_TEMPLATE)),
     enteredCave: false,
     encountersDefeated: 0,
@@ -2157,6 +2162,8 @@ function getInteractable() {
     return null;
   }
   for (const npc of state.npcs) if (npc.x === t.x && npc.y === t.y) return { npc };
+  // Core Orb interaction — player facing toward orb center (tile 11,11 / 12,11)
+  if ((t.x === 11 || t.x === 12) && (t.y === 11 || t.y === 12)) return { coreOrb: true };
   return null;
 }
 function updateActionButton() {
@@ -2174,6 +2181,7 @@ function tryInteract() {
     return;
   }
   if (i.cave) { interactWithCaveNPC(i.npc); return; }
+  if (i.coreOrb) { interactWithCoreOrb(); return; }
   if (i.npc) {
     if (i.npc.type === 'cave_portal') { showDialog(i.npc.name, i.npc.dialog, () => enterCave1()); }
     else { interactWithNPC(i.npc); }
@@ -2269,6 +2277,128 @@ function interactWithNPC(npc) {
     return;
   }
   showDialog(npc.name, npc.dialog || ['...']);
+}
+
+// ============================================================================
+// CORE ORB INTERACTION
+// ============================================================================
+const UNIQUE_SPECIES = ['aerix', 'voltalon', 'aquafy', 'terron']; // ignivar is the starter
+
+function interactWithCoreOrb() {
+  if (!state.items) state.items = {};
+  const hasOrbe = (state.items.orbeCriacao || 0) > 0;
+
+  if (!hasOrbe) {
+    showDialog('✨ Core Orb', [
+      'O Orb pulsa com energia ancestral...',
+      'Você sente que algo dorme aqui, esperando ser despertado.',
+      'Mas para manifestar uma Cria Única, você precisaria de um Orbe da Criação.',
+      'Encontre um para despertar uma criatura que jamais existiu antes.'
+    ]);
+    return;
+  }
+
+  // Check which uniques player already has
+  const owned = new Set();
+  owned.add(state.cria.species);
+  if (state.party) state.party.forEach(m => owned.add(m.species));
+  const available = UNIQUE_SPECIES.filter(s => !owned.has(s));
+
+  if (available.length === 0) {
+    showDialog('✨ Core Orb', [
+      'O Orb reconhece todas as Crias Únicas em você.',
+      'Você já possui todas as criaturas que ele pode manifestar.',
+      'Seu vínculo com o Core Orb está completo.'
+    ]);
+    return;
+  }
+
+  showDialog('✨ Core Orb', [
+    'O Orb tremula... ele sente o Orbe da Criação!',
+    'Uma energia enorme começa a se concentrar...',
+    'Uma Cria Única está prestes a se manifestar!'
+  ], () => startCoreOrbManifestation(available));
+}
+
+async function startCoreOrbManifestation(available) {
+  state.items.orbeCriacao--;
+  saveGame();
+
+  // Pick a random unique the player doesn't have
+  const species = pick(available);
+  const def = MONSTERS[species];
+
+  // Dark screen + particles
+  const overlay = document.createElement('div');
+  overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,20,0);z-index:50;display:flex;align-items:center;justify-content:center;flex-direction:column;gap:16px;transition:background 1.2s;';
+  document.body.appendChild(overlay);
+
+  const title = document.createElement('div');
+  title.style.cssText = 'font-size:14px;font-weight:700;letter-spacing:0.2em;color:#4dc3ff;opacity:0;transition:opacity 1s;text-align:center;text-transform:uppercase;';
+  title.textContent = '— Core Orb Manifesting —';
+
+  const creatureName = document.createElement('div');
+  creatureName.style.cssText = `font-size:36px;font-weight:900;color:${def.color};opacity:0;transition:opacity 1s;text-shadow:0 0 40px ${def.color};text-align:center;`;
+  creatureName.textContent = def.name;
+
+  const loreText = document.createElement('div');
+  loreText.style.cssText = 'font-size:13px;color:#8ab0dd;max-width:280px;text-align:center;opacity:0;transition:opacity 0.8s;line-height:1.5;';
+  loreText.textContent = def.lore;
+
+  const orbEmoji = document.createElement('div');
+  orbEmoji.style.cssText = 'font-size:80px;opacity:0;transition:opacity 0.5s;animation:orbManiPulse 1.5s ease-in-out infinite;';
+  orbEmoji.textContent = '✨';
+
+  const confirmBtn = document.createElement('button');
+  confirmBtn.className = 'btn';
+  confirmBtn.textContent = 'Receber ' + def.name;
+  confirmBtn.style.cssText = 'opacity:0;transition:opacity 0.5s;margin-top:8px;';
+
+  overlay.appendChild(title);
+  overlay.appendChild(orbEmoji);
+  overlay.appendChild(creatureName);
+  overlay.appendChild(loreText);
+  overlay.appendChild(confirmBtn);
+
+  // Animate in
+  await new Promise(r => setTimeout(r, 50));
+  overlay.style.background = 'rgba(0,0,20,0.97)';
+  await new Promise(r => setTimeout(r, 400));
+  title.style.opacity = '1';
+  orbEmoji.style.opacity = '1';
+  await new Promise(r => setTimeout(r, 800));
+  creatureName.style.opacity = '1';
+  await new Promise(r => setTimeout(r, 600));
+  loreText.style.opacity = '1';
+  await new Promise(r => setTimeout(r, 700));
+  confirmBtn.style.opacity = '1';
+
+  FX.sfx && FX.sfx.uiBig && FX.sfx.uiBig();
+
+  await new Promise(resolve => {
+    confirmBtn.onclick = () => {
+      // Generate the unique monster at player's level + 2
+      const lvl = Math.max(5, (state.cria.level || 1) + 2);
+      const newMon = generateMonster(species, lvl);
+      newMon.unique = true;
+
+      if (!state.party) state.party = [];
+      if (state.party.length < PARTY_MAX - 1) {
+        state.party.push(newMon);
+      } else {
+        // Party full — show warning
+        showToast(`Equipe cheia! ${def.name} retornou ao éter.`);
+      }
+      saveGame();
+      overlay.style.opacity = '0';
+      overlay.style.transition = 'opacity 0.5s';
+      setTimeout(() => {
+        overlay.remove();
+        showToast(`✨ ${def.name} se uniu a você!`);
+      }, 500);
+      resolve();
+    };
+  });
 }
 
 // ============================================================================
@@ -2702,6 +2832,12 @@ function endBattle(result, isCapture) {
     if (battleState.options.trainer) {
       battleState.options.trainer.trainer.defeated = true;
       state.trainerWins++;
+      // Special reward: Mestre Yuri gives Orbe da Criação on first defeat
+      if (battleState.options.trainer.id === 'sage') {
+        if (!state.items) state.items = {};
+        state.items.orbeCriacao = (state.items.orbeCriacao || 0) + 1;
+        showToast('🌟 Mestre Yuri te deu um Orbe da Criação!');
+      }
     } else {
       state.encountersDefeated++;
     }
@@ -3420,7 +3556,7 @@ function drawLabels(camX, camY, cw, ch) {
     { x: 20, y: 7.5, text: '🏪 Loja' },
     { x: 3, y: 14, text: '⚔️ Dojo' },
     { x: 20, y: 13, text: '🔮 Cúpula' },
-    { x: 11, y: 11, text: '✨ Core Orb' },
+    { x: 11, y: 11, text: '✨ Core Orb', sub: 'Pressione A' },
     { x: 18, y: 0.5, text: '🕳️ Caverna' }
   ];
   ctx.font = 'bold 13px sans-serif';
@@ -3490,7 +3626,8 @@ document.getElementById('btnEnter').addEventListener('click', () => {
     if (!state.scene) state.scene = 'world';
     if (!state.cave1) state.cave1 = { npcs: JSON.parse(JSON.stringify(CAVE1_NPCS_TEMPLATE)), bossDefeated: false, treasureFound: false };
     if (!state.cavePlayer) state.cavePlayer = { x: 8, y: 18, dir: 'up' };
-    if (!state.items) state.items = { orbeComum: 3, orbeAvancado: 0, orbeElite: 0, orbeMitico: 0 };
+    if (!state.items) state.items = { orbeComum: 3, orbeAvancado: 0, orbeElite: 0, orbeMitico: 0, orbeCriacao: 0 };
+  if (state.items.orbeCriacao === undefined) state.items.orbeCriacao = 0;
     if (!state.party) state.party = [];
     document.getElementById('login').classList.remove('active');
     startGame();
