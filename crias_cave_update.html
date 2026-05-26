@@ -1904,6 +1904,7 @@ function tryMove(dir) {
 }
 
 function update(t) {
+  if (!state) return;
   if (movingTo) {
     const elapsed = t - movingTo.startTime;
     if (elapsed >= MOVE_DURATION) {
@@ -2087,7 +2088,8 @@ function interactWithNPC(npc) {
 // ============================================================================
 function startWildEncounter() {
   if (inBattle || inDialog || inMenu) return;
-  const speciesId = pick(Object.keys(MONSTERS));
+  const worldPool = Object.keys(MONSTERS).filter(k => k !== 'shadowyn');
+  const speciesId = pick(worldPool);
   const lvlBase = state.cria.level;
   const enemyLevel = Math.max(1, randInt(lvlBase - 1, lvlBase + 1));
   const enemy = generateMonster(speciesId, enemyLevel);
@@ -2095,7 +2097,8 @@ function startWildEncounter() {
 }
 
 function startTrainerBattle(npc) {
-  const speciesId = pick(Object.keys(MONSTERS));
+  const pool = Object.keys(MONSTERS).filter(k => k !== 'shadowyn');
+  const speciesId = pick(pool);
   const enemy = generateMonster(speciesId, npc.trainer.level);
   startBattle(enemy, { trainer: npc, reward: npc.trainer.reward });
 }
@@ -2517,7 +2520,7 @@ function selectCombo(comboId) {
 let _lastMovingTo = null;
 let _stepCount = 0;
 function drawComposedPlayer(px, py, now) {
-  const dir = (state && state.player.dir) || 'down';
+  const dir = (state && state.scene === 'cave1') ? (state.cavePlayer.dir || 'down') : ((state && state.player.dir) || 'down');
   let frameIdx = 0;
   if (movingTo) {
     const t = (now - movingTo.startTime) / MOVE_DURATION;
@@ -2560,7 +2563,9 @@ document.getElementById('obConfirm').addEventListener('click', async () => {
     const name = (document.getElementById('obName2').value.trim()) || 'Treinador';
     const combo = selectedCombo;
     document.getElementById('onboard').classList.remove('active');
-    const monster = generateMonster();
+    // Não usar shadowyn como Cria inicial (só aparece na caverna)
+    const startPool = Object.keys(MONSTERS).filter(k => k !== 'shadowyn');
+    const monster = generateMonster(pick(startPool));
     state = newGameState(name, monster);
     state.appearance = { comboId: combo };
     // Garantir sprites carregados antes da cinemática
@@ -2891,7 +2896,7 @@ function render(now) {
   const cw = canvas.width, ch = canvas.height;
   ctx.fillStyle = '#0a0e1a';
   ctx.fillRect(0, 0, cw, ch);
-  if (!assets.map) return;
+  if (!assets.map || !state) return;
 
   // CAVE SCENE
   if (state.scene === 'cave1') { renderCave1(now); return; }
@@ -3027,7 +3032,7 @@ function drawPlayer(px, py, now) {
     drawComposedPlayer(px, py, now);
     return;
   }
-  const dir = state.player.dir;
+  const dir = (state && state.scene === 'cave1') ? state.cavePlayer.dir : state.player.dir;
   const cid = (state && state.charId) ? state.charId : 'c1';
 
   // Calcular frame de animação
