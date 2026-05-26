@@ -520,6 +520,18 @@
   .creature-attack-enemy { animation: attackE 0.4s; }
   @keyframes attackP { 50% { transform: scale(1.15) translate(20px, -10px); } }
   @keyframes attackE { 50% { transform: translate(-20px, 10px); } }
+  /* Shop */
+  .shop-item { display:flex; align-items:center; gap:12px; background:linear-gradient(90deg,#1a2a3a,#0d1a2a); border:2px solid #2a3a5a; border-radius:6px; padding:10px 12px; }
+  .shop-item .si-icon { font-size:32px; flex-shrink:0; width:40px; text-align:center; }
+  .shop-item .si-info { flex:1; }
+  .shop-item .si-name { font-size:13px; font-weight:800; color:#fff; }
+  .shop-item .si-desc { font-size:10px; color:#8ab0dd; margin-top:2px; line-height:1.4; }
+  .shop-item .si-owned { font-size:11px; color:#4dc3ff; margin-top:3px; }
+  .shop-item .si-buy { background:linear-gradient(180deg,#1a4a2a,#0d2a18); border:2px solid #50c878; border-radius:4px; color:#50c878; font-size:11px; font-weight:700; padding:6px 10px; cursor:pointer; flex-shrink:0; text-align:center; min-width:70px; }
+  .shop-item .si-buy:hover { background:linear-gradient(180deg,#2a6a3a,#1a4a28); }
+  .shop-item .si-buy:disabled { opacity:0.4; cursor:not-allowed; }
+  .shop-item .si-price { font-size:10px; color:#ffd700; display:block; margin-top:2px; }
+
   /* Party swap */
   .party-slot-btn { display:flex;align-items:center;gap:10px;background:linear-gradient(90deg,#1a2a3a,#0d1a2a);border:2px solid #2a3a5a;border-radius:6px;padding:8px 12px;cursor:pointer;width:100%;color:#fff;transition:all 0.15s; }
   .party-slot-btn:hover { border-color:#4dc3ff; background:linear-gradient(90deg,#2a3a4a,#1a2a3a); }
@@ -1186,6 +1198,25 @@
   </div>
 </div>
 
+<!-- SHOP -->
+<div id="shop" class="overlay" style="z-index:15;">
+  <div class="panel" style="max-width:400px;padding:0;overflow:hidden;">
+    <div style="background:linear-gradient(180deg,#0d1a2a,#0a1020);padding:14px 16px;border-bottom:2px solid #4dc3ff;display:flex;align-items:center;justify-content:space-between;">
+      <div>
+        <div style="font-size:15px;font-weight:800;color:#4dc3ff;">🧔 Vendedor Bartô</div>
+        <div style="font-size:11px;color:#8ab0dd;margin-top:2px;">Orbes mágicos para sua jornada</div>
+      </div>
+      <div style="text-align:right;">
+        <div style="font-size:13px;font-weight:700;color:#ffd700;" id="shopCoins">0 💰</div>
+      </div>
+    </div>
+    <div id="shopItemList" style="padding:10px;display:flex;flex-direction:column;gap:8px;max-height:360px;overflow-y:auto;"></div>
+    <div style="padding:10px;border-top:1px solid #1a2a3a;">
+      <button class="btn" onclick="document.getElementById('shop').classList.remove('active');inMenu=false;" style="width:100%;font-size:12px;padding:8px;">Fechar Loja</button>
+    </div>
+  </div>
+</div>
+
 <!-- MENU -->
 <div id="menu" class="overlay">
   <div class="panel">
@@ -1415,10 +1446,9 @@ const NPCS_TEMPLATE = [
       'Esses artefatos são raros. Procure grandes desafios para obtê-los.'
     ]},
   { id: 'shop', x: 18, y: 10, emoji: '🧔', name: 'Vendedor Bartô', type: 'shop',
-    dialog: ['Orbes de Captura! Use pra capturar Crias selvagens na Caverna.', `Orbe Comum: 80 moedas | Orbe Avançado: 200 moedas`],
     shopItems: [
-      { key: 'orbeComum',    qty: 1, price: 80  },
-      { key: 'orbeAvancado', qty: 1, price: 200 },
+      { key: 'orbeComum',    qty: 1, price: 80,  icon: '🔵', name: 'Orbe de Captura',  desc: 'Captura Crias selvagens na Caverna. 30% de chance base.' },
+      { key: 'orbeCriacao',  qty: 1, price: 500, icon: '🌟', name: 'Orbe da Criação',  desc: 'Use no Core Orb para manifestar uma Cria Única exclusiva.' },
     ],
     gift: { qty: 0, given: true } },
   { id: 'rival1', x: 6, y: 11, emoji: '👧', name: 'Lulu', type: 'trainer',
@@ -2215,6 +2245,50 @@ function closeDialog() {
 }
 document.getElementById('dialog').addEventListener('click', () => { FX.sfx.ui(); advanceDialog(); });
 
+function openShop(npc) {
+  inMenu = true;
+  const overlay = document.getElementById('shop');
+  const list    = document.getElementById('shopItemList');
+  const coinsEl = document.getElementById('shopCoins');
+
+  function refresh() {
+    coinsEl.textContent = (state.coins || 0) + ' 💰';
+    list.innerHTML = '';
+    (npc.shopItems || []).forEach(item => {
+      const owned   = (state.items && state.items[item.key]) || 0;
+      const canBuy  = (state.coins || 0) >= item.price;
+      const el      = document.createElement('div');
+      el.className  = 'shop-item';
+      el.innerHTML  = `
+        <div class="si-icon">${item.icon}</div>
+        <div class="si-info">
+          <div class="si-name">${item.name}</div>
+          <div class="si-desc">${item.desc}</div>
+          <div class="si-owned">Possuídos: ${owned}</div>
+        </div>
+        <div>
+          <button class="si-buy" ${canBuy ? '' : 'disabled'}>
+            Comprar
+            <span class="si-price">${item.price} 💰</span>
+          </button>
+        </div>`;
+      el.querySelector('.si-buy').addEventListener('click', () => {
+        if ((state.coins || 0) < item.price) { showToast('Moedas insuficientes!'); return; }
+        state.coins -= item.price;
+        if (!state.items) state.items = {};
+        state.items[item.key] = (state.items[item.key] || 0) + item.qty;
+        showToast(`${item.icon} ${item.name} comprado! -${item.price} 💰`);
+        saveGame();
+        refresh();
+      });
+      list.appendChild(el);
+    });
+  }
+
+  refresh();
+  overlay.classList.add('active');
+}
+
 function interactWithNPC(npc) {
   if (npc.type === 'cave_portal') {
     showDialog(npc.name, npc.dialog, () => enterCave1());
@@ -2235,37 +2309,7 @@ function interactWithNPC(npc) {
     return;
   }
   if (npc.type === 'shop') {
-    // Build shop dialog with buy options
-    const shopLines = [...npc.dialog];
-    if (npc.shopItems && npc.shopItems.length) {
-      npc.shopItems.forEach(item => {
-        const orb = CAPTURE_ORBS[item.key];
-        if (orb) shopLines.push(`${orb.emoji} ${orb.name}: ${item.price} 💰 (tens ${(state.items && state.items[item.key]) || 0})`);
-      });
-      shopLines.push(`Tuas moedas: ${state.coins} 💰`);
-      // Auto-buy first affordable item on confirm — show options via dialog
-      const buyMsg = npc.shopItems.map(item => {
-        const orb = CAPTURE_ORBS[item.key];
-        return `Comprar ${orb.name} (${item.price} 💰)?`;
-      });
-      showDialog(npc.name, shopLines, () => {
-        // Simple purchase loop: try to buy orbeComum
-        let bought = false;
-        npc.shopItems.forEach(item => {
-          if (!bought && state.coins >= item.price) {
-            state.coins -= item.price;
-            if (!state.items) state.items = {};
-            state.items[item.key] = (state.items[item.key] || 0) + item.qty;
-            showToast(`Comprou ${CAPTURE_ORBS[item.key].name}! 💰-${item.price}`);
-            bought = true;
-            saveGame();
-          }
-        });
-        if (!bought) showToast('Moedas insuficientes!');
-      });
-    } else {
-      showDialog(npc.name, npc.dialog || ['...']);
-    }
+    openShop(npc);
     return;
   }
   if (npc.type === 'trainer') {
