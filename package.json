@@ -9,7 +9,7 @@
   ],
   "scripts": {
     "dev": "concurrently \"pnpm --filter server dev\" \"pnpm --filter client dev\"",
-    "build": "pnpm --filter client build && pnpm --filter server build",
+    "build": "pnpm --filter client build && cd server && node_modules/.bin/tsc && cd ..",
     "start": "pnpm --filter server start",
     "db:push": "drizzle-kit push",
     "db:studio": "drizzle-kit studio"
