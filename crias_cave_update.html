@@ -3004,16 +3004,18 @@ function render(now) {
   const srcH = ch / MAP_SCALE;
   ctx.drawImage(assets.map, srcX, srcY, srcW, srcH, 0, 0, cw, ch);
 
-  // Cria follow position
+  // Cria follow position — always exactly 1 cell behind player
   let cX, cY;
   if (craPosHistory.length > 0) {
     const hist = craPosHistory[0];
     cX = hist.x * TILE; cY = hist.y * TILE;
     if (movingTo) {
-      const prev = craPosHistory[1] || { x: hist.x, y: hist.y };
+      // Animate from cria's current position (hist) toward where player started (movingTo.from)
+      // so cria is always 1 cell behind the player throughout the animation
+      const from = { x: movingTo.fromX, y: movingTo.fromY };
       const t = Math.min(1, (now - movingTo.startTime) / MOVE_DURATION);
-      cX = (prev.x + (hist.x - prev.x) * t) * TILE;
-      cY = (prev.y + (hist.y - prev.y) * t) * TILE;
+      cX = (hist.x + (from.x - hist.x) * t) * TILE;
+      cY = (hist.y + (from.y - hist.y) * t) * TILE;
     }
   } else {
     cX = (state.player.x - 1) * TILE; cY = state.player.y * TILE;
@@ -3371,10 +3373,12 @@ function renderCave1(now) {
     const hist = craPosHistory[0];
     cX = hist.x * CAVE1_TILE; cY = hist.y * CAVE1_TILE;
     if (movingTo) {
-      const prev = craPosHistory[1] || hist;
+      // Animate from cria's current position (hist) toward player's start (movingTo.from)
+      // ensures cria is always exactly 1 cell behind the player
+      const from = { x: movingTo.fromX, y: movingTo.fromY };
       const t = Math.min(1, (now - movingTo.startTime) / MOVE_DURATION);
-      cX = (prev.x + (hist.x - prev.x) * t) * CAVE1_TILE;
-      cY = (prev.y + (hist.y - prev.y) * t) * CAVE1_TILE;
+      cX = (hist.x + (from.x - hist.x) * t) * CAVE1_TILE;
+      cY = (hist.y + (from.y - hist.y) * t) * CAVE1_TILE;
     }
   }
 
