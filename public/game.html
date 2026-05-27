@@ -2637,6 +2637,7 @@ function interactWithNPC(npc) {
     return;
   }
   if (npc.type === 'home' && npc.healing) {
+    if (!state.cria) { showDialog(npc.name, ['Manifeste sua primeira Cria no Core Orb primeiro!']); return; }
     const hurt = state.cria.hp < state.cria.maxHp;
     state.cria.hp = state.cria.maxHp;
     showDialog(npc.name, hurt ? ['Pronto. Sua Cria está renovada pelo Nexus. 💖'] : npc.dialog);
@@ -2721,7 +2722,7 @@ function interactWithCoreOrb() {
     ]);
     return;
   }
-  const haveSpecies = new Set([state.cria.species, ...(state.party||[]).map(m=>m.species)]);
+  const haveSpecies = new Set([...(state.cria ? [state.cria.species] : []), ...(state.party||[]).map(m=>m.species)]);
   const available = UNIQUE_SPECIES.filter(sp => !haveSpecies.has(sp));
   if (available.length === 0) {
     showDialog('✨ Core Orb', [
@@ -2808,6 +2809,157 @@ async function startFirstCreatureManifestation() {
   });
 }
 
+
+// ============================================================================
+// WELCOME CINEMATIC — played once at account creation
+// ============================================================================
+function playWelcomeCinematic(name) {
+  return new Promise(resolve => {
+    // Overlay
+    const ov = document.createElement('div');
+    ov.style.cssText = 'position:fixed;inset:0;background:#000;z-index:9999;display:flex;align-items:center;justify-content:center;flex-direction:column;overflow:hidden;cursor:pointer;';
+    document.body.appendChild(ov);
+
+    // Star-particle canvas
+    const cvs = document.createElement('canvas');
+    cvs.style.cssText = 'position:absolute;inset:0;width:100%;height:100%;pointer-events:none;';
+    cvs.width = Math.min(window.innerWidth, 800);
+    cvs.height = Math.min(window.innerHeight, 800);
+    ov.appendChild(cvs);
+    const cx2 = cvs.getContext('2d');
+
+    const stars = Array.from({length:90}, () => ({
+      x: Math.random() * cvs.width, y: Math.random() * cvs.height,
+      r: Math.random() * 1.5 + 0.3, phase: Math.random() * Math.PI * 2,
+      spd: Math.random() * 0.015 + 0.005
+    }));
+    // Orb particles
+    const orbs = Array.from({length:12}, (_, i) => ({
+      angle: (i / 12) * Math.PI * 2, dist: 60 + Math.random() * 30,
+      r: Math.random() * 3 + 2, color: Math.random() > 0.5 ? '#4dc3ff' : '#a78bfa'
+    }));
+
+    let animId, t0 = performance.now();
+    function animFrame(now) {
+      const t = (now - t0) / 1000;
+      cx2.clearRect(0, 0, cvs.width, cvs.height);
+      const cx = cvs.width / 2, cy = cvs.height / 2;
+
+      // Stars
+      for (const s of stars) {
+        s.phase += s.spd;
+        const a = (Math.sin(s.phase) * 0.5 + 0.5) * 0.7;
+        cx2.fillStyle = `rgba(140,190,255,${a})`;
+        cx2.beginPath(); cx2.arc(s.x, s.y, s.r, 0, Math.PI*2); cx2.fill();
+      }
+
+      // Glowing orb in center (fades in after 0.5s)
+      if (t > 0.5) {
+        const fade = Math.min(1, (t - 0.5) / 1);
+        const pulse = 1 + Math.sin(t * 2.5) * 0.12;
+        const gr = cx2.createRadialGradient(cx, cy, 0, cx, cy, 55 * pulse);
+        gr.addColorStop(0, `rgba(100,200,255,${0.6 * fade})`);
+        gr.addColorStop(0.4, `rgba(77,195,255,${0.25 * fade})`);
+        gr.addColorStop(1, 'rgba(0,0,0,0)');
+        cx2.fillStyle = gr;
+        cx2.beginPath(); cx2.arc(cx, cy, 55 * pulse, 0, Math.PI*2); cx2.fill();
+
+        // Orbit particles
+        for (const o of orbs) {
+          o.angle += 0.008;
+          const ox = cx + Math.cos(o.angle) * o.dist * pulse;
+          const oy = cy + Math.sin(o.angle) * o.dist * 0.45 * pulse;
+          cx2.fillStyle = o.color + Math.floor(fade * 200).toString(16).padStart(2,'0');
+          cx2.beginPath(); cx2.arc(ox, oy, o.r, 0, Math.PI*2); cx2.fill();
+        }
+      }
+      animId = requestAnimationFrame(animFrame);
+    }
+    animId = requestAnimationFrame(animFrame);
+
+    // Text content
+    const content = document.createElement('div');
+    content.style.cssText = 'position:relative;z-index:2;text-align:center;padding:0 24px;max-width:340px;';
+    ov.appendChild(content);
+
+    function el(tag, css, html) {
+      const e = document.createElement(tag);
+      e.style.cssText = css + ';opacity:0;transition:opacity 0.9s,transform 0.9s;';
+      if (html) e.innerHTML = html; return e;
+    }
+
+    const logo = el('div',
+      'font-size:48px;font-weight:900;letter-spacing:0.35em;color:#4dc3ff;font-family:monospace;text-shadow:0 0 50px #4dc3ff,0 0 100px rgba(77,195,255,0.4);transform:scale(0.85);',
+      'N&thinsp;E&thinsp;X&thinsp;U&thinsp;S'
+    );
+    const tagline = el('div',
+      'font-size:11px;letter-spacing:0.55em;color:#5a8aaa;margin-top:6px;transform:translateY(4px);',
+      'CRIAS DO NEXUS'
+    );
+    const line = document.createElement('div');
+    line.style.cssText = 'width:0;height:1px;background:linear-gradient(90deg,transparent,#4dc3ff,transparent);margin:20px auto;opacity:0;transition:width 1s ease,opacity 0.5s;';
+
+    const welcome = el('div',
+      'font-size:17px;font-weight:700;color:#e8f4ff;letter-spacing:0.12em;transform:translateY(6px);',
+      'BEM-VINDO, ' + (name || 'TREINADOR').toUpperCase()
+    );
+    const lore1 = el('div',
+      'font-size:12.5px;color:#7aa8cc;line-height:1.65;margin-top:14px;transform:translateY(4px);',
+      'Em um mundo onde Crias extraordinárias habitam cada canto do Nexus, um novo Treinador é chamado.'
+    );
+    const lore2 = el('div',
+      'font-size:13px;font-weight:600;color:#4dc3ff;margin-top:10px;transform:translateY(4px);letter-spacing:0.05em;',
+      'Sua jornada começa agora. ✨'
+    );
+    const hint = document.createElement('div');
+    hint.textContent = '— Toque para continuar —';
+    hint.style.cssText = 'font-size:11px;color:#3a5870;opacity:0;margin-top:30px;letter-spacing:0.1em;transition:opacity 0.5s;';
+
+    content.append(logo, tagline, line, welcome, lore1, lore2, hint);
+
+    // Blink animation for hint
+    let blinkI = 0;
+    let blinkInterval;
+
+    // Sequence
+    async function sequence() {
+      const w = r => new Promise(res => setTimeout(res, r));
+      await w(200);
+      logo.style.opacity = '1'; logo.style.transform = 'scale(1)';
+      await w(800);
+      tagline.style.opacity = '1'; tagline.style.transform = 'translateY(0)';
+      line.style.opacity = '1'; line.style.width = '180px';
+      await w(900);
+      welcome.style.opacity = '1'; welcome.style.transform = 'translateY(0)';
+      await w(750);
+      lore1.style.opacity = '1'; lore1.style.transform = 'translateY(0)';
+      await w(750);
+      lore2.style.opacity = '1'; lore2.style.transform = 'translateY(0)';
+      await w(500);
+      hint.style.opacity = '0.5';
+      blinkInterval = setInterval(() => {
+        blinkI++;
+        hint.style.opacity = blinkI % 2 === 0 ? '0.5' : '0.9';
+      }, 700);
+      canDismiss = true;
+    }
+    sequence();
+
+    let canDismiss = false;
+    function dismiss() {
+      if (blinkInterval) clearInterval(blinkInterval);
+      cancelAnimationFrame(animId);
+      ov.style.transition = 'opacity 0.65s';
+      ov.style.opacity = '0';
+      setTimeout(() => { ov.remove(); resolve(); }, 650);
+    }
+
+    ov.addEventListener('click', () => { if (canDismiss) dismiss(); });
+    ov.addEventListener('touchend', () => { if (canDismiss) dismiss(); });
+    // Auto-advance after 8s
+    setTimeout(() => { if (document.body.contains(ov)) dismiss(); }, 8000);
+  });
+}
 
 function startWildEncounter() {
   if (inBattle || inDialog || inMenu || !state.cria) return;
@@ -3753,24 +3905,30 @@ document.getElementById('obConfirm').addEventListener('click', async () => {
   try {
     const name = (document.getElementById('obName2').value.trim()) || 'Treinador';
     const combo = selectedCombo;
-    document.getElementById('onboard').classList.remove('active');
-    // Jogador entra no mapa SEM Cria — Guia Solis entrega Orbe da Criação
-    // e o jogador vai ao Core Orb para manifestar sua primeira Cria
+
+    // Prepare state first
     state = newGameState(name, null);
     state.appearance = { comboId: combo };
     await preloadComboSprites(combo);
-    // Entrar direto no jogo — sem cinemática de manifesta ção ainda
+
+    // Hide all overlays so game canvas is "ready" beneath the cinematic
     document.querySelectorAll('.overlay').forEach(o => {
       if (o.id !== 'login') o.classList.remove('active');
     });
+
+    // Play creative welcome cinematic (covers screen with z-index:9999)
+    await playWelcomeCinematic(name);
+
+    // Cinematic done → start game
     startGame();
     setTimeout(() => {
       showDialog('🧙 Guia Solis', [
         'Bem-vindo ao Nexus, ' + name + '!',
-        'Encontre o Guia Solis — o mago perto do Core Orb — para começar sua jornada.',
-        'Ele te dará o que você precisa para despertar sua primeira Cria.'
+        'Eu sou o Guia Solis. Siga-me até o Core Orb no centro da praça.',
+        'Vou te dar o Orbe da Criação — sem ele, nenhuma Cria pode despertar.',
+        'Sua jornada começa agora, Treinador.'
       ]);
-    }, 800);
+    }, 400);
   } catch(e) {
     console.error('obConfirm error:', e);
     if (state) {
@@ -4146,7 +4304,7 @@ function render(now) {
     if (wy < camY - margin || wy > camY + ch + margin) continue;
     renderables.push({ type: 'npc', npc, x: wx, y: wy });
   }
-  renderables.push({ type: 'cria', x: cX, y: cY });
+  if (state.cria) renderables.push({ type: 'cria', x: cX, y: cY });
   renderables.push({ type: 'player', x: pX, y: pY });
   renderables.sort((a, b) => a.y - b.y);
 
