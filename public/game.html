@@ -2638,13 +2638,9 @@ function tryInteract() {
   if (i.coreOrb) { interactWithCoreOrb(); return; }
   if (i.npc) {
     if (i.npc.type === 'cave_portal') {
-      if (!state.cria) { showDialog(npc.name, ['Você precisa ter uma Cria antes de entrar!','Fale com o Guia Solis no centro da praça.']); return; }
-    const criLv = state.cria.level || 1;
-      if (criLv < 5) {
-        showDialog('⚔️ Guarda Kalos', ['A Caverna Sombria não é lugar para Crias inexperientes.', 'Fortaleça sua Cria até o nível 5 e retorne.']);
-      } else {
-        showDialog(i.npc.name, i.npc.dialog, () => enterCave1());
-      }
+      // TEMP: unlocked for testing
+      if (!state.cria) { showDialog('Caverna', ['Você precisa ter uma Cria antes de entrar!']); return; }
+      showDialog(i.npc.name, i.npc.dialog, () => enterCave1());
       return;
     }
     else { interactWithNPC(i.npc); }
@@ -2786,12 +2782,8 @@ function interactWithNPC(npc) {
     return;
   }
   if (npc.type === 'cave_guard') {
-    const criLv = state.cria ? (state.cria.level || 1) : 0;
-    if (criLv < 5) {
-      showDialog(npc.name, npc.dialog || ['Sua Cria ainda não está pronta.']);
-    } else {
-      showDialog(npc.name, npc.dialogOpen || ['Pode passar. Boa sorte!'], () => enterCave1());
-    }
+    // TEMP: cave unlocked for testing — remove level check
+    showDialog(npc.name, npc.dialogOpen || ['Pode passar. Boa sorte!'], () => enterCave1());
     return;
   }
   showDialog(npc.name, npc.dialog || ['...']);
