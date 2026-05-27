@@ -2,12 +2,12 @@
 nixPkgs = ["nodejs_22", "python3", "pkg-config", "gcc"]
 
 [phases.install]
-cmds = ["npm install -g pnpm", "pnpm install --frozen-lockfile"]
+cmds = ["corepack enable && pnpm install"]
 
 [phases.build]
 cmds = [
   "pnpm --filter client build",
-  "pnpm --filter server build"
+  "cd server && node_modules/.bin/tsc"
 ]
 
 [start]

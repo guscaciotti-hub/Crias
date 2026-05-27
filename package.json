@@ -2,6 +2,7 @@
   "name": "atendeai",
   "version": "1.0.0",
   "private": true,
+  "packageManager": "pnpm@10.33.0",
   "workspaces": [
     "server",
     "client",
@@ -9,8 +10,8 @@
   ],
   "scripts": {
     "dev": "concurrently \"pnpm --filter server dev\" \"pnpm --filter client dev\"",
-    "build": "pnpm --filter client build && cd server && node_modules/.bin/tsc && cd ..",
-    "start": "pnpm --filter server start",
+    "build": "pnpm --filter client build && cd server && node_modules/.bin/tsc",
+    "start": "node dist/server/index.js",
     "db:push": "drizzle-kit push",
     "db:studio": "drizzle-kit studio"
   },
