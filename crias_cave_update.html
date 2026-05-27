@@ -1746,7 +1746,7 @@ const COLLISION = [
 const NPCS_TEMPLATE = [
   { id: 'mae', x: 4, y: 10, emoji: '👩‍🦰', name: 'Mãe Lyra', type: 'home', healing: true,
     dialog: ['Bem-vindo de volta. Sua Cria precisa descansar?','Pronto, fortalecida pela energia do Nexus.'] },
-  { id: 'guia', x: 11, y: 9, emoji: '🧙', name: 'Guia Solis', type: 'ludi',
+  { id: 'guia', x: 8, y: 11, emoji: '🧙', name: 'Guia Solis', type: 'ludi',
     dialog: [
       'Salve, jovem domador! Bem-vindo ao Nexus — o coração do mundo das Crias.',
       'As Crias são criaturas mágicas que habitam cada canto desta terra.',
@@ -2749,73 +2749,27 @@ async function startFirstCreatureManifestation() {
   state.items.orbeCriacao--;
   saveGame();
 
-  const startPool = ['ignivar'];
-  const species = pick(startPool);
-  const def = MONSTERS[species];
+  const species = pick(['ignivar']);
+  const monster = generateMonster(species, 1);
 
-  const overlay = document.createElement('div');
-  overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,20,0);z-index:500;display:flex;align-items:center;justify-content:center;flex-direction:column;gap:16px;transition:background 1.2s;';
-  document.body.appendChild(overlay);
-
-  const title = document.createElement('div');
-  title.style.cssText = 'font-size:13px;font-weight:700;letter-spacing:0.2em;color:#4dc3ff;opacity:0;transition:opacity 1s;text-align:center;text-transform:uppercase;';
-  title.textContent = '— Sua Primeira Cria Desperta —';
-
-  const creatureName = document.createElement('div');
-  creatureName.style.cssText = `font-size:34px;font-weight:900;color:${def.color};opacity:0;transition:opacity 1s;text-shadow:0 0 40px ${def.color};text-align:center;`;
-  creatureName.textContent = def.name;
-
-  const loreText = document.createElement('div');
-  loreText.style.cssText = 'font-size:13px;color:#8ab0dd;max-width:280px;text-align:center;opacity:0;transition:opacity 0.8s;line-height:1.5;padding:0 20px;';
-  loreText.textContent = def.lore;
-
-  const orbEmoji = document.createElement('div');
-  orbEmoji.style.cssText = 'font-size:80px;opacity:0;transition:opacity 0.5s;';
-  orbEmoji.textContent = '✨';
-
-  const confirmBtn = document.createElement('button');
-  confirmBtn.className = 'btn';
-  confirmBtn.textContent = 'Receber ' + def.name + '!';
-  confirmBtn.style.cssText = 'opacity:0;transition:opacity 0.5s;margin-top:8px;';
-
-  overlay.appendChild(title);
-  overlay.appendChild(orbEmoji);
-  overlay.appendChild(creatureName);
-  overlay.appendChild(loreText);
-  overlay.appendChild(confirmBtn);
-
-  await new Promise(r => setTimeout(r, 50));
-  overlay.style.background = 'rgba(0,0,20,0.97)';
-  await new Promise(r => setTimeout(r, 400));
-  title.style.opacity = '1';
-  orbEmoji.style.opacity = '1';
-  await new Promise(r => setTimeout(r, 800));
-  creatureName.style.opacity = '1';
-  await new Promise(r => setTimeout(r, 600));
-  loreText.style.opacity = '1';
-  await new Promise(r => setTimeout(r, 700));
-  confirmBtn.style.opacity = '1';
-  FX.sfx && FX.sfx.uiBig && FX.sfx.uiBig();
-
+  // Full cinematic: orb pulse → cracks → explosion → reveal panel (art+sprite+ficha)
+  await playCoreOrbCinematic(monster);
+  // showReveal(monster) was just called at the end of the cinematic.
+  // Wait for player to click "Aceitar meu destino".
   await new Promise(resolve => {
-    confirmBtn.onclick = () => {
-      const monster = generateMonster(species, 1);
-      state.cria = monster;
-      saveGame();
-      overlay.style.opacity = '0';
-      overlay.style.transition = 'opacity 0.5s';
-      setTimeout(() => {
-        overlay.remove();
-        renderHUD();
-        showToast('✨ ' + def.name + ' se tornou sua primeira Cria!');
-        // Mark first creature obtained in coredex
-        if (!state.coredex) state.coredex = { seen: {}, caught: {} };
-        state.coredex.seen[species] = true;
-        saveGame();
-      }, 500);
+    window.__firstManifestationResolver = () => {
+      window.__firstManifestationResolver = null;
       resolve();
     };
   });
+
+  // Set the creature, save, and update HUD
+  state.cria = monster;
+  if (!state.coredex) state.coredex = { seen: {}, caught: {} };
+  state.coredex.seen[species] = true;
+  saveGame();
+  renderHUD();
+  showToast('✨ ' + MONSTERS[species].name + ' se tornou sua primeira Cria!');
 }
 
 
@@ -4354,6 +4308,9 @@ function render(now) {
     ctx.fillRect(0, 0, cw, ch);
   }
 
+  // === Quest hint (subtle floor marker for new players) ===
+  drawQuestHint(camX, camY, now);
+
   // === Debug collision overlay ===
   drawDebugCollision(camX, camY, cw, ch);
 }
@@ -4457,10 +4414,124 @@ function drawKnightNPC(npc, px, py, now) {
   ctx.fillText(npc.name, bx, py - 9);
 }
 
+// ── Pixel-art mage sprite for Guia Solis ──────────────────────────────────────
+function drawMageNPC(npc, px, py, now) {
+  const bob = Math.sin(now / 380 + (npc.x + npc.y)) * 1.5;
+  const bx = Math.round(px + TILE / 2);
+  const by = Math.round(py + TILE - 6 + bob);
+  const S = 2;
+
+  function p(ax, ay, aw, ah, c) {
+    ctx.fillStyle = c;
+    ctx.fillRect(bx + ax * S, by + ay * S, aw * S, ah * S);
+  }
+
+  const ox = -7;
+  const oy = -27;
+
+  // Shadow
+  ctx.fillStyle = 'rgba(0,0,0,0.42)';
+  ctx.beginPath();
+  ctx.ellipse(bx, by + 6, 14, 4.5, 0, 0, Math.PI * 2);
+  ctx.fill();
+
+  // --- Silver hair (spiky top) ---
+  p(ox + 4, oy + 0, 1, 1, '#F0F0F4');
+  p(ox + 5, oy + 0, 1, 1, '#D8DCE0');
+  p(ox + 6, oy + 0, 1, 1, '#B8C0C8');
+  p(ox + 7, oy + 0, 1, 1, '#D8DCE0');
+  p(ox + 8, oy + 0, 1, 1, '#B8C0C8');
+  p(ox + 3, oy + 1, 8, 1, '#B8C0C8');
+  p(ox + 4, oy + 1, 1, 1, '#D8DCE0');
+  p(ox + 6, oy + 1, 1, 1, '#D8DCE0');
+  p(ox + 8, oy + 1, 1, 1, '#D8DCE0');
+
+  // --- Hair sides (long-ish) ---
+  p(ox + 2, oy + 2, 10, 2, '#9CA0A8');
+  p(ox + 2, oy + 4, 2, 3, '#8C9098');
+  p(ox + 10, oy + 4, 2, 3, '#8C9098');
+
+  // --- Face ---
+  p(ox + 4, oy + 3, 6, 4, '#C89878');
+  p(ox + 4, oy + 3, 1, 1, '#A47858');
+  p(ox + 9, oy + 3, 1, 1, '#A47858');
+  p(ox + 5, oy + 4, 1, 1, '#2A1810'); // left eye
+  p(ox + 8, oy + 4, 1, 1, '#2A1810'); // right eye
+  p(ox + 6, oy + 5, 2, 1, '#8C6048'); // nose shadow
+
+  // --- Grey beard ---
+  p(ox + 4, oy + 7, 6, 3, '#C8CCD4');
+  p(ox + 5, oy + 8, 4, 2, '#A8AEB6');
+  p(ox + 6, oy + 9, 2, 1, '#9098A0');
+
+  // --- White cape/scarf (large shoulder pieces) ---
+  p(ox + 0, oy + 8, 3, 6, '#E8E8EC');
+  p(ox + 11, oy + 8, 3, 6, '#E8E8EC');
+  p(ox + 0, oy + 8, 1, 6, '#B0B0B4');
+  p(ox + 13, oy + 8, 1, 6, '#B0B0B4');
+  p(ox + 0, oy + 13, 3, 1, '#A0A0A4');
+  p(ox + 11, oy + 13, 3, 1, '#A0A0A4');
+
+  // --- Black robe body ---
+  p(ox + 3, oy + 10, 8, 8, '#1A1820');
+  p(ox + 3, oy + 10, 1, 8, '#0A0810');
+  p(ox + 10, oy + 10, 1, 8, '#0A0810');
+
+  // --- Gold trim collar ---
+  p(ox + 3, oy + 9, 8, 1, '#D4A040');
+  p(ox + 3, oy + 10, 1, 1, '#D4A040');
+  p(ox + 10, oy + 10, 1, 1, '#D4A040');
+
+  // --- Purple gem cluster (sun-shape on chest) ---
+  p(ox + 5, oy + 11, 4, 3, '#502080');
+  p(ox + 6, oy + 12, 2, 1, '#A058D0'); // bright center
+  p(ox + 5, oy + 11, 4, 1, '#D4A040'); // top gold
+  p(ox + 5, oy + 13, 4, 1, '#A07020'); // bottom gold
+  p(ox + 4, oy + 12, 1, 1, '#502080'); // left small gem
+  p(ox + 9, oy + 12, 1, 1, '#502080'); // right small gem
+
+  // --- Belt ---
+  p(ox + 3, oy + 15, 8, 1, '#5A3A1A');
+  p(ox + 6, oy + 15, 2, 1, '#D4A040');
+
+  // --- Robe lower / cape extension ---
+  p(ox + 3, oy + 16, 8, 5, '#1A1820');
+  p(ox + 1, oy + 14, 1, 7, '#C8C8CC'); // cape left lower
+  p(ox + 12, oy + 14, 1, 7, '#C8C8CC'); // cape right lower
+  p(ox + 2, oy + 14, 1, 7, '#1A1820'); // robe edge inside
+  p(ox + 11, oy + 14, 1, 7, '#1A1820');
+
+  // --- Purple front panel (with zigzag accents) ---
+  p(ox + 6, oy + 16, 2, 5, '#502080');
+  p(ox + 6, oy + 16, 2, 1, '#7838B8');
+  p(ox + 6, oy + 18, 2, 1, '#7838B8');
+  p(ox + 6, oy + 20, 2, 1, '#D4A040'); // gold trim bottom
+
+  // --- Boots ---
+  p(ox + 4, oy + 21, 2, 4, '#2A1818');
+  p(ox + 8, oy + 21, 2, 4, '#2A1818');
+  p(ox + 4, oy + 24, 2, 1, '#1A1010');
+  p(ox + 8, oy + 24, 2, 1, '#1A1010');
+  p(ox + 4, oy + 21, 1, 1, '#7838B8'); // gem
+  p(ox + 8, oy + 21, 1, 1, '#7838B8');
+
+  // --- Name tag ---
+  ctx.font = 'bold 12px sans-serif';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  const tw = ctx.measureText(npc.name).width;
+  ctx.fillStyle = 'rgba(0,0,0,0.78)';
+  ctx.fillRect(bx - tw / 2 - 4, py - 18, tw + 8, 15);
+  ctx.fillStyle = '#a78bfa';
+  ctx.fillText(npc.name, bx, py - 9);
+}
+
 // ── Generic NPC draw (emoji) ──────────────────────────────────────────────────
 function drawNPC(npc, px, py, now) {
   // Custom pixel-art sprite for cave guard
   if (npc.id === 'cave_guard') { drawKnightNPC(npc, px, py, now); return; }
+  // Custom pixel-art sprite for Guia Solis
+  if (npc.id === 'guia') { drawMageNPC(npc, px, py, now); return; }
 
   ctx.font = '32px serif';
   ctx.textAlign = 'center';
@@ -4477,6 +4548,72 @@ function drawNPC(npc, px, py, now) {
   ctx.fillRect(px + TILE/2 - tw/2 - 4, py - 16, tw + 8, 15);
   ctx.fillStyle = '#4dc3ff';
   ctx.fillText(npc.name, px + TILE/2, py - 7);
+}
+
+// ── Subtle quest hint: pulsing glow on floor to guide new players ─────────────
+function drawQuestHint(camX, camY, now) {
+  if (!state || state.scene === 'cave1') return;
+  // Stage 1 — no Cria, no orb yet: highlight Guia Solis tile
+  // Stage 2 — has orb, no Cria: highlight Core Orb
+  let tx, ty, color;
+  if (!state.cria) {
+    const orbeQty = (state.items && state.items.orbeCriacao) || 0;
+    if (orbeQty === 0) {
+      // Find Guia Solis position
+      const guia = state.npcs && state.npcs.find(n => n.id === 'guia');
+      if (!guia) return;
+      tx = guia.x; ty = guia.y;
+      color = '#ffd34d'; // golden hint
+    } else {
+      tx = 11.5; ty = 11.5; // core orb center
+      color = '#a78bfa'; // purple hint
+    }
+  } else {
+    return; // no hint needed
+  }
+
+  const cx = (tx + 0.5) * TILE - camX;
+  const cy = (ty + 0.5) * TILE - camY + (tx === 11.5 ? 0 : 16);
+
+  // Pulsing ring
+  const phase = (now / 1100) % 1;
+  const r = 14 + phase * 22;
+  const a = (1 - phase) * 0.55;
+  ctx.save();
+  ctx.lineWidth = 2.5;
+  ctx.strokeStyle = color + Math.floor(a * 255).toString(16).padStart(2, '0');
+  ctx.beginPath();
+  ctx.ellipse(cx, cy, r, r * 0.42, 0, 0, Math.PI * 2);
+  ctx.stroke();
+
+  // Inner static ring
+  ctx.strokeStyle = color + '70';
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  ctx.ellipse(cx, cy, 16, 6.5, 0, 0, Math.PI * 2);
+  ctx.stroke();
+
+  // Floating exclamation above (only for NPC hint)
+  if (tx !== 11.5) {
+    const bob = Math.sin(now / 300) * 3;
+    const ay = cy - 58 + bob;
+    // Speech-bubble background
+    ctx.fillStyle = 'rgba(20,15,5,0.85)';
+    ctx.beginPath();
+    ctx.arc(cx, ay, 11, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.strokeStyle = color;
+    ctx.lineWidth = 1.5;
+    ctx.beginPath();
+    ctx.arc(cx, ay, 11, 0, Math.PI * 2);
+    ctx.stroke();
+    ctx.fillStyle = color;
+    ctx.font = 'bold 16px sans-serif';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText('!', cx, ay + 1);
+  }
+  ctx.restore();
 }
 
 // ── Debug: visualize collision grid (toggle with backtick `) ──────────────────
@@ -4708,6 +4845,12 @@ document.getElementById('nameInput').addEventListener('keydown', (e) => {
 });
 document.getElementById('btnAcceptMonster').addEventListener('click', () => {
   document.getElementById('reveal').classList.remove('active');
+  // In-game first manifestation: hand control back to that flow
+  if (typeof window.__firstManifestationResolver === 'function') {
+    window.__firstManifestationResolver();
+    return;
+  }
+  // Legacy flow (account creation): enter the game
   startGame();
 });
 
