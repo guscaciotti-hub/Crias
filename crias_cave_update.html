@@ -1165,7 +1165,10 @@
 <!-- DIALOG -->
 <div id="dialog" class="overlay">
   <div class="panel">
-    <div class="speaker" id="dialogSpeaker"></div>
+    <div style="display:flex;align-items:center;gap:10px;margin-bottom:6px;">
+      <div id="dialogAvatar" style="font-size:32px;line-height:1;min-width:36px;text-align:center;"></div>
+      <div class="speaker" id="dialogSpeaker" style="margin-bottom:0"></div>
+    </div>
     <div class="text" id="dialogText"></div>
     <div class="next" id="dialogNext">▼ Toque pra continuar</div>
   </div>
@@ -1496,6 +1499,31 @@ const NPCS_TEMPLATE = [
   { id: 'mage', x: 18, y: 13, emoji: '🔮', name: 'Líder Júpiter', type: 'trainer',
     dialog: ['Eu guardo a Cúpula. Se queres entrar, prova teu vínculo com a Cria.'],
     trainer: { level: 5, defeated: false, reward: 140 } },
+  { id: 'ludi', x: 14, y: 13, emoji: '🧙‍♂️', name: 'Mago Ludi', type: 'ludi',
+    dialog: [
+      'Salve, jovem domador! Eu sou Ludi, Mago Guardião desta cidade.',
+      'O mundo das Crias é vasto. Criaturas elementais habitam florestas, cavernas e ruínas antigas.',
+      'Todo domador começa do zero — mas com uma Cria ao lado, tudo é possível.',
+      'As Crias não são apenas criaturas de batalha. Elas crescem, evoluem e criam vínculos reais com seus domadores.',
+      'Vejo algo especial em você. Por isso... tome isto.',
+      '✨ Você recebeu 1 Orbe da Criação! Use-o no Core Orb para manifestar sua primeira Cria.',
+      'O Core Orb fica no centro desta praça. Quando sua Cria chegar ao nível 5, a Caverna Sombria se abrirá!'
+    ],
+    dialogAfter: [
+      'Já manifestou sua Cria no Core Orb?',
+      'Explore a cidade, batalhe e fortaleça seu vínculo.',
+      'Quando sua Cria alcançar nível 5, o Guarda da Caverna ao norte liberará passagem.'
+    ],
+    gift: { qty: 1, given: false } },
+  { id: 'cave_guard', x: 18, y: 3, emoji: '⚔️', name: 'Guarda Kalos', type: 'cave_guard',
+    dialog: [
+      'Alto lá! A Caverna Sombria não é lugar para Crias inexperientes.',
+      'Volte quando sua Cria estiver no nível 5 ou acima.'
+    ],
+    dialogOpen: [
+      'Sua Cria provou seu valor. Pode entrar na Caverna Sombria.',
+      'Cuidado lá dentro — as sombras guardam perigos reais.'
+    ] },
   { id: 'cave_portal', x: 18, y: 1, emoji: '🕳️', name: 'Entrada da Caverna', type: 'cave_portal',
     dialog: ['As profundezas chamam... Você entra na Caverna Sombria?', 'Crias poderosas habitam as trevas. Prepare sua Cria.'] },
 ];
@@ -2240,7 +2268,15 @@ function tryInteract() {
   if (i.cave) { interactWithCaveNPC(i.npc); return; }
   if (i.coreOrb) { interactWithCoreOrb(); return; }
   if (i.npc) {
-    if (i.npc.type === 'cave_portal') { showDialog(i.npc.name, i.npc.dialog, () => enterCave1()); }
+    if (i.npc.type === 'cave_portal') {
+      const criLv = state.cria ? (state.cria.level || 1) : 0;
+      if (criLv < 5) {
+        showDialog('⚔️ Guarda Kalos', ['A Caverna Sombria não é lugar para Crias inexperientes.', 'Fortaleça sua Cria até o nível 5 e retorne.']);
+      } else {
+        showDialog(i.npc.name, i.npc.dialog, () => enterCave1());
+      }
+      return;
+    }
     else { interactWithNPC(i.npc); }
   }
 }
@@ -2256,10 +2292,18 @@ function showDialog(speaker, lines, onFinish) {
   document.getElementById('dialog').classList.add('active');
   renderDialog();
 }
+const NPC_AVATARS = {
+  'Mago Ludi': '🧙‍♂️', 'Guia Solis': '🔮', 'Mãe Lyra': '👩‍🦰',
+  'Vendedor Bartô': '🧔', 'Guarda Kalos': '⚔️', 'Lulu': '👧',
+  'Rocco': '🧑‍🦱', 'Mestre Yuri': '🥋', 'Mestre Augusto': '🎭',
+  'Líder Júpiter': '🔮', 'Espírito Ancã': '🕯️', 'Entrada da Caverna': '🕳️',
+};
 function renderDialog() {
   document.getElementById('dialogSpeaker').textContent = dialogSpeaker;
   document.getElementById('dialogText').textContent = dialogLines[dialogIndex];
   document.getElementById('dialogNext').textContent = dialogIndex < dialogLines.length - 1 ? '▼ Toque pra continuar' : '✓ Fechar';
+  const av = document.getElementById('dialogAvatar');
+  if (av) av.textContent = NPC_AVATARS[dialogSpeaker] || '';
 }
 function advanceDialog() {
   if (dialogIndex < dialogLines.length - 1) { dialogIndex++; renderDialog(); }
@@ -2345,6 +2389,28 @@ function interactWithNPC(npc) {
       return;
     }
     showDialog(npc.name, npc.dialog, () => startTrainerBattle(npc));
+    return;
+  }
+  if (npc.type === 'ludi') {
+    if (!npc.gift.given) {
+      npc.gift.given = true;
+      showDialog(npc.name, npc.dialog, () => {
+        state.items.orbeCriacao += npc.gift.qty;
+        saveGame();
+        showToast('✨ Orbe da Criação recebido! Use no Core Orb no centro da praça.');
+      });
+    } else {
+      showDialog(npc.name, npc.dialogAfter || ['Fortaleça sua Cria e explore o mundo!']);
+    }
+    return;
+  }
+  if (npc.type === 'cave_guard') {
+    const criLv = state.cria ? (state.cria.level || 1) : 0;
+    if (criLv < 5) {
+      showDialog(npc.name, npc.dialog || ['Sua Cria ainda não está pronta.']);
+    } else {
+      showDialog(npc.name, npc.dialogOpen || ['Pode passar. Boa sorte!'], () => enterCave1());
+    }
     return;
   }
   showDialog(npc.name, npc.dialog || ['...']);
