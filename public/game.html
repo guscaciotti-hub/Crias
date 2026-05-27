@@ -1741,13 +1741,23 @@ const COLLISION = [
 const NPCS_TEMPLATE = [
   { id: 'mae', x: 4, y: 10, emoji: '👩‍🦰', name: 'Mãe Lyra', type: 'home', healing: true,
     dialog: ['Bem-vindo de volta. Sua Cria precisa descansar?','Pronto, fortalecida pela energia do Nexus.'] },
-  { id: 'guia', x: 11, y: 9, emoji: '🧙', name: 'Guia Solis', type: 'wisdom',
+  { id: 'guia', x: 11, y: 9, emoji: '🧙', name: 'Guia Solis', type: 'ludi',
     dialog: [
-      'O Core Orb central pulsa há mil eras. Toda Cria Única nasce dele.',
-      'Criaturas Únicas são extremamente raras — não existem em grandes quantidades.',
-      'Para despertar uma Cria Única no Core Orb, você precisará de um Orbe da Criação.',
-      'Esses artefatos são raros. Procure grandes desafios para obtê-los.'
-    ]},
+      'Salve, jovem domador! Bem-vindo ao Nexus — o coração do mundo das Crias.',
+      'As Crias são criaturas mágicas que habitam cada canto desta terra.',
+      'Domadores partem em jornada para batalhar, capturar e criar vínculos reais com elas.',
+      'Aquele cristal brilhante no centro desta praça é o Core Orb — fonte de toda manifestação.',
+      'Para começar sua jornada, você precisa despertar sua primeira Cria.',
+      'Tome este Orbe da Criação — vá até o Core Orb e use-o para manifestar sua parceira.',
+      '✨ Você recebeu 1 Orbe da Criação! Interaja com o Core Orb no centro da praça.'
+    ],
+    dialogAfter: [
+      'Já usou o Orbe no Core Orb? Sua Cria espera por você.',
+      'Explore a cidade, batalhe e fortaleça seu vínculo com sua Cria.',
+      'Quando sua Cria alcançar nível 5, a Caverna Sombria ao norte se abrirá.',
+      'O Guarda Kalos bloqueia a entrada até lá — foque no treino!'
+    ],
+    gift: { qty: 1, given: false } },
   { id: 'shop', x: 18, y: 10, emoji: '🧔', name: 'Vendedor Bartô', type: 'shop',
     shopItems: [
       { key: 'orbeComum',    qty: 1, price: 80,  icon: '🔵', name: 'Orbe de Captura',  desc: 'Captura Crias selvagens na Caverna. 30% de chance base.' },
@@ -1772,22 +1782,7 @@ const NPCS_TEMPLATE = [
   { id: 'mage', x: 18, y: 13, emoji: '🔮', name: 'Líder Júpiter', type: 'trainer',
     dialog: ['Eu guardo a Cúpula. Se queres entrar, prova teu vínculo com a Cria.'],
     trainer: { level: 5, defeated: false, reward: 140 } },
-  { id: 'ludi', x: 14, y: 13, emoji: '🧙‍♂️', name: 'Mago Ludi', type: 'ludi',
-    dialog: [
-      'Salve, jovem domador! Eu sou Ludi, Mago Guardião desta cidade.',
-      'O mundo das Crias é vasto. Criaturas elementais habitam florestas, cavernas e ruínas antigas.',
-      'Todo domador começa do zero — mas com uma Cria ao lado, tudo é possível.',
-      'As Crias não são apenas criaturas de batalha. Elas crescem, evoluem e criam vínculos reais com seus domadores.',
-      'Vejo algo especial em você. Por isso... tome isto.',
-      '✨ Você recebeu 1 Orbe da Criação! Use-o no Core Orb para manifestar sua primeira Cria.',
-      'O Core Orb fica no centro desta praça. Quando sua Cria chegar ao nível 5, a Caverna Sombria se abrirá!'
-    ],
-    dialogAfter: [
-      'Já manifestou sua Cria no Core Orb?',
-      'Explore a cidade, batalhe e fortaleça seu vínculo.',
-      'Quando sua Cria alcançar nível 5, o Guarda da Caverna ao norte liberará passagem.'
-    ],
-    gift: { qty: 1, given: false } },
+
   { id: 'cave_guard', x: 18, y: 3, emoji: '⚔️', name: 'Guarda Kalos', type: 'cave_guard',
     dialog: [
       'Alto lá! A Caverna Sombria não é lugar para Crias inexperientes.',
@@ -2035,12 +2030,12 @@ function monsterSprite(monster, frame = 'idle_0') {
 function newGameState(playerName, monster) {
   return {
     playerName,
-    cria: monster,
+    cria: monster || null, // null until first Core Orb manifestation
     party: [], // up to 5 standby monsters
     player: { x: 12, y: 11, dir: 'down' },
     coins: 80,
     potions: 1,
-    items: { orbeComum: 3, orbeAvancado: 0, orbeElite: 0, orbeMitico: 0, orbeCriacao: 0 },
+    items: { orbeComum: 3, orbeAvancado: 0, orbeElite: 0, orbeMitico: 0, orbeCriacao: 0 }, // orbeCriacao given by Guia Solis
     npcs: JSON.parse(JSON.stringify(NPCS_TEMPLATE)),
     enteredCave: false,
     encountersDefeated: 0,
@@ -2544,7 +2539,8 @@ function tryInteract() {
   if (i.coreOrb) { interactWithCoreOrb(); return; }
   if (i.npc) {
     if (i.npc.type === 'cave_portal') {
-      const criLv = state.cria ? (state.cria.level || 1) : 0;
+      if (!state.cria) { showDialog(npc.name, ['Você precisa ter uma Cria antes de entrar!','Fale com o Guia Solis no centro da praça.']); return; }
+    const criLv = state.cria.level || 1;
       if (criLv < 5) {
         showDialog('⚔️ Guarda Kalos', ['A Caverna Sombria não é lugar para Crias inexperientes.', 'Fortaleça sua Cria até o nível 5 e retorne.']);
       } else {
@@ -2568,7 +2564,7 @@ function showDialog(speaker, lines, onFinish) {
   renderDialog();
 }
 const NPC_AVATARS = {
-  'Mago Ludi': '🧙‍♂️', 'Guia Solis': '🔮', 'Mãe Lyra': '👩‍🦰',
+'Guia Solis': '🔮', 'Mãe Lyra': '👩‍🦰',
   'Vendedor Bartô': '🧔', 'Guarda Kalos': '⚔️', 'Lulu': '👧',
   'Rocco': '🧑‍🦱', 'Mestre Yuri': '🥋', 'Mestre Augusto': '🎭',
   'Líder Júpiter': '🔮', 'Espírito Ancã': '🕯️', 'Entrada da Caverna': '🕳️',
@@ -2700,70 +2696,76 @@ function interactWithCoreOrb() {
   if (!state.items) state.items = {};
   const hasOrbe = (state.items.orbeCriacao || 0) > 0;
 
+  // ── First creature: player has no Cria yet ───────────────────────────
+  if (!state.cria) {
+    if (!hasOrbe) {
+      showDialog('✨ Core Orb', [
+        'O Core Orb pulsa com energia ancestral...',
+        'Você sente que algo dorme aqui, esperando despertar.',
+        'Para manifestar uma Cria, você precisa de um Orbe da Criação.',
+        'Fale com o Guia Solis — ele pode te ajudar.'
+      ]);
+    } else {
+      startFirstCreatureManifestation();
+    }
+    return;
+  }
+
+  // ── Returning player: unique creature ────────────────────────────────
   if (!hasOrbe) {
     showDialog('✨ Core Orb', [
       'O Orb pulsa com energia ancestral...',
       'Você sente que algo dorme aqui, esperando ser despertado.',
-      'Mas para manifestar uma Cria Única, você precisaria de um Orbe da Criação.',
-      'Encontre um para despertar uma criatura que jamais existiu antes.'
+      'Para manifestar uma Cria Única, você precisa de um Orbe da Criação.',
+      'Derrote domadores poderosos ou adquira um na loja.'
     ]);
     return;
   }
-
-  // Check which uniques player already has
-  const owned = new Set();
-  owned.add(state.cria.species);
-  if (state.party) state.party.forEach(m => owned.add(m.species));
-  const available = UNIQUE_SPECIES.filter(s => !owned.has(s));
-
+  const haveSpecies = new Set([state.cria.species, ...(state.party||[]).map(m=>m.species)]);
+  const available = UNIQUE_SPECIES.filter(sp => !haveSpecies.has(sp));
   if (available.length === 0) {
     showDialog('✨ Core Orb', [
-      'O Orb reconhece todas as Crias Únicas em você.',
-      'Você já possui todas as criaturas que ele pode manifestar.',
-      'Seu vínculo com o Core Orb está completo.'
+      'O Orb pulsa suavemente...',
+      'Você já manifestou todas as Crias Únicas disponíveis!',
+      'Aguarde novas Crias chegarem ao Nexus.'
     ]);
     return;
   }
-
-  showDialog('✨ Core Orb', [
-    'O Orb tremula... ele sente o Orbe da Criação!',
-    'Uma energia enorme começa a se concentrar...',
-    'Uma Cria Única está prestes a se manifestar!'
-  ], () => startCoreOrbManifestation(available));
+  startCoreOrbManifestation(available);
 }
 
-async function startCoreOrbManifestation(available) {
+async function startFirstCreatureManifestation() {
+  if (!state.items) state.items = {};
   state.items.orbeCriacao--;
   saveGame();
 
-  // Pick a random unique the player doesn't have
-  const species = pick(available);
+  const startPool = ['ignivar'];
+  const species = pick(startPool);
   const def = MONSTERS[species];
 
-  // Dark screen + particles
   const overlay = document.createElement('div');
-  overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,20,0);z-index:50;display:flex;align-items:center;justify-content:center;flex-direction:column;gap:16px;transition:background 1.2s;';
+  overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,20,0);z-index:500;display:flex;align-items:center;justify-content:center;flex-direction:column;gap:16px;transition:background 1.2s;';
   document.body.appendChild(overlay);
 
   const title = document.createElement('div');
-  title.style.cssText = 'font-size:14px;font-weight:700;letter-spacing:0.2em;color:#4dc3ff;opacity:0;transition:opacity 1s;text-align:center;text-transform:uppercase;';
-  title.textContent = '— Core Orb Manifesting —';
+  title.style.cssText = 'font-size:13px;font-weight:700;letter-spacing:0.2em;color:#4dc3ff;opacity:0;transition:opacity 1s;text-align:center;text-transform:uppercase;';
+  title.textContent = '— Sua Primeira Cria Desperta —';
 
   const creatureName = document.createElement('div');
-  creatureName.style.cssText = `font-size:36px;font-weight:900;color:${def.color};opacity:0;transition:opacity 1s;text-shadow:0 0 40px ${def.color};text-align:center;`;
+  creatureName.style.cssText = `font-size:34px;font-weight:900;color:${def.color};opacity:0;transition:opacity 1s;text-shadow:0 0 40px ${def.color};text-align:center;`;
   creatureName.textContent = def.name;
 
   const loreText = document.createElement('div');
-  loreText.style.cssText = 'font-size:13px;color:#8ab0dd;max-width:280px;text-align:center;opacity:0;transition:opacity 0.8s;line-height:1.5;';
+  loreText.style.cssText = 'font-size:13px;color:#8ab0dd;max-width:280px;text-align:center;opacity:0;transition:opacity 0.8s;line-height:1.5;padding:0 20px;';
   loreText.textContent = def.lore;
 
   const orbEmoji = document.createElement('div');
-  orbEmoji.style.cssText = 'font-size:80px;opacity:0;transition:opacity 0.5s;animation:orbManiPulse 1.5s ease-in-out infinite;';
+  orbEmoji.style.cssText = 'font-size:80px;opacity:0;transition:opacity 0.5s;';
   orbEmoji.textContent = '✨';
 
   const confirmBtn = document.createElement('button');
   confirmBtn.className = 'btn';
-  confirmBtn.textContent = 'Receber ' + def.name;
+  confirmBtn.textContent = 'Receber ' + def.name + '!';
   confirmBtn.style.cssText = 'opacity:0;transition:opacity 0.5s;margin-top:8px;';
 
   overlay.appendChild(title);
@@ -2772,7 +2774,6 @@ async function startCoreOrbManifestation(available) {
   overlay.appendChild(loreText);
   overlay.appendChild(confirmBtn);
 
-  // Animate in
   await new Promise(r => setTimeout(r, 50));
   overlay.style.background = 'rgba(0,0,20,0.97)';
   await new Promise(r => setTimeout(r, 400));
@@ -2784,40 +2785,32 @@ async function startCoreOrbManifestation(available) {
   loreText.style.opacity = '1';
   await new Promise(r => setTimeout(r, 700));
   confirmBtn.style.opacity = '1';
-
   FX.sfx && FX.sfx.uiBig && FX.sfx.uiBig();
 
   await new Promise(resolve => {
     confirmBtn.onclick = () => {
-      // Generate the unique monster at player's level + 2
-      const lvl = Math.max(5, (state.cria.level || 1) + 2);
-      const newMon = generateMonster(species, lvl);
-      newMon.unique = true;
-
-      if (!state.party) state.party = [];
-      if (state.party.length < PARTY_MAX - 1) {
-        state.party.push(newMon);
-      } else {
-        // Party full — show warning
-        showToast(`Equipe cheia! ${def.name} retornou ao éter.`);
-      }
+      const monster = generateMonster(species, 1);
+      state.cria = monster;
       saveGame();
       overlay.style.opacity = '0';
       overlay.style.transition = 'opacity 0.5s';
       setTimeout(() => {
         overlay.remove();
-        showToast(`✨ ${def.name} se uniu a você!`);
+        renderHUD();
+        showToast('✨ ' + def.name + ' se tornou sua primeira Cria!');
+        // Mark first creature obtained in coredex
+        if (!state.coredex) state.coredex = { seen: {}, caught: {} };
+        state.coredex.seen[species] = true;
+        saveGame();
       }, 500);
       resolve();
     };
   });
 }
 
-// ============================================================================
-// BATTLE
-// ============================================================================
+
 function startWildEncounter() {
-  if (inBattle || inDialog || inMenu) return;
+  if (inBattle || inDialog || inMenu || !state.cria) return;
   const worldPool = Object.keys(MONSTERS).filter(k => k !== 'shadowyn');
   const speciesId = pick(worldPool);
   const lvlBase = state.cria.level;
@@ -2827,6 +2820,7 @@ function startWildEncounter() {
 }
 
 function startTrainerBattle(npc) {
+  if (!state.cria) { showDialog(npc.name, ['Você precisa ter uma Cria antes de batalhar!', 'Fale com o Guia Solis para obtê-la.']); return; }
   const pool = Object.keys(MONSTERS).filter(k => k !== 'shadowyn');
   const speciesId = pick(pool);
   const enemy = generateMonster(speciesId, npc.trainer.level);
@@ -3352,6 +3346,14 @@ function switchMenuTab(tab) {
 // ── Crias Tab ────────────────────────────────────────────────────────────────
 function populateCriasTab() {
   const panel = document.getElementById('mp-crias');
+  if (!state.cria) {
+    panel.innerHTML = `<div style="text-align:center;padding:40px 20px;color:#8ab0dd;">
+      <div style="font-size:40px;margin-bottom:12px;">🔮</div>
+      <div style="font-size:15px;color:#4dc3ff;font-weight:700;margin-bottom:8px;">Sem Cria</div>
+      <div style="font-size:13px;">Fale com o Guia Solis e use o Core Orb para manifestar sua primeira Cria.</div>
+    </div>`;
+    return;
+  }
   const c = state.cria;
   const def = MONSTERS[c.species];
   const sprite = monsterSprite(c, 'idle_0');
@@ -3499,7 +3501,7 @@ function populateDexTab() {
 
 // ── Quests Tab ────────────────────────────────────────────────────────────────
 const DEFAULT_QUESTS = [
-  { id:'q1', type:'main', title:'Sua Primeira Cria', desc:'Fale com o Mago Ludi e manifeste sua primeira Cria no Core Orb.', progress:0, total:1, done: false },
+  { id:'q1', type:'main', title:'Sua Primeira Cria', desc:'Fale com o Guia Solis e manifeste sua primeira Cria no Core Orb.', progress:0, total:1, done: false },
   { id:'q2', type:'main', title:'Primeiras Batalhas', desc:'Derrote 3 treinadores na cidade inicial.', progress:0, total:3, done: false },
   { id:'q3', type:'main', title:'Rumo à Caverna', desc:'Fortaleça sua Cria até o nível 5 para desbloquear a Caverna Sombria.', progress:0, total:5, done: false },
   { id:'q4', type:'side', title:'Conversar com NPCs', desc:'Converse com todos os habitantes da cidade inicial.', progress:0, total:5, done: false },
@@ -3751,18 +3753,25 @@ document.getElementById('obConfirm').addEventListener('click', async () => {
     const name = (document.getElementById('obName2').value.trim()) || 'Treinador';
     const combo = selectedCombo;
     document.getElementById('onboard').classList.remove('active');
-    // Não usar shadowyn como Cria inicial (só aparece na caverna)
-    // Somente Ignivar por enquanto para validação
-    const startPool = ['ignivar'];
-    const monster = generateMonster(pick(startPool));
-    state = newGameState(name, monster);
+    // Jogador entra no mapa SEM Cria — Guia Solis entrega Orbe da Criação
+    // e o jogador vai ao Core Orb para manifestar sua primeira Cria
+    state = newGameState(name, null);
     state.appearance = { comboId: combo };
-    // Garantir sprites carregados antes da cinemática
     await preloadComboSprites(combo);
-    await playCoreOrbCinematic(monster);
+    // Entrar direto no jogo — sem cinemática de manifesta ção ainda
+    document.querySelectorAll('.overlay').forEach(o => {
+      if (o.id !== 'login') o.classList.remove('active');
+    });
+    startGame();
+    setTimeout(() => {
+      showDialog('🧙 Guia Solis', [
+        'Bem-vindo ao Nexus, ' + name + '!',
+        'Encontre o Guia Solis — o mago perto do Core Orb — para começar sua jornada.',
+        'Ele te dará o que você precisa para despertar sua primeira Cria.'
+      ]);
+    }, 800);
   } catch(e) {
     console.error('obConfirm error:', e);
-    // Fallback: pular direto pro jogo se algo falhar
     if (state) {
       document.querySelectorAll('.overlay').forEach(o => {
         if (o.id !== 'login') o.classList.remove('active');
@@ -4283,6 +4292,14 @@ function drawLabels(camX, camY, cw, ch) {
 
 function renderHUD() {
   if (!state) { document.getElementById('hud').innerHTML = ''; return; }
+  if (!state.cria) {
+    document.getElementById('hud').innerHTML = `
+      <div class="hud-card" style="opacity:0.7">
+        <div style="font-size:13px;color:#4dc3ff;">🔮 Sem Cria</div>
+        <div style="font-size:10px;color:#8ab0dd;margin-top:2px;">Fale com o Guia Solis</div>
+      </div>`;
+    return;
+  }
   const c = state.cria;
   const def = MONSTERS[c.species];
   const sprite = monsterSprite(c, 'idle_0');
