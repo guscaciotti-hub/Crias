@@ -1709,33 +1709,38 @@ const CAPTURE_ORBS = {
 const PARTY_MAX = 6; // 1 active + 5 standby
 
 // ============================================================================
-// COLLISION (same as before)
+// COLLISION MAP — 24×24 grid: 1=blocked, 0=walkable
+// Designed around NPC positions:
+//   mae_lyra(4,10) guia_solis(11,9) vendedor(18,10) lulu(6,11) rocco(16,11)
+//   sage(5,17) arena(11,5) mage(18,13) cave_guard(18,3) cave_portal(18,1)
+//   player_spawn(12,11) core_orb(11-12,11-12)
 // ============================================================================
 const COLLISION = [
-  [1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1],
-  [1,1,1,1,1,1,1,1,1,1,1,0,0,0,0,1,1,1,0,1,1,1,1,1],
-  [1,1,0,0,0,1,1,0,0,1,0,0,0,0,0,1,1,1,0,1,1,1,1,1],
-  [1,1,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,1,0,0,0,0,1,1],
-  [1,1,1,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,1],
-  [1,1,1,0,0,0,0,0,1,1,1,1,1,1,0,0,0,0,0,0,0,0,1,1],
-  [1,1,1,0,0,0,0,0,1,1,1,1,1,1,0,0,0,0,0,0,0,0,1,1],
-  [1,1,1,1,1,1,0,0,1,1,1,1,1,1,0,0,0,0,0,1,1,1,1,1],
-  [1,1,1,1,1,1,0,0,1,1,1,1,1,1,0,0,0,0,0,1,1,1,1,1],
-  [1,1,1,1,1,1,0,0,0,0,0,0,0,0,0,0,0,0,0,1,1,1,1,1],
-  [1,1,0,0,0,0,0,0,0,0,1,1,1,0,0,0,0,0,0,0,0,0,0,1],
-  [1,1,0,0,0,0,0,0,0,0,1,1,1,0,0,0,0,0,0,0,0,0,0,1],
-  [1,1,0,0,0,0,0,0,0,0,1,1,1,0,0,0,0,0,0,1,1,1,1,1],
-  [1,1,1,1,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,1,1,1,1],
-  [1,1,1,1,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,1,1,1,1],
-  [1,1,1,1,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,1,1,1,1],
-  [1,1,1,1,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1],
-  [1,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,1,1,1,1,1],
-  [1,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,1,1,1,1,1],
-  [1,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,1,1,1,1,1],
-  [1,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1],
-  [1,1,1,1,1,1,1,0,0,0,0,0,0,0,0,1,1,1,1,1,1,1,1,1],
-  [1,1,1,1,1,1,1,1,0,0,0,0,0,0,1,1,1,1,1,1,1,1,1,1],
-  [1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1],
+  //  0  1  2  3  4  5  6  7  8  9 10 11 12 13 14 15 16 17 18 19 20 21 22 23
+  [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1], //  0 borda
+  [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 1, 1, 1, 1, 1], //  1 entrada caverna col18
+  [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 1, 1, 1, 1, 1], //  2 caminho caverna
+  [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 0, 0, 1, 1, 1, 1], //  3 guarda kalos(18) cols17-19
+  [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 0, 0, 1, 1, 1, 1, 1, 0, 1, 1, 1, 1, 1], //  4 caminho arena + caverna
+  [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 0, 0, 1, 1, 1, 1, 1, 0, 1, 1, 1, 1, 1], //  5 arena(11,5)
+  [1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 0, 0, 0, 0, 1, 1, 1, 1, 0, 1, 1, 1, 1, 1], //  6 saída arena
+  [1, 1, 1, 1, 1, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 0, 1, 1, 1, 1, 1], //  7 pré-praça norte + caverna
+  [1, 1, 1, 1, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 0, 1, 1, 1, 1, 1], //  8 pré-praça largo
+  [1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 1], //  9 rua principal L-R (guia@11)
+  [1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 1], // 10 praça (mae@4, vendedor@18)
+  [1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 1], // 11 praça (lulu@6, rocco@16, spawn@12)
+  [1, 1, 1, 0, 0, 1, 1, 1, 1, 0, 0, 0, 0, 0, 1, 1, 1, 0, 0, 1, 1, 1, 1, 1], // 12 pós-praça (caminho sul)
+  [1, 1, 1, 0, 0, 1, 1, 1, 1, 0, 0, 0, 0, 0, 1, 1, 1, 0, 0, 1, 1, 1, 1, 1], // 13 sul (mage@18,13)
+  [1, 1, 1, 0, 0, 1, 1, 1, 1, 0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1], // 14 sul
+  [1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1], // 15 corredor sul L-R
+  [1, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1], // 16 caminho sábio
+  [1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1], // 17 área sábio (sage@5,17)
+  [1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1], // 18 sul profundo
+  [1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1], // 19 estreitando
+  [1, 1, 1, 1, 1, 1, 0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1], // 20 perto da borda
+  [1, 1, 1, 1, 1, 1, 1, 1, 0, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1], // 21 borda sul
+  [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1], // 22 borda
+  [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1], // 23 borda
 ];
 
 const NPCS_TEMPLATE = [
@@ -1891,6 +1896,7 @@ let battleState = null;
 let lastFacing = 'down';
 let craPosHistory = [];
 let assets = { map: null, sprites: {}, monsters: {} };
+let DEBUG_COLLISION = false; // toggle com ` (backtick)
 
 const canvas = document.getElementById('game');
 const ctx = canvas.getContext('2d');
@@ -2366,6 +2372,9 @@ joystickEl.addEventListener('mousedown', (e) => {
 
 // Keyboard fallback (still works on desktop without joystick)
 document.addEventListener('keydown', (e) => {
+  // Debug toggle: backtick ` (works even in menus for dev purposes)
+  if (e.key === '`') { DEBUG_COLLISION = !DEBUG_COLLISION; return; }
+
   if (inMenu || inBattle || inDialog) {
     if (e.key === 'Escape') closeAllOverlays();
     return;
@@ -2565,7 +2574,7 @@ function showDialog(speaker, lines, onFinish) {
 }
 const NPC_AVATARS = {
 'Guia Solis': '🔮', 'Mãe Lyra': '👩‍🦰',
-  'Vendedor Bartô': '🧔', 'Guarda Kalos': '⚔️', 'Lulu': '👧',
+  'Vendedor Bartô': '🧔', 'Guarda Kalos': '🛡️', 'Lulu': '👧',
   'Rocco': '🧑‍🦱', 'Mestre Yuri': '🥋', 'Mestre Augusto': '🎭',
   'Líder Júpiter': '🔮', 'Espírito Ancã': '🕯️', 'Entrada da Caverna': '🕳️',
 };
@@ -4344,9 +4353,115 @@ function render(now) {
     ctx.fillStyle = grad;
     ctx.fillRect(0, 0, cw, ch);
   }
+
+  // === Debug collision overlay ===
+  drawDebugCollision(camX, camY, cw, ch);
 }
 
+// ── Pixel-art knight sprite for Guarda Kalos ─────────────────────────────────
+function drawKnightNPC(npc, px, py, now) {
+  const bob = Math.sin(now / 400 + (npc.x + npc.y)) * 1.5;
+  const bx = Math.round(px + TILE / 2);
+  const by = Math.round(py + TILE - 10 + bob);
+  const S = 2; // 2px per art-pixel — sprite: ~26px wide × 46px tall
+
+  // art-pixel helper: (art-x, art-y, art-w, art-h, color)
+  function p(ax, ay, aw, ah, c) {
+    ctx.fillStyle = c;
+    ctx.fillRect(bx + ax * S, by + ay * S, aw * S, ah * S);
+  }
+
+  const ox = -7; // horizontal center offset (sprite is 14 art-px wide)
+  const oy = -23; // vertical base offset (sprite is 23 art-px tall above by)
+
+  // --- Ground shadow ---
+  ctx.fillStyle = 'rgba(0,0,0,0.40)';
+  ctx.beginPath();
+  ctx.ellipse(bx, by + 4, 13, 4, 0, 0, Math.PI * 2);
+  ctx.fill();
+
+  // --- Spear (left side) ---
+  p(ox - 2, oy - 6, 1, 20, '#8B6040'); // shaft
+  p(ox - 3, oy - 9, 3, 3, '#A0B8C0'); // tip base
+  p(ox - 2, oy - 11, 1, 3, '#C8DCE0'); // tip point
+  // blue banner on spear
+  p(ox - 1, oy - 4, 4, 4, '#3A5A8A');
+  p(ox - 1, oy - 4, 1, 4, '#2A4070'); // shadow
+  p(ox + 1, oy - 3, 1, 2, '#C8962A'); // gold diamond
+
+  // --- Hair (brown spiky) ---
+  p(ox + 3, oy,     6, 1, '#9B6F4E');
+  p(ox + 2, oy + 1, 8, 2, '#7B4F2E');
+  p(ox + 4, oy,     1, 1, '#B08060'); // highlight
+
+  // --- Face ---
+  p(ox + 2, oy + 2, 8, 3, '#C8855A');
+  p(ox + 3, oy + 3, 2, 1, '#2A1A0A'); // left eye
+  p(ox + 8, oy + 3, 2, 1, '#2A1A0A'); // right eye
+  p(ox + 6, oy + 4, 1, 1, '#CC7060'); // mouth
+
+  // --- Silver shoulder pads ---
+  p(ox,     oy + 5, 3, 2, '#A8B8C4');
+  p(ox + 9, oy + 5, 3, 2, '#A8B8C4');
+  p(ox,     oy + 5, 3, 1, '#D0E4F0'); // top highlight
+  p(ox + 9, oy + 5, 3, 1, '#D0E4F0');
+
+  // --- Blue torso ---
+  p(ox + 1, oy + 5, 10, 5, '#4a6fa5');
+
+  // --- Silver chest plate ---
+  p(ox + 3, oy + 5, 6, 3, '#9AAAB8');
+  // Gold emblem (diamond)
+  p(ox + 5, oy + 5, 2, 1, '#C8962A');
+  p(ox + 4, oy + 6, 4, 1, '#C8962A');
+  p(ox + 5, oy + 7, 2, 1, '#C8962A');
+
+  // --- Blue cape sides ---
+  p(ox,     oy + 6, 1, 8, '#2A4878');
+  p(ox + 11, oy + 6, 1, 8, '#2A4878');
+
+  // --- Left arm (holding spear) ---
+  p(ox,     oy + 7, 2, 4, '#3A5A8A');
+  p(ox,     oy + 9, 2, 1, '#9AAAB8'); // wrist guard
+  // --- Right arm ---
+  p(ox + 10, oy + 7, 2, 4, '#3A5A8A');
+  p(ox + 10, oy + 9, 2, 1, '#9AAAB8');
+
+  // --- Belt ---
+  p(ox + 1, oy + 10, 10, 1, '#7B5A3A');
+  p(ox + 4, oy + 10, 4, 1, '#C8962A'); // buckle
+
+  // --- Blue skirt with gold trim ---
+  p(ox + 1, oy + 11, 10, 4, '#4a6fa5');
+  p(ox + 1, oy + 11, 10, 1, '#C8962A'); // top trim
+  p(ox + 1, oy + 14, 10, 1, '#C8962A'); // bottom trim
+  p(ox + 4, oy + 12, 4, 2, '#3A5A8A'); // center dark panel
+  p(ox + 5, oy + 12, 2, 2, '#C8962A'); // center emblem
+
+  // --- Boots ---
+  p(ox + 2, oy + 15, 4, 6, '#7B5A3A'); // left
+  p(ox + 7, oy + 15, 4, 6, '#7B5A3A'); // right
+  p(ox + 2, oy + 20, 4, 1, '#4A2A10'); // left sole
+  p(ox + 7, oy + 20, 4, 1, '#4A2A10'); // right sole
+  p(ox + 2, oy + 15, 1, 2, '#AE8A6A'); // left highlight
+  p(ox + 7, oy + 15, 1, 2, '#AE8A6A'); // right highlight
+
+  // --- Name tag ---
+  ctx.font = 'bold 12px sans-serif';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  const tw = ctx.measureText(npc.name).width;
+  ctx.fillStyle = 'rgba(0,0,0,0.78)';
+  ctx.fillRect(bx - tw / 2 - 4, py - 18, tw + 8, 15);
+  ctx.fillStyle = '#4dc3ff';
+  ctx.fillText(npc.name, bx, py - 9);
+}
+
+// ── Generic NPC draw (emoji) ──────────────────────────────────────────────────
 function drawNPC(npc, px, py, now) {
+  // Custom pixel-art sprite for cave guard
+  if (npc.id === 'cave_guard') { drawKnightNPC(npc, px, py, now); return; }
+
   ctx.font = '32px serif';
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
@@ -4362,6 +4477,62 @@ function drawNPC(npc, px, py, now) {
   ctx.fillRect(px + TILE/2 - tw/2 - 4, py - 16, tw + 8, 15);
   ctx.fillStyle = '#4dc3ff';
   ctx.fillText(npc.name, px + TILE/2, py - 7);
+}
+
+// ── Debug: visualize collision grid (toggle with backtick `) ──────────────────
+function drawDebugCollision(camX, camY, cw, ch) {
+  if (!DEBUG_COLLISION) return;
+  const isCave = state && state.scene === 'cave1';
+  const grid = isCave ? CAVE1_COLLISION : COLLISION;
+  const gridW = isCave ? (CAVE1_GRID || 20) : GRID;
+  const gridH = grid.length;
+  const tSz = TILE;
+
+  ctx.save();
+  for (let row = 0; row < gridH; row++) {
+    for (let col = 0; col < gridW; col++) {
+      const sx = col * tSz - camX;
+      const sy = row * tSz - camY;
+      if (sx > cw || sy > ch || sx + tSz < 0 || sy + tSz < 0) continue;
+      const blocked = grid[row] && grid[row][col] === 1;
+      if (blocked) {
+        ctx.fillStyle = 'rgba(255,40,40,0.32)';
+        ctx.fillRect(sx, sy, tSz, tSz);
+        ctx.strokeStyle = 'rgba(255,80,80,0.55)';
+        ctx.lineWidth = 1;
+        ctx.strokeRect(sx + 0.5, sy + 0.5, tSz - 1, tSz - 1);
+      } else {
+        ctx.fillStyle = 'rgba(60,255,60,0.07)';
+        ctx.fillRect(sx, sy, tSz, tSz);
+      }
+    }
+  }
+  // NPCs (blue)
+  const npcs = (state && state.scene === 'cave1') ? (state.cave1 && state.cave1.npcs || []) : (state && state.npcs || []);
+  for (const npc of npcs) {
+    ctx.fillStyle = 'rgba(60,140,255,0.45)';
+    ctx.fillRect(npc.x * tSz - camX, npc.y * tSz - camY, tSz, tSz);
+  }
+  // Player (yellow)
+  const plr = (state && state.scene === 'cave1') ? state.cavePlayer : (state && state.player);
+  if (plr) {
+    ctx.fillStyle = 'rgba(255,230,0,0.55)';
+    ctx.fillRect(plr.x * tSz - camX, plr.y * tSz - camY, tSz, tSz);
+    ctx.font = 'bold 9px monospace';
+    ctx.fillStyle = '#fff';
+    ctx.textAlign = 'left';
+    ctx.textBaseline = 'top';
+    ctx.fillText(`(${plr.x},${plr.y})`, plr.x * tSz - camX + 2, plr.y * tSz - camY + 2);
+  }
+  // HUD label
+  ctx.fillStyle = 'rgba(0,0,0,0.72)';
+  ctx.fillRect(0, 0, 240, 26);
+  ctx.font = 'bold 11px monospace';
+  ctx.fillStyle = '#ff6060';
+  ctx.textAlign = 'left';
+  ctx.textBaseline = 'middle';
+  ctx.fillText('🔴 DEBUG COLISÃO  [ ` ] para sair', 8, 13);
+  ctx.restore();
 }
 
 function drawCriaSprite(px, py, now) {
@@ -4711,6 +4882,9 @@ function renderCave1(now) {
   grad.addColorStop(1, `rgba(0,0,10,${0.82 * darkMult})`);
   ctx.fillStyle = grad;
   ctx.fillRect(0, 0, cw, ch);
+
+  // Debug collision overlay (cave)
+  drawDebugCollision(camX, camY, cw, ch);
 }
 
 function drawCave1Tiles(camX, camY, cw, ch, now) {
