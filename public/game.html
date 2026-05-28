@@ -2005,9 +2005,32 @@ function loadImage(src, timeout) {
   });
 }
 
+// Procedural "socket" that covers the oversized orb baked into the map, so the
+// smaller orb sprite reads as sitting recessed in the pedestal. Pedestal stone
+// colour ≈ rgb(63,80,112); centre darkened to look like a recess.
+function buildOrbSocket() {
+  const S = Math.round(10 * TILE);
+  const c = document.createElement('canvas');
+  c.width = S; c.height = S;
+  const ctx2 = c.getContext('2d');
+  const cx = S / 2, cy = S / 2, r = 4.7 * TILE;
+  const grad = ctx2.createRadialGradient(cx, cy, 0, cx, cy, r);
+  grad.addColorStop(0.0, 'rgba(31,40,56,1)');    // dark recess centre
+  grad.addColorStop(0.85, 'rgba(63,80,112,1)');  // pedestal stone at rim
+  grad.addColorStop(1.0, 'rgba(63,80,112,0)');   // feather into pedestal
+  ctx2.fillStyle = grad;
+  ctx2.beginPath();
+  ctx2.arc(cx, cy, r, 0, Math.PI * 2);
+  ctx2.fill();
+  c._worldX = 24 * TILE - cx; // orb centre tile (24,22)
+  c._worldY = 22 * TILE - cy;
+  return c;
+}
+
 function loadAssets() {
   // Nada bloqueia a tela de loading — tudo carrega em background
   // O game loop já verifica assets.map antes de renderizar (if (!assets.map) return)
+  assets.orbSocket = buildOrbSocket();
   loadImage(MAP_URL, 20000).then(img => {
     assets.map = img;
   }).catch(() => {});
@@ -4620,6 +4643,14 @@ function render(now) {
     Math.round(cw   * _scaleX), Math.round(ch   * _scaleY),
     0, 0, cw, ch);
 
+  // Cover the larger orb baked into the map with a dark "socket" so the smaller
+  // orb sprite can sit inside it. Drawn as background (before entities) → it is
+  // ground-level and never occludes the player.
+  if (assets.orbSocket && (!state || state.scene !== 'cave1')) {
+    const sk = assets.orbSocket;
+    ctx.imageSmoothingEnabled = true;
+    ctx.drawImage(sk, sk._worldX - camX, sk._worldY - camY);
+  }
 
   // Cria follow position — always exactly 1 cell behind player
   let cX, cY;
@@ -4661,10 +4692,10 @@ function render(now) {
 
   renderables.sort((a, b) => a.y - b.y);
 
-  // Sprite frame mapped so its orb content lands on the map orb (centre tile 24,22),
-  // sized to match the orb baked into the map (~8.2 tiles) so it reads as one orb.
+  // Sprite frame mapped so its orb content lands on the pedestal socket (centre 24,22),
+  // sized ~30% smaller than the baked orb (content ≈ 5.74 tiles), which the socket hides.
   // Content occupies x[0.182,0.824] y[0.154,0.787] of the 512² frame → frame dest box:
-  const ORB_DX = 17.58, ORB_DY = 15.91, ORB_DW = 12.77, ORB_DH = 12.95; // world tiles
+  const ORB_DX = 19.50, ORB_DY = 17.74, ORB_DW = 8.94, ORB_DH = 9.07; // world tiles
 
   for (const r of renderables) {
     const sx = r.x - camX;
