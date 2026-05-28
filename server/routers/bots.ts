@@ -110,6 +110,7 @@ export const botsRouter = router({
       offHoursMessage: z.string().optional(),
       handoffTriggers: z.array(z.string()).optional(),
       forbiddenTopics: z.array(z.string()).optional(),
+      alertNumbers: z.array(z.string()).optional(),
       status: z.enum(["active", "inactive", "disconnected"]).optional(),
     }))
     .mutation(async ({ ctx, input }) => {

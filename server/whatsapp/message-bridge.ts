@@ -1,4 +1,4 @@
-import { setMessageHandler } from "./baileys-manager.js";
+import { setMessageHandler, sendMessage } from "./baileys-manager.js";
 import { getDb } from "../db.js";
 import { bots, contacts, conversations, messages } from "../../drizzle/schema.js";
 import { eq, and } from "drizzle-orm";
@@ -94,6 +94,19 @@ export async function initMessageBridge() {
           .set({ status: "handoff", updatedAt: new Date() })
           .where(eq(conversations.id, resolvedConvId)).run();
         convCache.delete(cacheKey);
+
+        // Notify team members via WhatsApp
+        const alertNums = (botRow!.alertNumbers ?? []) as string[];
+        if (alertNums.length > 0) {
+          const alertText =
+            `🔔 *Novo atendimento humano* — ${botRow!.businessName}\n` +
+            `👤 Cliente: ${phone}\n` +
+            `💬 Última mensagem: "${text}"\n\n` +
+            `Acesse o painel para continuar o atendimento.`;
+          for (const num of alertNums) {
+            sendMessage(botId, num, alertText).catch(() => {});
+          }
+        }
       }
 
       return reply;

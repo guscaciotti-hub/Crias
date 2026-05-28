@@ -5,13 +5,14 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { trpc } from "@/lib/trpc";
 import {
-  Bot, Plus, Wifi, WifiOff, Zap, Trash2, QrCode, Brain, X, Send, ChevronRight
+  Bot, Plus, Wifi, WifiOff, Zap, Trash2, QrCode, Brain, X, Send, ChevronRight, Bell, PhoneCall
 } from "lucide-react";
 import { NICHE_TEMPLATES, type Niche } from "../../../shared/plans";
 
 type BotWithInstance = {
   id: number; name: string; businessName: string; agentMode: string;
   aiSystemPrompt?: string | null; tone: string;
+  alertNumbers?: string[] | null;
   instance: { status: string } | null;
 };
 
@@ -20,6 +21,16 @@ function AIConfigModal({ bot, onClose }: { bot: BotWithInstance; onClose: () => 
   const [chatMsg, setChatMsg] = useState("");
   const [chatLog, setChatLog] = useState<{ role: string; text: string }[]>([]);
   const [mode, setMode] = useState<"flow" | "ai">(bot.agentMode as "flow" | "ai");
+  const [alertNumbers, setAlertNumbers] = useState<string[]>(bot.alertNumbers ?? []);
+  const [alertInput, setAlertInput] = useState("");
+
+  const addAlertNumber = () => {
+    const num = alertInput.replace(/\D/g, "");
+    if (num.length >= 10 && !alertNumbers.includes(num)) {
+      setAlertNumbers(prev => [...prev, num]);
+    }
+    setAlertInput("");
+  };
 
   const update = trpc.bots.update.useMutation({ onSuccess: onClose });
   const testAI = trpc.bots.testAI.useMutation({
@@ -138,12 +149,49 @@ function AIConfigModal({ bot, onClose }: { bot: BotWithInstance; onClose: () => 
             </>
           )}
 
+          {/* Handoff alert numbers */}
+          <div className="border-t pt-4">
+            <p className="text-sm font-medium flex items-center gap-1.5 mb-1">
+              <Bell className="w-4 h-4 text-primary" /> Alertas de handoff
+            </p>
+            <p className="text-xs text-muted-foreground mb-3">
+              Quando o bot transferir para humano, os números abaixo recebem uma mensagem no WhatsApp.
+            </p>
+            <div className="flex gap-2 mb-2">
+              <Input
+                placeholder="Ex: 5511999998888"
+                value={alertInput}
+                onChange={e => setAlertInput(e.target.value)}
+                onKeyDown={e => e.key === "Enter" && (e.preventDefault(), addAlertNumber())}
+                className="text-sm"
+              />
+              <Button type="button" size="sm" variant="outline" onClick={addAlertNumber}>
+                Adicionar
+              </Button>
+            </div>
+            <p className="text-xs text-muted-foreground mb-2">
+              Formato: DDI + DDD + número (sem espaços ou traços). Ex: <code>5511999998888</code>
+            </p>
+            {alertNumbers.length > 0 && (
+              <div className="flex flex-wrap gap-2">
+                {alertNumbers.map(num => (
+                  <span key={num} className="flex items-center gap-1 bg-muted px-2 py-0.5 rounded-full text-xs">
+                    <PhoneCall className="w-3 h-3" /> {num}
+                    <button onClick={() => setAlertNumbers(prev => prev.filter(n => n !== num))} className="ml-0.5 hover:text-destructive">
+                      <X className="w-3 h-3" />
+                    </button>
+                  </span>
+                ))}
+              </div>
+            )}
+          </div>
+
           <div className="flex gap-2 pt-2">
             <Button variant="outline" onClick={onClose} className="flex-1">Cancelar</Button>
             <Button
               className="flex-1"
               disabled={update.isPending}
-              onClick={() => update.mutate({ id: bot.id, agentMode: mode, aiSystemPrompt: prompt })}
+              onClick={() => update.mutate({ id: bot.id, agentMode: mode, aiSystemPrompt: prompt, alertNumbers })}
             >
               {update.isPending ? "Salvando..." : "Salvar"}
             </Button>

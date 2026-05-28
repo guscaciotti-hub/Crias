@@ -53,6 +53,7 @@ export const bots = sqliteTable("bots", {
   aiSystemPrompt: text("ai_system_prompt"),
   handoffTriggers: text("handoff_triggers", { mode: "json" }).$type<string[]>().notNull().default([]),
   forbiddenTopics: text("forbidden_topics", { mode: "json" }).$type<string[]>().notNull().default([]),
+  alertNumbers: text("alert_numbers", { mode: "json" }).$type<string[]>().notNull().default([]),
   status: text("status", { enum: ["active", "inactive", "disconnected"] }).notNull().default("active"),
   createdAt: integer("created_at", { mode: "timestamp" }).notNull().default(now),
   updatedAt: integer("updated_at", { mode: "timestamp" }).notNull().default(now),

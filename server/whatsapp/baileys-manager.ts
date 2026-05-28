@@ -52,6 +52,17 @@ export function getInstance(botId: number) {
   return instances.get(botId);
 }
 
+export async function sendMessage(botId: number, to: string, text: string): Promise<void> {
+  const sock = instances.get(botId);
+  if (!sock || instanceStatus.get(botId) !== "connected") return;
+  const jid = to.includes("@") ? to : `${to}@s.whatsapp.net`;
+  try {
+    await sock.sendMessage(jid, { text });
+  } catch (e) {
+    console.error("[BaileysManager] sendMessage failed:", e);
+  }
+}
+
 export async function disconnectInstance(botId: number) {
   const sock = instances.get(botId);
   if (sock) {
