@@ -67,12 +67,9 @@ export async function sendMessage(botId: number, to: string, text: string): Prom
   }
 }
 
-export async function forceRestartInstance(botId: number) {
-  const sock = instances.get(botId);
-  if (sock) {
-    try { sock.end(undefined); } catch {}
-    instances.delete(botId);
-  }
+export function forceRestartInstance(botId: number) {
+  // Drop maps — old socket will GC; start fresh
+  instances.delete(botId);
   qrCodes.delete(botId);
   instanceStatus.set(botId, "connecting");
   startInstance(botId).catch(console.error);
@@ -97,6 +94,8 @@ export async function restoreInstances(connectedBotIds: number[]) {
 async function startInstance(botId: number) {
   if (instances.has(botId)) return;
 
+  console.log(`[Baileys] Starting instance for bot ${botId}`);
+
   let makeWASocket: any, useMultiFileAuthState: any, DisconnectReason: any, fetchLatestBaileysVersion: any;
 
   try {
@@ -106,18 +105,24 @@ async function startInstance(botId: number) {
     DisconnectReason = baileys.DisconnectReason;
     fetchLatestBaileysVersion = baileys.fetchLatestBaileysVersion;
   } catch (e) {
-    console.warn("Baileys not available:", e);
+    console.error("[Baileys] Library not available:", e);
     return;
   }
 
-  const { state, saveCreds } = await useMultiFileAuthState(`./sessions/bot-${botId}`);
+  const sessDir = process.env.SESSIONS_DIR
+    ? `${process.env.SESSIONS_DIR}/bot-${botId}`
+    : `./sessions/bot-${botId}`;
+
+  const { state, saveCreds } = await useMultiFileAuthState(sessDir);
 
   if (!cachedVersion && fetchLatestBaileysVersion) {
     try {
       const { version } = await fetchLatestBaileysVersion();
       cachedVersion = version;
+      console.log(`[Baileys] Using WA version ${version}`);
     } catch {
       cachedVersion = [2, 3000, 1015901307];
+      console.warn("[Baileys] Could not fetch latest WA version, using fallback");
     }
   }
 
@@ -126,7 +131,7 @@ async function startInstance(botId: number) {
     auth: state,
     logger: pino({ level: "silent" }),
     printQRInTerminal: false,
-    browser: ["AtendêAI", "Chrome", "1.0.0"],
+    browser: ["Ubuntu", "Chrome", "22.0.0"],
   });
 
   instances.set(botId, sock);
@@ -166,13 +171,16 @@ async function startInstance(botId: number) {
         .where(eq(whatsappInstances.botId, botId))
         .run();
 
-      console.log(`[Baileys] Bot ${botId} connected`);
+      console.log(`[Baileys] Bot ${botId} connected as ${info?.id}`);
     }
 
     if (connection === "close") {
       instances.delete(botId);
       const statusCode = (lastDisconnect?.error as any)?.output?.statusCode;
-      const shouldReconnect = statusCode !== 401; // 401 = logged out
+      const reason = (lastDisconnect?.error as any)?.message ?? "unknown";
+      console.log(`[Baileys] Bot ${botId} disconnected — code ${statusCode}, reason: ${reason}`);
+
+      const shouldReconnect = statusCode !== 401 && statusCode !== 403;
 
       if (shouldReconnect) {
         instanceStatus.set(botId, "reconnecting");
