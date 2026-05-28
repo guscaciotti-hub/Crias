@@ -202,10 +202,11 @@ function AIConfigModal({ bot, onClose }: { bot: BotWithInstance; onClose: () => 
   );
 }
 
-function QRModal({ botId, onClose }: { botId: number; onClose: () => void }) {
+function QRModal({ botId, onClose, onRetry }: { botId: number; onClose: () => void; onRetry: () => void }) {
   const statusQuery = trpc.whatsapp.status.useQuery({ botId }, { refetchInterval: 2000 });
   const { status, qr } = statusQuery.data ?? {};
   const connected = status === "connected";
+  const failed = status === "error";
 
   useEffect(() => {
     if (connected) {
@@ -219,7 +220,7 @@ function QRModal({ botId, onClose }: { botId: number; onClose: () => void }) {
       <Card className="w-full max-w-sm">
         <CardHeader>
           <CardTitle className="text-center">
-            {connected ? "✅ Conectado!" : "Escanear QR Code"}
+            {connected ? "✅ Conectado!" : failed ? "❌ Falha na conexão" : "Escanear QR Code"}
           </CardTitle>
         </CardHeader>
         <CardContent className="text-center space-y-4">
@@ -228,15 +229,20 @@ function QRModal({ botId, onClose }: { botId: number; onClose: () => void }) {
               <p className="text-emerald-600 font-semibold text-lg">WhatsApp conectado!</p>
               <p className="text-sm text-muted-foreground mt-1">Fechando em instantes...</p>
             </div>
+          ) : failed ? (
+            <div className="py-4 space-y-3">
+              <p className="text-sm text-muted-foreground">
+                Não foi possível gerar o QR Code. Verifique os logs do Render para detalhes.
+              </p>
+              <Button className="w-full" onClick={onRetry}>Tentar novamente</Button>
+            </div>
           ) : qr ? (
             <>
               <p className="text-sm text-muted-foreground">
                 No celular: <strong>WhatsApp → Dispositivos vinculados → Vincular dispositivo</strong>
               </p>
               <img src={qr} alt="QR Code" className="mx-auto w-64 h-64 rounded-lg border" />
-              <p className="text-xs text-muted-foreground">
-                O QR atualiza automaticamente quando expira.
-              </p>
+              <p className="text-xs text-muted-foreground">O QR atualiza automaticamente quando expira.</p>
             </>
           ) : (
             <div className="py-8 flex flex-col items-center gap-3">
@@ -392,6 +398,7 @@ export default function Bots() {
         <QRModal
           botId={qrModal.botId}
           onClose={() => { setQrModal(null); botsQuery.refetch(); }}
+          onRetry={() => generateQR.mutate({ botId: qrModal.botId })}
         />
       )}
 

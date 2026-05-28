@@ -104,27 +104,39 @@ async function startInstance(botId: number) {
 
   console.log(`[Baileys] Starting instance for bot ${botId}`);
 
-  let makeWASocket: any, useMultiFileAuthState: any, DisconnectReason: any;
+  // Timeout: if no QR and no connection in 25s, mark as error
+  const timeout = setTimeout(() => {
+    if (instanceStatus.get(botId) === "connecting") {
+      console.error(`[Baileys] Bot ${botId} timed out waiting for QR`);
+      instanceStatus.set(botId, "error");
+    }
+  }, 25000);
 
   try {
-    const baileys = require("@whiskeysockets/baileys");
-    makeWASocket = baileys.default ?? baileys.makeWASocket ?? baileys;
-    useMultiFileAuthState = baileys.useMultiFileAuthState;
-    DisconnectReason = baileys.DisconnectReason;
-  } catch (e) {
-    console.error("[Baileys] Library not available:", e);
-    return;
-  }
+    let makeWASocket: any, useMultiFileAuthState: any;
 
-  const { state, saveCreds } = await useMultiFileAuthState(sessDir(botId));
+    try {
+      const baileys = require("@whiskeysockets/baileys");
+      // Baileys 6.x exports named exports via CJS
+      makeWASocket = baileys.makeWASocket ?? baileys.default?.makeWASocket;
+      useMultiFileAuthState = baileys.useMultiFileAuthState ?? baileys.default?.useMultiFileAuthState;
+      if (!makeWASocket || !useMultiFileAuthState) throw new Error("makeWASocket not found in module");
+    } catch (e) {
+      console.error("[Baileys] Failed to load library:", e);
+      instanceStatus.set(botId, "error");
+      clearTimeout(timeout);
+      return;
+    }
 
-  const sock = makeWASocket({
-    auth: state,
-    logger: pino({ level: "silent" }),
-    printQRInTerminal: false,
-    browser: ["AtendêAI Bot", "Safari", "3.0"],
-    syncFullHistory: false,
-  });
+    const { state, saveCreds } = await useMultiFileAuthState(sessDir(botId));
+
+    const sock = makeWASocket({
+      auth: state,
+      logger: pino({ level: "silent" }),
+      printQRInTerminal: false,
+      browser: ["AtendêAI Bot", "Safari", "3.0"],
+      syncFullHistory: false,
+    });
 
   instances.set(botId, sock);
   instanceStatus.set(botId, "connecting");
@@ -211,4 +223,11 @@ async function startInstance(botId: number) {
       }
     }
   });
+
+  } catch (e) {
+    console.error(`[Baileys] startInstance error for bot ${botId}:`, e);
+    instanceStatus.set(botId, "error");
+  } finally {
+    clearTimeout(timeout);
+  }
 }
