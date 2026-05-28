@@ -34,7 +34,11 @@ app.use(
 app.use(express.json());
 
 // Serve static client files in production
-const clientDist = path.join(__dirname, "../../client/dist");
+// In dev (tsx): __dirname = .../server/  → ../../client/dist = .../client/dist ✓
+// In prod (compiled): __dirname = .../server/dist/server/ → ../../../client/dist = .../client/dist ✓
+const clientDist = process.env.NODE_ENV === "production"
+  ? path.join(__dirname, "../../../client/dist")
+  : path.join(__dirname, "../../client/dist");
 app.use(express.static(clientDist));
 app.get("*", (req, res) => {
   res.sendFile(path.join(clientDist, "index.html"));
