@@ -1,5 +1,5 @@
-export * from "../drizzle/schema";
-export * from "./plans";
+export * from "../drizzle/schema.js";
+export * from "./plans.js";
 
 export type ApiResponse<T> = {
   data: T;

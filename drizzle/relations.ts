@@ -3,7 +3,7 @@ import {
   users, workspaces, workspaceMembers, bots, whatsappInstances,
   contacts, conversations, messages, knowledgeDocuments, knowledgeChunks,
   flowNodes, flowEdges, autoMessages, conversationStates, sessions
-} from "./schema";
+} from "./schema.js";
 
 export const usersRelations = relations(users, ({ many }) => ({
   workspaces: many(workspaces),
