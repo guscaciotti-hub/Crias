@@ -4661,9 +4661,10 @@ function render(now) {
 
   renderables.sort((a, b) => a.y - b.y);
 
-  // Sprite frame mapped so its orb content lands on the map orb (centre tile 24,22).
+  // Sprite frame mapped so its orb content lands on the map orb (centre tile 24,22),
+  // sized to match the orb baked into the map (~8.2 tiles) so it reads as one orb.
   // Content occupies x[0.182,0.824] y[0.154,0.787] of the 512² frame → frame dest box:
-  const ORB_DX = 16.65, ORB_DY = 15.02, ORB_DW = 14.62, ORB_DH = 14.85; // world tiles
+  const ORB_DX = 17.58, ORB_DY = 15.91, ORB_DW = 12.77, ORB_DH = 12.95; // world tiles
 
   for (const r of renderables) {
     const sx = r.x - camX;
