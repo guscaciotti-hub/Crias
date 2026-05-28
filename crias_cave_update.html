@@ -4055,6 +4055,7 @@ function selectCombo(comboId) {
   if (typeof FX !== 'undefined' && FX.sfx) FX.sfx.ui();
   preloadComboSprites(comboId);
 }
+window.selectCombo = selectCombo;
 
 // drawComposedPlayer — player com sprites reais direcionais
 let _lastMovingTo = null;
