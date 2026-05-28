@@ -6,23 +6,22 @@ import { Card, CardContent } from "@/components/ui/card";
 import { trpc } from "@/lib/trpc";
 import { Bot, MessageSquare, Zap, Shield, BarChart3, CheckCircle2, ArrowRight } from "lucide-react";
 
+type Mode = "home" | "register" | "login";
+
 export default function Home() {
   const navigate = useNavigate();
+  const [mode, setMode] = useState<Mode>("home");
   const [email, setEmail] = useState("");
   const [name, setName] = useState("");
-  const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const [loading, setLoading] = useState(false);
 
-  const login = trpc.auth.login.useMutation({
-    onSuccess: async (data) => {
+  const loginMutation = trpc.auth.login.useMutation({
+    onSuccess: (data) => {
       localStorage.setItem("atendeai_token", data.token);
-
-      // Try to get or create workspace
-      const wsId = localStorage.getItem("atendeai_wsid");
-      if (!wsId) {
-        // Will be handled during onboarding
-      }
-      navigate("/onboarding");
+      localStorage.removeItem("atendeai_wsid");
+      setLoading(false);
+      navigate("/dashboard");
     },
     onError: (err) => {
       setError(err.message);
@@ -30,50 +29,27 @@ export default function Home() {
     },
   });
 
-  const handleLogin = (e: React.FormEvent) => {
+  const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!email || !name) return;
+    if (!email) return;
+    if (mode === "register" && !name) return;
     setLoading(true);
     setError("");
-    login.mutate({ email, name });
+    // Both register and login use the same upsert endpoint
+    loginMutation.mutate({ email, name: name || email.split("@")[0] });
   };
 
   const features = [
-    {
-      icon: Bot,
-      title: "Bots por Nicho",
-      desc: "Templates prontos para clínicas, salões, restaurantes, imobiliárias e muito mais.",
-    },
-    {
-      icon: MessageSquare,
-      title: "WhatsApp Nativo",
-      desc: "Conexão direta via Baileys. QR Code simples, sem APIs pagas.",
-    },
-    {
-      icon: Zap,
-      title: "Editor Visual de Fluxos",
-      desc: "Monte o fluxo de atendimento do seu bot sem código.",
-    },
-    {
-      icon: Shield,
-      title: "Base de Conhecimento",
-      desc: "Adicione FAQs, documentos e URLs para o bot responder com precisão.",
-    },
-    {
-      icon: BarChart3,
-      title: "Analytics em Tempo Real",
-      desc: "Acompanhe conversas, handoffs e taxa de resolução.",
-    },
-    {
-      icon: CheckCircle2,
-      title: "Multi-Workspace",
-      desc: "Gerencie múltiplos negócios com workspaces isolados.",
-    },
+    { icon: Bot, title: "Bots por Nicho", desc: "Templates prontos para clínicas, salões, restaurantes e muito mais." },
+    { icon: MessageSquare, title: "WhatsApp Nativo", desc: "Conexão direta via QR Code. Sem APIs pagas." },
+    { icon: Zap, title: "Editor de Fluxos", desc: "Monte o fluxo de atendimento sem código." },
+    { icon: Shield, title: "Agente IA", desc: "GPT-4o mini responde naturalmente pelos seus clientes." },
+    { icon: BarChart3, title: "Analytics", desc: "Acompanhe conversas, handoffs e taxa de resolução." },
+    { icon: CheckCircle2, title: "Multi-Workspace", desc: "Gerencie múltiplos negócios com workspaces isolados." },
   ];
 
   return (
     <div className="min-h-screen bg-background">
-      {/* Hero */}
       <header className="border-b bg-card">
         <div className="max-w-6xl mx-auto px-4 py-4 flex items-center justify-between">
           <div className="flex items-center gap-2">
@@ -82,16 +58,21 @@ export default function Home() {
             </div>
             <span className="font-bold text-xl">AtendêAI</span>
           </div>
-          <nav className="hidden md:flex items-center gap-6 text-sm">
-            <Link to="/pricing" className="text-muted-foreground hover:text-foreground transition-colors">
+          <div className="flex items-center gap-3">
+            <Link to="/pricing" className="text-sm text-muted-foreground hover:text-foreground transition-colors">
               Preços
             </Link>
-          </nav>
+            <Button variant="outline" size="sm" onClick={() => { setMode("login"); setError(""); }}>
+              Entrar
+            </Button>
+            <Button size="sm" onClick={() => { setMode("register"); setError(""); }}>
+              Registrar
+            </Button>
+          </div>
         </div>
       </header>
 
       <main>
-        {/* Hero section */}
         <section className="max-w-6xl mx-auto px-4 py-20 text-center">
           <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-primary/10 text-primary text-sm font-medium mb-6">
             <Zap className="w-3.5 h-3.5" />
@@ -99,48 +80,92 @@ export default function Home() {
           </div>
           <h1 className="text-4xl md:text-6xl font-bold mb-6 leading-tight">
             Atenda seus clientes no{" "}
-            <span className="text-primary">WhatsApp 24/7</span>
-            {" "}com IA
+            <span className="text-primary">WhatsApp 24/7</span>{" "}com IA
           </h1>
           <p className="text-xl text-muted-foreground max-w-2xl mx-auto mb-12">
             Crie um chatbot inteligente para o seu negócio em minutos. Sem código, sem complicação.
-            Templates prontos para clínicas, salões, restaurantes e muito mais.
           </p>
 
-          {/* Login form */}
+          {/* Auth card */}
           <Card className="max-w-md mx-auto">
             <CardContent className="p-6">
-              <h2 className="text-lg font-semibold mb-4">Comece gratuitamente</h2>
-              <form onSubmit={handleLogin} className="space-y-3">
-                <Input
-                  placeholder="Seu nome"
-                  value={name}
-                  onChange={e => setName(e.target.value)}
-                  required
-                />
-                <Input
-                  type="email"
-                  placeholder="seu@email.com"
-                  value={email}
-                  onChange={e => setEmail(e.target.value)}
-                  required
-                />
-                {error && <p className="text-destructive text-sm">{error}</p>}
-                <Button type="submit" className="w-full" disabled={loading || !email || !name}>
-                  {loading ? "Entrando..." : "Começar agora"}
-                  <ArrowRight className="w-4 h-4 ml-1" />
-                </Button>
-              </form>
-              <p className="text-xs text-muted-foreground mt-3 text-center">
-                14 dias de trial grátis. Sem cartão de crédito.
-              </p>
+              {mode === "home" && (
+                <div className="space-y-3">
+                  <h2 className="text-lg font-semibold mb-4">Comece agora</h2>
+                  <Button className="w-full" onClick={() => setMode("register")}>
+                    Criar conta grátis
+                    <ArrowRight className="w-4 h-4 ml-1" />
+                  </Button>
+                  <Button variant="outline" className="w-full" onClick={() => setMode("login")}>
+                    Já tenho conta — Entrar
+                  </Button>
+                  <p className="text-xs text-muted-foreground mt-2">
+                    14 dias de trial grátis. Sem cartão de crédito.
+                  </p>
+                </div>
+              )}
+
+              {mode === "register" && (
+                <>
+                  <h2 className="text-lg font-semibold mb-4">Criar conta</h2>
+                  <form onSubmit={handleSubmit} className="space-y-3">
+                    <Input
+                      placeholder="Seu nome completo"
+                      value={name}
+                      onChange={e => setName(e.target.value)}
+                      required
+                      autoFocus
+                    />
+                    <Input
+                      type="email"
+                      placeholder="seu@email.com"
+                      value={email}
+                      onChange={e => setEmail(e.target.value)}
+                      required
+                    />
+                    {error && <p className="text-destructive text-sm">{error}</p>}
+                    <Button type="submit" className="w-full" disabled={loading || !email || !name}>
+                      {loading ? "Criando conta..." : "Criar conta"}
+                      <ArrowRight className="w-4 h-4 ml-1" />
+                    </Button>
+                    <button type="button" onClick={() => setMode("login")}
+                      className="text-xs text-muted-foreground hover:text-foreground w-full text-center">
+                      Já tem conta? Entrar
+                    </button>
+                  </form>
+                </>
+              )}
+
+              {mode === "login" && (
+                <>
+                  <h2 className="text-lg font-semibold mb-4">Entrar</h2>
+                  <form onSubmit={handleSubmit} className="space-y-3">
+                    <Input
+                      type="email"
+                      placeholder="seu@email.com"
+                      value={email}
+                      onChange={e => setEmail(e.target.value)}
+                      required
+                      autoFocus
+                    />
+                    {error && <p className="text-destructive text-sm">{error}</p>}
+                    <Button type="submit" className="w-full" disabled={loading || !email}>
+                      {loading ? "Entrando..." : "Entrar"}
+                      <ArrowRight className="w-4 h-4 ml-1" />
+                    </Button>
+                    <button type="button" onClick={() => setMode("register")}
+                      className="text-xs text-muted-foreground hover:text-foreground w-full text-center">
+                      Não tem conta? Registrar
+                    </button>
+                  </form>
+                </>
+              )}
             </CardContent>
           </Card>
         </section>
 
-        {/* Features */}
         <section className="max-w-6xl mx-auto px-4 pb-20">
-          <h2 className="text-2xl font-bold text-center mb-10">Tudo que você precisa para automatizar o atendimento</h2>
+          <h2 className="text-2xl font-bold text-center mb-10">Tudo para automatizar seu atendimento</h2>
           <div className="grid md:grid-cols-3 gap-6">
             {features.map((f, i) => (
               <Card key={i}>
