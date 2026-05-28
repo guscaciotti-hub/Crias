@@ -1617,7 +1617,7 @@ const MAP_SOURCE_W = 1248, MAP_SOURCE_H = 1248;
 const MAP_SCALE = 1.5;
 const MAP_W_PX = MAP_SOURCE_W * MAP_SCALE, MAP_H_PX = MAP_SOURCE_H * MAP_SCALE; // 1872
 const GRID = 48, TILE = MAP_W_PX / GRID; // 39
-const MOVE_DURATION = 280; // walking pace — cadência natural de passo
+const MOVE_DURATION = 252; // walking pace — cadência natural de passo
 
 // ============================================================================
 // 5 MONSTROS CANÔNICOS — definição completa
@@ -4091,10 +4091,10 @@ function drawComposedPlayer(px, py, now) {
     if (dir === 'down' || dir === 'up') {
       // 3 frames: [standing(0), walkA(1), walkB(2)]
       // walking alternates walkA↔walkB only (frames 1 and 2)
-      frameIdx = Math.floor(t * 4) % 2 + 1;
+      frameIdx = Math.floor(t * 2) % 2 + 1;
     } else {
-      // right/left: [stride(0), upright(1)] — alternates 0↔1 twice per step
-      frameIdx = Math.floor(t * 4) % 4; // getPlayerSprite does % length (2)
+      // right/left: [stride(0), upright(1)] — alternates 0↔1 once per step
+      frameIdx = Math.floor(t * 2) % 4; // getPlayerSprite does % length (2)
     }
   }
   if (movingTo && movingTo !== _lastMovingTo) {
