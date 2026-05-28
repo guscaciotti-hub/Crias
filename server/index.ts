@@ -51,16 +51,32 @@ app.listen(PORT, async () => {
   // Initialize message bridge
   await initMessageBridge();
 
-  // Restore connected WhatsApp instances
+  // Note: on free tier (ephemeral filesystem) sessions are lost on restart,
+  // so we mark all instances as disconnected and let users reconnect manually.
+  // On paid tier with persistent disk, restore will work correctly.
   try {
     const db = getDb();
-    const connected = db.select({ botId: whatsappInstances.botId })
+    const sessionsDir = process.env.SESSIONS_DIR ?? "./sessions";
+    const { existsSync } = await import("fs");
+
+    const connected = db.select({ botId: whatsappInstances.botId, id: whatsappInstances.id })
       .from(whatsappInstances)
       .where(eq(whatsappInstances.status, "connected"))
       .all();
-    if (connected.length > 0) {
-      console.log(`[WhatsApp] Restoring ${connected.length} connected instance(s)...`);
-      await restoreInstances(connected.map(r => r.botId));
+
+    for (const inst of connected) {
+      const hasSession = existsSync(`${sessionsDir}/bot-${inst.botId}/creds.json`);
+      if (hasSession) {
+        console.log(`[WhatsApp] Restoring bot ${inst.botId}...`);
+        restoreInstances([inst.botId]).catch(console.error);
+      } else {
+        // No session file — mark disconnected so user can reconnect
+        db.update(whatsappInstances)
+          .set({ status: "disconnected", updatedAt: new Date() })
+          .where(eq(whatsappInstances.id, inst.id))
+          .run();
+        console.log(`[WhatsApp] Bot ${inst.botId} has no session, marked disconnected`);
+      }
     }
   } catch (e) {
     console.warn("[WhatsApp] Could not restore instances:", e);

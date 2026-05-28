@@ -184,10 +184,11 @@ async function startInstance(botId: number) {
       const reason = (lastDisconnect?.error as any)?.message ?? "unknown";
       console.log(`[Baileys] Bot ${botId} disconnected — code ${statusCode}, reason: ${reason}`);
 
-      const isLoggedOut = statusCode === 401 || statusCode === 403;
+      // 401/403 = logged out, 405 = connection failure (session rejected)
+      // All three mean the session is invalid — don't retry, clear and wait for new QR
+      const sessionInvalid = statusCode === 401 || statusCode === 403 || statusCode === 405;
 
-      if (isLoggedOut) {
-        // Session is invalid — wipe credentials so next connect generates fresh QR
+      if (sessionInvalid) {
         clearSession(botId);
         instanceStatus.set(botId, "disconnected");
         const db = getDb();
