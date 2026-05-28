@@ -258,6 +258,11 @@ function QRModal({ botId, onClose, onRetry }: { botId: number; onClose: () => vo
               <img src={qr} alt="QR Code" className="mx-auto w-64 h-64 rounded-lg border" />
               <p className="text-xs text-muted-foreground">O QR atualiza automaticamente quando expira.</p>
             </>
+          ) : status === "reconnecting" ? (
+            <div className="py-8 flex flex-col items-center gap-3">
+              <div className="w-8 h-8 border-2 border-amber-500 border-t-transparent rounded-full animate-spin" />
+              <p className="text-sm text-muted-foreground">Reconectando, aguarde...</p>
+            </div>
           ) : (
             <div className="py-8 flex flex-col items-center gap-3">
               <div className="w-8 h-8 border-2 border-primary border-t-transparent rounded-full animate-spin" />

@@ -150,6 +150,9 @@ async function startInstance(botId: number) {
       printQRInTerminal: false,
       browser: Browsers ? Browsers.ubuntu("Desktop") : ["Ubuntu", "Desktop", "22.04.4"],
       syncFullHistory: false,
+      connectTimeoutMs: 60000,
+      keepAliveIntervalMs: 25000,
+      retryRequestDelayMs: 2000,
     });
 
   instances.set(botId, sock);
@@ -196,6 +199,7 @@ async function startInstance(botId: number) {
 
     if (connection === "close") {
       instances.delete(botId);
+      qrCodes.delete(botId); // always clear stale QR on close
       const statusCode = (lastDisconnect?.error as any)?.output?.statusCode;
       const reason = (lastDisconnect?.error as any)?.message ?? "unknown";
       console.log(`[Baileys] Bot ${botId} disconnected — code ${statusCode}, reason: ${reason}`);
