@@ -62,6 +62,7 @@ export const adminRouter = router({
         ? db.select({ name: workspaces.name, plan: workspaces.plan })
             .from(workspaces).where(eq(workspaces.id, member.workspaceId)).get()
         : null;
+      // never expose passwordHash to the client
       return { id: u.id, name: u.name, email: u.email, role: u.role, createdAt: u.createdAt, workspace: ws ?? null };
     });
   }),

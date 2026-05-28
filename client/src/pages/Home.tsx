@@ -13,32 +13,37 @@ export default function Home() {
   const [mode, setMode] = useState<Mode>("home");
   const [email, setEmail] = useState("");
   const [name, setName] = useState("");
+  const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
 
-  const loginMutation = trpc.auth.login.useMutation({
-    onSuccess: (data) => {
-      localStorage.setItem("atendeai_token", data.token);
-      localStorage.removeItem("atendeai_wsid");
-      setLoading(false);
-      // New user (no workspace) → onboarding; existing user → dashboard
-      navigate(data.hasWorkspace ? "/dashboard" : "/onboarding");
-    },
-    onError: (err) => {
-      setError(err.message);
-      setLoading(false);
-    },
-  });
+  function onSuccess(data: { token: string; hasWorkspace: boolean }) {
+    localStorage.setItem("atendeai_token", data.token);
+    localStorage.removeItem("atendeai_wsid");
+    setLoading(false);
+    navigate(data.hasWorkspace ? "/dashboard" : "/onboarding");
+  }
+
+  function onError(err: { message: string }) {
+    setError(err.message);
+    setLoading(false);
+  }
+
+  const registerMutation = trpc.auth.register.useMutation({ onSuccess, onError });
+  const loginMutation    = trpc.auth.login.useMutation({ onSuccess, onError });
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!email) return;
-    if (mode === "register" && !name) return;
     setLoading(true);
     setError("");
-    // Both register and login use the same upsert endpoint
-    loginMutation.mutate({ email, name: name || email.split("@")[0] });
+    if (mode === "register") {
+      registerMutation.mutate({ name, email, password });
+    } else {
+      loginMutation.mutate({ email, password });
+    }
   };
+
+  const switchMode = (m: Mode) => { setMode(m); setError(""); setPassword(""); };
 
   const features = [
     { icon: Bot, title: "Bots por Nicho", desc: "Templates prontos para clínicas, salões, restaurantes e muito mais." },
@@ -63,10 +68,10 @@ export default function Home() {
             <Link to="/pricing" className="text-sm text-muted-foreground hover:text-foreground transition-colors">
               Preços
             </Link>
-            <Button variant="outline" size="sm" onClick={() => { setMode("login"); setError(""); }}>
+            <Button variant="outline" size="sm" onClick={() => switchMode("login")}>
               Entrar
             </Button>
-            <Button size="sm" onClick={() => { setMode("register"); setError(""); }}>
+            <Button size="sm" onClick={() => switchMode("register")}>
               Registrar
             </Button>
           </div>
@@ -87,17 +92,16 @@ export default function Home() {
             Crie um chatbot inteligente para o seu negócio em minutos. Sem código, sem complicação.
           </p>
 
-          {/* Auth card */}
           <Card className="max-w-md mx-auto">
             <CardContent className="p-6">
               {mode === "home" && (
                 <div className="space-y-3">
                   <h2 className="text-lg font-semibold mb-4">Comece agora</h2>
-                  <Button className="w-full" onClick={() => setMode("register")}>
+                  <Button className="w-full" onClick={() => switchMode("register")}>
                     Criar conta grátis
                     <ArrowRight className="w-4 h-4 ml-1" />
                   </Button>
-                  <Button variant="outline" className="w-full" onClick={() => setMode("login")}>
+                  <Button variant="outline" className="w-full" onClick={() => switchMode("login")}>
                     Já tenho conta — Entrar
                   </Button>
                   <p className="text-xs text-muted-foreground mt-2">
@@ -124,12 +128,21 @@ export default function Home() {
                       onChange={e => setEmail(e.target.value)}
                       required
                     />
+                    <Input
+                      type="password"
+                      placeholder="Senha (mínimo 6 caracteres)"
+                      value={password}
+                      onChange={e => setPassword(e.target.value)}
+                      required
+                      minLength={6}
+                    />
                     {error && <p className="text-destructive text-sm">{error}</p>}
-                    <Button type="submit" className="w-full" disabled={loading || !email || !name}>
+                    <Button type="submit" className="w-full"
+                      disabled={loading || !email || !name || password.length < 6}>
                       {loading ? "Criando conta..." : "Criar conta"}
                       <ArrowRight className="w-4 h-4 ml-1" />
                     </Button>
-                    <button type="button" onClick={() => setMode("login")}
+                    <button type="button" onClick={() => switchMode("login")}
                       className="text-xs text-muted-foreground hover:text-foreground w-full text-center">
                       Já tem conta? Entrar
                     </button>
@@ -149,12 +162,19 @@ export default function Home() {
                       required
                       autoFocus
                     />
+                    <Input
+                      type="password"
+                      placeholder="Sua senha"
+                      value={password}
+                      onChange={e => setPassword(e.target.value)}
+                      required
+                    />
                     {error && <p className="text-destructive text-sm">{error}</p>}
-                    <Button type="submit" className="w-full" disabled={loading || !email}>
+                    <Button type="submit" className="w-full" disabled={loading || !email || !password}>
                       {loading ? "Entrando..." : "Entrar"}
                       <ArrowRight className="w-4 h-4 ml-1" />
                     </Button>
-                    <button type="button" onClick={() => setMode("register")}
+                    <button type="button" onClick={() => switchMode("register")}
                       className="text-xs text-muted-foreground hover:text-foreground w-full text-center">
                       Não tem conta? Registrar
                     </button>

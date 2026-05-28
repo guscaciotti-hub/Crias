@@ -192,6 +192,7 @@ function initSchema() {
   // Migrations for existing databases
   try { db.run(sql`ALTER TABLE bots ADD COLUMN agent_mode TEXT NOT NULL DEFAULT 'flow'`); } catch {}
   try { db.run(sql`ALTER TABLE bots ADD COLUMN ai_system_prompt TEXT`); } catch {}
+  try { db.run(sql`ALTER TABLE users ADD COLUMN password_hash TEXT`); } catch {}
 
   db.run(sql`CREATE TABLE IF NOT EXISTS conversation_states (
     id INTEGER PRIMARY KEY AUTOINCREMENT,

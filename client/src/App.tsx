@@ -21,6 +21,15 @@ function AuthGuard({ children }: { children: React.ReactNode }) {
   return <>{children}</>;
 }
 
+function AdminGuard({ children }: { children: React.ReactNode }) {
+  const token = localStorage.getItem("atendeai_token");
+  const me = trpc.auth.me.useQuery(undefined, { enabled: !!token });
+  if (!token) return <Navigate to="/" replace />;
+  if (me.isLoading) return null;
+  if (me.data?.role !== "admin") return <Navigate to="/dashboard" replace />;
+  return <>{children}</>;
+}
+
 export default function App() {
   return (
     <BrowserRouter>
@@ -116,11 +125,11 @@ export default function App() {
         <Route
           path="/admin"
           element={
-            <AuthGuard>
+            <AdminGuard>
               <DashboardLayout>
                 <Admin />
               </DashboardLayout>
-            </AuthGuard>
+            </AdminGuard>
           }
         />
         <Route path="*" element={<Navigate to="/" replace />} />
