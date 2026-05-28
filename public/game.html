@@ -4638,13 +4638,13 @@ function render(now) {
   if (state.cria) renderables.push({ type: 'cria', x: cX, y: cY });
   renderables.push({ type: 'player', x: pX, y: pY });
 
-  // Core Orb depth-sort: re-stamp the orb's map region clipped to the orb's ellipse shape.
-  // Entities with y < ORB_SORT_Y render before the stamp (appear behind orb).
-  // Entities with y > ORB_SORT_Y render after (appear in front).
-  // Ellipse derived from pixel analysis of the orb sphere: center≈(24,22), rx≈4, ry≈3.6 tiles.
-  const ORB_STAMP_X1 = 20 * TILE, ORB_STAMP_Y1 = 18 * TILE;
-  const ORB_STAMP_X2 = 28 * TILE, ORB_STAMP_Y2 = 26 * TILE;
-  const ORB_SORT_Y = 25 * TILE;
+  // Core Orb depth-sort: re-stamp only the icosahedron body (not its glow aura).
+  // ORB_SORT_Y = base of the floating sphere (tile 22), NOT the platform below it.
+  // Player y < ORB_SORT_Y → renders before stamp → appears behind sphere.
+  // Player y > ORB_SORT_Y → renders after → in front (platform area is always in front).
+  const ORB_STAMP_X1 = 21 * TILE, ORB_STAMP_Y1 = 18 * TILE;
+  const ORB_STAMP_X2 = 27 * TILE, ORB_STAMP_Y2 = 24 * TILE;
+  const ORB_SORT_Y = 22 * TILE;
   renderables.push({ type: 'orb', x: ORB_STAMP_X1, y: ORB_SORT_Y });
 
   renderables.sort((a, b) => a.y - b.y);
@@ -4656,11 +4656,11 @@ function render(now) {
     else if (r.type === 'cria') drawCriaSprite(sx, sy, now);
     else if (r.type === 'player') drawPlayer(sx, sy, now);
     else if (r.type === 'orb') {
-      // Clip to the orb sphere ellipse so only pixels inside the orb body are re-stamped
+      // Tight ellipse clipped to the solid icosahedron body only (excludes glow halo)
       const orbCX = 24 * TILE - camX;
-      const orbCY = 22 * TILE - camY;
-      const orbRX = 4.0 * TILE;
-      const orbRY = 3.6 * TILE;
+      const orbCY = 21 * TILE - camY;
+      const orbRX = 2.6 * TILE;
+      const orbRY = 2.6 * TILE;
       ctx.save();
       ctx.beginPath();
       ctx.ellipse(orbCX, orbCY, orbRX, orbRY, 0, 0, Math.PI * 2);
