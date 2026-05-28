@@ -2005,79 +2005,19 @@ function loadImage(src, timeout) {
   });
 }
 
-// Builds a per-pixel mask of the orb area: map pixels shown where sprite is opaque,
-// plus strongly-blue aura pixels near center. Ground pixels → transparent.
-// This way the map's own orb is used for depth-sort (no double-orb), and the
-// ground never appears in front of entities.
-function buildOrbMask(mapImg, orbSprite) {
-  const tx1 = 21, ty1 = 18, tx2 = 27, ty2 = 24;
-  const worldX = tx1 * TILE, worldY = ty1 * TILE;
-  const worldW = (tx2 - tx1) * TILE, worldH = (ty2 - ty1) * TILE;
-
-  const imgScaleX = (mapImg.naturalWidth  || mapImg.width)  / MAP_W_PX;
-  const imgScaleY = (mapImg.naturalHeight || mapImg.height) / MAP_H_PX;
-
-  // Draw map orb region at world-pixel size
-  const tmp = document.createElement('canvas');
-  tmp.width = worldW; tmp.height = worldH;
-  const tmpCtx = tmp.getContext('2d');
-  tmpCtx.drawImage(mapImg,
-    Math.round(worldX * imgScaleX), Math.round(worldY * imgScaleY),
-    Math.round(worldW * imgScaleX), Math.round(worldH * imgScaleY),
-    0, 0, worldW, worldH);
-
-  // Draw sprite to same size to extract its alpha shape
-  const spriteTmp = document.createElement('canvas');
-  spriteTmp.width = worldW; spriteTmp.height = worldH;
-  const sprCtx = spriteTmp.getContext('2d');
-  const sw = orbSprite.naturalWidth || orbSprite.width;
-  const sh = orbSprite.naturalHeight || orbSprite.height;
-  sprCtx.drawImage(orbSprite, 0, 0, sw, sh, 0, 0, worldW, worldH);
-
-  const mapData = tmpCtx.getImageData(0, 0, worldW, worldH);
-  const sprData = sprCtx.getImageData(0, 0, worldW, worldH);
-  const md = mapData.data, sd = sprData.data;
-
-  const cx = worldW / 2, cy = worldH / 2;
-  const maxDistSq = (worldW * 0.55) * (worldW * 0.55);
-
-  for (let i = 0; i < md.length; i += 4) {
-    const sprA = sd[i + 3];
-    if (sprA > 20) {
-      md[i + 3] = 255; // inside sprite body/aura → keep full map pixel
-    } else {
-      // Outside sprite silhouette: keep only strongly-blue aura near center
-      const r = md[i], g = md[i + 1], b = md[i + 2];
-      const px = (i >> 2) % worldW, py = (i >> 2) / worldW | 0;
-      const dSq = (px - cx) * (px - cx) + (py - cy) * (py - cy);
-      md[i + 3] = (b > r + 20 && b > g + 10 && b > 90 && dSq < maxDistSq) ? 255 : 0;
-    }
-  }
-  tmpCtx.putImageData(mapData, 0, 0);
-
-  const out = document.createElement('canvas');
-  out.width = worldW; out.height = worldH;
-  out.getContext('2d').drawImage(tmp, 0, 0);
-  out._worldX = worldX;
-  out._worldY = worldY;
-  return out;
-}
-
 function loadAssets() {
   // Nada bloqueia a tela de loading — tudo carrega em background
   // O game loop já verifica assets.map antes de renderizar (if (!assets.map) return)
   loadImage(MAP_URL, 20000).then(img => {
     assets.map = img;
-    if (assets.orbSprite) assets.orbMask = buildOrbMask(img, assets.orbSprite);
   }).catch(() => {});
+  // Orb sprite (PNG transparente: só o orbe + aura, SEM chão).
+  // Desenhado por cima do orbe estampado no mapa, alinhado pra não duplicar.
   (function loadOrbSprite(){
     const el = document.getElementById('d-orb-sprite');
     if (!el || !el.textContent.trim()) return;
     const dataUrl = 'data:image/png;base64,' + el.textContent.trim();
-    loadImage(dataUrl, 10000).then(img => {
-      assets.orbSprite = img;
-      if (assets.map) assets.orbMask = buildOrbMask(assets.map, img);
-    }).catch(() => {});
+    loadImage(dataUrl, 10000).then(img => { assets.orbSprite = img; }).catch(() => {});
   })();
   loadImage(CAVE1_MAP_URL, 20000).then(img => { assets.cave1map = img; }).catch(() => {});
   // Guarda Kalos pixel-art sprite (loaded from <script type="text/plain"> base64 element)
@@ -4710,13 +4650,20 @@ function render(now) {
   if (state.cria) renderables.push({ type: 'cria', x: cX, y: cY });
   renderables.push({ type: 'player', x: pX, y: pY });
 
-  // Core Orb depth-sort: full sprite sorted at the base of the sphere (y=24).
-  // Player y < 24*TILE → player renders before orb → orb covers player (red zone).
-  // Player y ≥ 24*TILE → player renders after orb → player in front (collision barrier there).
-  const ORB_SORT_Y = 24 * TILE;
-  renderables.push({ type: 'orb', x: 21 * TILE, y: ORB_SORT_Y });
+  // Core Orb depth-sort. The transparent orb SPRITE (orb + aura, NO ground) is
+  // drawn over the map's baked orb, aligned so it reads as a single orb.
+  // Because the sprite has no ground pixels, the floor can NEVER cover the player —
+  // only the orb/aura overlaps entities, which is the desired effect.
+  // Sort line ≈ orb vertical centre: player above it (north/sides) renders first →
+  // orb covers player (passes behind); player below it (south) renders after → in front.
+  const ORB_SORT_Y = 23 * TILE;
+  renderables.push({ type: 'orb', x: 24 * TILE, y: ORB_SORT_Y });
 
   renderables.sort((a, b) => a.y - b.y);
+
+  // Sprite frame mapped so its orb content lands on the map orb (centre tile 24,22).
+  // Content occupies x[0.182,0.824] y[0.154,0.787] of the 512² frame → frame dest box:
+  const ORB_DX = 16.65, ORB_DY = 15.02, ORB_DW = 14.62, ORB_DH = 14.85; // world tiles
 
   for (const r of renderables) {
     const sx = r.x - camX;
@@ -4724,10 +4671,11 @@ function render(now) {
     if (r.type === 'npc') drawNPC(r.npc, sx, sy, now);
     else if (r.type === 'cria') drawCriaSprite(sx, sy, now);
     else if (r.type === 'player') drawPlayer(sx, sy, now);
-    else if (r.type === 'orb' && assets.orbMask) {
-      const ov = assets.orbMask;
-      ctx.imageSmoothingEnabled = false;
-      ctx.drawImage(ov, ov._worldX - camX, ov._worldY - camY);
+    else if (r.type === 'orb' && assets.orbSprite) {
+      ctx.imageSmoothingEnabled = true;
+      ctx.drawImage(assets.orbSprite,
+        ORB_DX * TILE - camX, ORB_DY * TILE - camY,
+        ORB_DW * TILE, ORB_DH * TILE);
     }
   }
 
