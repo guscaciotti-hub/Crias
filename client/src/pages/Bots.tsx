@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { Link } from "react-router-dom";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -202,6 +202,51 @@ function AIConfigModal({ bot, onClose }: { bot: BotWithInstance; onClose: () => 
   );
 }
 
+function QRModal({ botId, qr, onClose }: { botId: number; qr: string; onClose: () => void }) {
+  const statusQuery = trpc.whatsapp.status.useQuery({ botId }, { refetchInterval: 2000 });
+  const connected = statusQuery.data?.status === "connected";
+
+  useEffect(() => {
+    if (connected) {
+      const t = setTimeout(onClose, 1800);
+      return () => clearTimeout(t);
+    }
+  }, [connected]);
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
+      <Card className="w-full max-w-sm">
+        <CardHeader>
+          <CardTitle className="text-center flex items-center justify-center gap-2">
+            {connected ? <>✅ Conectado!</> : <>Escanear QR Code</>}
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="text-center space-y-4">
+          {connected ? (
+            <div className="py-6">
+              <p className="text-emerald-600 font-semibold text-lg">WhatsApp conectado!</p>
+              <p className="text-sm text-muted-foreground mt-1">Fechando em instantes...</p>
+            </div>
+          ) : (
+            <>
+              <p className="text-sm text-muted-foreground">
+                No celular: <strong>WhatsApp → Dispositivos vinculados → Vincular dispositivo</strong>
+              </p>
+              <img src={qr} alt="QR Code" className="mx-auto w-64 h-64 rounded-lg border" />
+              <p className="text-xs text-muted-foreground">
+                ⏱ O QR expira em ~20 s. Se expirar, feche e clique "Conectar WhatsApp" novamente.
+              </p>
+            </>
+          )}
+          <Button variant="outline" className="w-full" onClick={onClose}>
+            {connected ? "Fechar" : "Cancelar"}
+          </Button>
+        </CardContent>
+      </Card>
+    </div>
+  );
+}
+
 export default function Bots() {
   const [showCreate, setShowCreate] = useState(false);
   const [selectedNiche, setSelectedNiche] = useState<Niche | null>(null);
@@ -338,16 +383,11 @@ export default function Bots() {
       )}
 
       {qrModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
-          <Card className="w-full max-w-sm">
-            <CardHeader><CardTitle className="text-center">Escanear QR Code</CardTitle></CardHeader>
-            <CardContent className="text-center space-y-4">
-              <p className="text-sm text-muted-foreground">Abra o WhatsApp no celular e escaneie</p>
-              <img src={qrModal.qr} alt="QR Code" className="mx-auto w-64 h-64 rounded-lg border" />
-              <Button variant="outline" onClick={() => setQrModal(null)}>Fechar</Button>
-            </CardContent>
-          </Card>
-        </div>
+        <QRModal
+          botId={qrModal.botId}
+          qr={qrModal.qr}
+          onClose={() => { setQrModal(null); botsQuery.refetch(); }}
+        />
       )}
 
       {aiModal && <AIConfigModal bot={aiModal} onClose={() => { setAiModal(null); botsQuery.refetch(); }} />}
