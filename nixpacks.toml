@@ -11,4 +11,4 @@ cmds = [
 ]
 
 [start]
-cmd = "node dist/server/index.js"
+cmd = "node server/dist/server/index.js"
