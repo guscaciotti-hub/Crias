@@ -4,7 +4,7 @@ import { getDb } from "../db.js";
 import { whatsappInstances, workspaceMembers } from "../../drizzle/schema.js";
 import { eq, and } from "drizzle-orm";
 import { TRPCError } from "@trpc/server";
-import { getQRCode, disconnectInstance, getInstanceStatus } from "../whatsapp/baileys-manager.js";
+import { forceRestartInstance, disconnectInstance, getInstanceStatus, getCurrentQR } from "../whatsapp/baileys-manager.js";
 
 async function getWsId(userId: number): Promise<number> {
   const db = getDb();
@@ -15,13 +15,14 @@ async function getWsId(userId: number): Promise<number> {
 }
 
 export const whatsappRouter = router({
+  // Starts (or restarts) the Baileys instance — returns immediately.
+  // The client polls whatsapp.status to get the live QR and connection state.
   generateQR: protectedProcedure
     .input(z.object({ botId: z.number() }))
     .mutation(async ({ ctx, input }) => {
       const db = getDb();
       const wsId = await getWsId(ctx.user.id);
 
-      // Upsert instance
       const existing = db.select().from(whatsappInstances)
         .where(and(eq(whatsappInstances.botId, input.botId), eq(whatsappInstances.workspaceId, wsId))).get();
 
@@ -40,9 +41,9 @@ export const whatsappRouter = router({
           .run();
       }
 
-      const qr = await getQRCode(input.botId);
-      if (!qr) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Timeout aguardando QR Code. Tente novamente." });
-      return { qr };
+      // Kill any stale instance and start fresh (non-blocking)
+      forceRestartInstance(input.botId);
+      return { ok: true };
     }),
 
   status: protectedProcedure
@@ -56,7 +57,7 @@ export const whatsappRouter = router({
       return {
         status: liveStatus ?? instance?.status ?? "disconnected",
         phoneNumber: instance?.phoneNumber ?? null,
-        instance: instance ?? null,
+        qr: getCurrentQR(input.botId),
       };
     }),
 

@@ -202,9 +202,10 @@ function AIConfigModal({ bot, onClose }: { bot: BotWithInstance; onClose: () => 
   );
 }
 
-function QRModal({ botId, qr, onClose }: { botId: number; qr: string; onClose: () => void }) {
+function QRModal({ botId, onClose }: { botId: number; onClose: () => void }) {
   const statusQuery = trpc.whatsapp.status.useQuery({ botId }, { refetchInterval: 2000 });
-  const connected = statusQuery.data?.status === "connected";
+  const { status, qr } = statusQuery.data ?? {};
+  const connected = status === "connected";
 
   useEffect(() => {
     if (connected) {
@@ -217,8 +218,8 @@ function QRModal({ botId, qr, onClose }: { botId: number; qr: string; onClose: (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
       <Card className="w-full max-w-sm">
         <CardHeader>
-          <CardTitle className="text-center flex items-center justify-center gap-2">
-            {connected ? <>✅ Conectado!</> : <>Escanear QR Code</>}
+          <CardTitle className="text-center">
+            {connected ? "✅ Conectado!" : "Escanear QR Code"}
           </CardTitle>
         </CardHeader>
         <CardContent className="text-center space-y-4">
@@ -227,16 +228,21 @@ function QRModal({ botId, qr, onClose }: { botId: number; qr: string; onClose: (
               <p className="text-emerald-600 font-semibold text-lg">WhatsApp conectado!</p>
               <p className="text-sm text-muted-foreground mt-1">Fechando em instantes...</p>
             </div>
-          ) : (
+          ) : qr ? (
             <>
               <p className="text-sm text-muted-foreground">
                 No celular: <strong>WhatsApp → Dispositivos vinculados → Vincular dispositivo</strong>
               </p>
               <img src={qr} alt="QR Code" className="mx-auto w-64 h-64 rounded-lg border" />
               <p className="text-xs text-muted-foreground">
-                ⏱ O QR expira em ~20 s. Se expirar, feche e clique "Conectar WhatsApp" novamente.
+                O QR atualiza automaticamente quando expira.
               </p>
             </>
+          ) : (
+            <div className="py-8 flex flex-col items-center gap-3">
+              <div className="w-8 h-8 border-2 border-primary border-t-transparent rounded-full animate-spin" />
+              <p className="text-sm text-muted-foreground">Aguardando QR Code...</p>
+            </div>
           )}
           <Button variant="outline" className="w-full" onClick={onClose}>
             {connected ? "Fechar" : "Cancelar"}
@@ -251,7 +257,7 @@ export default function Bots() {
   const [showCreate, setShowCreate] = useState(false);
   const [selectedNiche, setSelectedNiche] = useState<Niche | null>(null);
   const [businessName, setBusinessName] = useState("");
-  const [qrModal, setQrModal] = useState<{ botId: number; qr: string } | null>(null);
+  const [qrModal, setQrModal] = useState<{ botId: number } | null>(null);
   const [aiModal, setAiModal] = useState<BotWithInstance | null>(null);
 
   const botsQuery = trpc.bots.list.useQuery();
@@ -260,7 +266,7 @@ export default function Bots() {
   });
   const deleteBot = trpc.bots.delete.useMutation({ onSuccess: () => botsQuery.refetch() });
   const generateQR = trpc.whatsapp.generateQR.useMutation({
-    onSuccess: (data, vars) => setQrModal({ botId: vars.botId, qr: data.qr }),
+    onSuccess: (_data, vars) => setQrModal({ botId: vars.botId }),
   });
 
   const niches = Object.entries(NICHE_TEMPLATES).map(([key, val]) => ({
@@ -385,7 +391,6 @@ export default function Bots() {
       {qrModal && (
         <QRModal
           botId={qrModal.botId}
-          qr={qrModal.qr}
           onClose={() => { setQrModal(null); botsQuery.refetch(); }}
         />
       )}

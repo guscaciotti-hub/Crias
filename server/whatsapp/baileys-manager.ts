@@ -52,6 +52,10 @@ export function getInstance(botId: number) {
   return instances.get(botId);
 }
 
+export function getCurrentQR(botId: number): string | null {
+  return qrCodes.get(botId) ?? null;
+}
+
 export async function sendMessage(botId: number, to: string, text: string): Promise<void> {
   const sock = instances.get(botId);
   if (!sock || instanceStatus.get(botId) !== "connected") return;
@@ -61,6 +65,17 @@ export async function sendMessage(botId: number, to: string, text: string): Prom
   } catch (e) {
     console.error("[BaileysManager] sendMessage failed:", e);
   }
+}
+
+export async function forceRestartInstance(botId: number) {
+  const sock = instances.get(botId);
+  if (sock) {
+    try { sock.end(undefined); } catch {}
+    instances.delete(botId);
+  }
+  qrCodes.delete(botId);
+  instanceStatus.set(botId, "connecting");
+  startInstance(botId).catch(console.error);
 }
 
 export async function disconnectInstance(botId: number) {
