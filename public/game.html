@@ -5065,6 +5065,33 @@ function drawLabels(camX, camY, cw, ch) {
   }
 }
 
+// DEBUG: collision grid overlay — remove after fixing
+function renderCollisionDebug() {
+  if (!state || state.scene !== 'nexus') return;
+  const camX = camera.x, camY = camera.y;
+  const cw = canvas.width, ch = canvas.height;
+  ctx.save();
+  ctx.font = '8px monospace';
+  ctx.lineWidth = 0.5;
+  for (let row = 0; row < GRID; row++) {
+    for (let col = 0; col < GRID; col++) {
+      const wx = col * TILE - camX;
+      const wy = row * TILE - camY;
+      if (wx + TILE < 0 || wx > cw || wy + TILE < 0 || wy > ch) continue;
+      const blocked = COLLISION[row] && COLLISION[row][col];
+      if (blocked) {
+        ctx.fillStyle = 'rgba(255,0,0,0.25)';
+        ctx.fillRect(wx, wy, TILE, TILE);
+      }
+      ctx.strokeStyle = 'rgba(255,255,255,0.15)';
+      ctx.strokeRect(wx, wy, TILE, TILE);
+      ctx.fillStyle = blocked ? 'rgba(255,100,100,0.9)' : 'rgba(255,255,255,0.4)';
+      ctx.fillText(`${col},${row}`, wx + 2, wy + 9);
+    }
+  }
+  ctx.restore();
+}
+
 function renderHUD() {
   if (!state) { document.getElementById('hud').innerHTML = ''; return; }
   if (!state.cria) {
@@ -5103,6 +5130,7 @@ function loop(t) {
     FX.update(t, dt);
     update(t);
     render(t);
+    renderCollisionDebug();
     renderHUD();
     // Apply screen shake via CSS transform on canvas
     const sh = FX.getShake();
