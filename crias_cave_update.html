@@ -2004,10 +2004,56 @@ function loadImage(src, timeout) {
   });
 }
 
+// Extracts only the orb body pixels from the map image (ground pixels → transparent).
+// Result is cached as an offscreen canvas drawn in world pixel coordinates.
+function buildOrbOverlay(mapImg) {
+  const mapW = 1872; // MAP_W_PX world pixels
+  const scaleX = (mapImg.naturalWidth || mapImg.width) / mapW;
+  const scaleY = (mapImg.naturalHeight || mapImg.height) / mapW;
+
+  // Orb sphere area in world tiles
+  const tx1 = 21, ty1 = 18, tx2 = 27, ty2 = 24;
+  const worldX = tx1 * TILE, worldY = ty1 * TILE;
+  const worldW = (tx2 - tx1) * TILE, worldH = (ty2 - ty1) * TILE;
+
+  const imgX = Math.round(worldX * scaleX);
+  const imgY = Math.round(worldY * scaleY);
+  const imgW = Math.round(worldW * scaleX);
+  const imgH = Math.round(worldH * scaleY);
+
+  // Draw map region to temp canvas for pixel access
+  const tmp = document.createElement('canvas');
+  tmp.width = imgW; tmp.height = imgH;
+  const tmpCtx = tmp.getContext('2d');
+  tmpCtx.drawImage(mapImg, imgX, imgY, imgW, imgH, 0, 0, imgW, imgH);
+
+  const imageData = tmpCtx.getImageData(0, 0, imgW, imgH);
+  const d = imageData.data;
+  for (let i = 0; i < d.length; i += 4) {
+    const r = d[i], g = d[i+1], b = d[i+2];
+    // Keep only pixels that are clearly "orb" (significantly bluer than warm)
+    // Stone/ground: brownish-gray, b ≈ r-10 to r+10
+    // Orb body: b > r+25 and b > 70
+    if (!(b > r + 25 && b > 70)) d[i+3] = 0; // transparent
+  }
+  tmpCtx.putImageData(imageData, 0, 0);
+
+  // Render at world pixel size for direct blitting in render loop
+  const out = document.createElement('canvas');
+  out.width = worldW; out.height = worldH;
+  out.getContext('2d').drawImage(tmp, 0, 0, imgW, imgH, 0, 0, worldW, worldH);
+  out._worldX = worldX;
+  out._worldY = worldY;
+  return out;
+}
+
 function loadAssets() {
   // Nada bloqueia a tela de loading — tudo carrega em background
   // O game loop já verifica assets.map antes de renderizar (if (!assets.map) return)
-  loadImage(MAP_URL, 20000).then(img => { assets.map = img; }).catch(() => {});
+  loadImage(MAP_URL, 20000).then(img => {
+    assets.map = img;
+    assets.orbOverlay = buildOrbOverlay(img);
+  }).catch(() => {});
   loadImage(CAVE1_MAP_URL, 20000).then(img => { assets.cave1map = img; }).catch(() => {});
   // Guarda Kalos pixel-art sprite (loaded from <script type="text/plain"> base64 element)
   (function loadGuardaSprite(){
@@ -4638,14 +4684,10 @@ function render(now) {
   if (state.cria) renderables.push({ type: 'cria', x: cX, y: cY });
   renderables.push({ type: 'player', x: pX, y: pY });
 
-  // Core Orb depth-sort: re-stamp only the icosahedron body (not its glow aura).
-  // ORB_SORT_Y = base of the floating sphere (tile 22), NOT the platform below it.
-  // Player y < ORB_SORT_Y → renders before stamp → appears behind sphere.
-  // Player y > ORB_SORT_Y → renders after → in front (platform area is always in front).
-  const ORB_STAMP_X1 = 21 * TILE, ORB_STAMP_Y1 = 18 * TILE;
-  const ORB_STAMP_X2 = 27 * TILE, ORB_STAMP_Y2 = 24 * TILE;
+  // Core Orb depth-sort: overlay only the orb body pixels (ground is transparent in assets.orbOverlay).
+  // ORB_SORT_Y = base of the floating sphere (tile 22). Platform area (y>22) always renders in front.
   const ORB_SORT_Y = 22 * TILE;
-  renderables.push({ type: 'orb', x: ORB_STAMP_X1, y: ORB_SORT_Y });
+  renderables.push({ type: 'orb', x: 21 * TILE, y: ORB_SORT_Y });
 
   renderables.sort((a, b) => a.y - b.y);
 
@@ -4655,25 +4697,10 @@ function render(now) {
     if (r.type === 'npc') drawNPC(r.npc, sx, sy, now);
     else if (r.type === 'cria') drawCriaSprite(sx, sy, now);
     else if (r.type === 'player') drawPlayer(sx, sy, now);
-    else if (r.type === 'orb') {
-      // Tight ellipse clipped to the solid icosahedron body only (excludes glow halo)
-      const orbCX = 24 * TILE - camX;
-      const orbCY = 21 * TILE - camY;
-      const orbRX = 2.6 * TILE;
-      const orbRY = 2.6 * TILE;
-      ctx.save();
-      ctx.beginPath();
-      ctx.ellipse(orbCX, orbCY, orbRX, orbRY, 0, 0, Math.PI * 2);
-      ctx.clip();
-      const imgX = Math.round(ORB_STAMP_X1 * _scaleX);
-      const imgY = Math.round(ORB_STAMP_Y1 * _scaleY);
-      const imgW = Math.round((ORB_STAMP_X2 - ORB_STAMP_X1) * _scaleX);
-      const imgH = Math.round((ORB_STAMP_Y2 - ORB_STAMP_Y1) * _scaleY);
+    else if (r.type === 'orb' && assets.orbOverlay) {
+      const ov = assets.orbOverlay;
       ctx.imageSmoothingEnabled = false;
-      ctx.drawImage(assets.map, imgX, imgY, imgW, imgH,
-        ORB_STAMP_X1 - camX, ORB_STAMP_Y1 - camY,
-        ORB_STAMP_X2 - ORB_STAMP_X1, ORB_STAMP_Y2 - ORB_STAMP_Y1);
-      ctx.restore();
+      ctx.drawImage(ov, ov._worldX - camX, ov._worldY - camY);
     }
   }
 
