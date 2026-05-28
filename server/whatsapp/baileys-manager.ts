@@ -145,12 +145,13 @@ async function startInstance(botId: number) {
 
   sock.ev.on("connection.update", async ({ connection, lastDisconnect, qr }: any) => {
     if (qr) {
+      clearTimeout(timeout); // QR arrived — cancel the error timeout
       try {
         const qrDataUrl = await QRCode.toDataURL(qr);
         qrCodes.set(botId, qrDataUrl);
         instanceStatus.set(botId, "qr_pending");
+        console.log(`[Baileys] Bot ${botId} QR code ready`);
 
-        // Update DB
         const db = getDb();
         db.update(whatsappInstances)
           .set({ status: "qr_pending", lastQrAt: new Date(), updatedAt: new Date() })
@@ -160,6 +161,7 @@ async function startInstance(botId: number) {
     }
 
     if (connection === "open") {
+      clearTimeout(timeout);
       qrCodes.delete(botId);
       instanceStatus.set(botId, "connected");
 
@@ -189,8 +191,9 @@ async function startInstance(botId: number) {
       const sessionInvalid = statusCode === 401 || statusCode === 403 || statusCode === 405;
 
       if (sessionInvalid) {
+        clearTimeout(timeout);
         clearSession(botId);
-        instanceStatus.set(botId, "disconnected");
+        instanceStatus.set(botId, "error");
         const db = getDb();
         db.update(whatsappInstances)
           .set({ status: "disconnected", updatedAt: new Date() })
@@ -228,7 +231,9 @@ async function startInstance(botId: number) {
   } catch (e) {
     console.error(`[Baileys] startInstance error for bot ${botId}:`, e);
     instanceStatus.set(botId, "error");
-  } finally {
     clearTimeout(timeout);
   }
+  // Note: timeout intentionally NOT cleared in finally — it must stay active
+  // until the async connection.update events fire (qr/open/close).
+  // It is cleared inside connection.update on success or permanent failure.
 }

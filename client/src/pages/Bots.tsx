@@ -206,7 +206,21 @@ function QRModal({ botId, onClose, onRetry }: { botId: number; onClose: () => vo
   const statusQuery = trpc.whatsapp.status.useQuery({ botId }, { refetchInterval: 2000 });
   const { status, qr } = statusQuery.data ?? {};
   const connected = status === "connected";
-  const failed = status === "error";
+  const [timedOut, setTimedOut] = useState(false);
+
+  // If no QR appears within 30s, show error
+  useEffect(() => {
+    setTimedOut(false);
+    const t = setTimeout(() => setTimedOut(true), 30000);
+    return () => clearTimeout(t);
+  }, []);
+
+  // Reset timeout when QR arrives or connection succeeds
+  useEffect(() => {
+    if (qr || connected) setTimedOut(false);
+  }, [qr, connected]);
+
+  const failed = status === "error" || (timedOut && !qr && !connected);
 
   useEffect(() => {
     if (connected) {
