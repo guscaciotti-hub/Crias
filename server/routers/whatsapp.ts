@@ -4,7 +4,7 @@ import { getDb } from "../db.js";
 import { whatsappInstances, workspaceMembers } from "../../drizzle/schema.js";
 import { eq, and } from "drizzle-orm";
 import { TRPCError } from "@trpc/server";
-import { forceRestartInstance, disconnectInstance, getInstanceStatus, getCurrentQR } from "../whatsapp/baileys-manager.js";
+import { forceRestartInstance, disconnectInstance, getInstanceStatus, getCurrentQR, getLastError } from "../whatsapp/baileys-manager.js";
 
 async function getWsId(userId: number): Promise<number> {
   const db = getDb();
@@ -58,6 +58,7 @@ export const whatsappRouter = router({
         status: liveStatus ?? instance?.status ?? "disconnected",
         phoneNumber: instance?.phoneNumber ?? null,
         qr: getCurrentQR(input.botId),
+        lastError: getLastError(input.botId),
       };
     }),
 

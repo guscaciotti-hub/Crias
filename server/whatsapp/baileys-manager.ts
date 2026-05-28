@@ -21,6 +21,9 @@ const instanceStatus = new Map<number, string>();
 // Reconnect attempt counter: botId → count (reset on QR scan or manual restart)
 const reconnectAttempts = new Map<number, number>();
 
+// Last disconnect diagnostic: botId → { code, reason }
+const lastError = new Map<number, { code: number | string; reason: string }>();
+
 // Message handler (injected by message-bridge)
 let messageHandler: ((botId: number, from: string, text: string) => Promise<string | null>) | null = null;
 
@@ -30,6 +33,10 @@ export function setMessageHandler(handler: typeof messageHandler) {
 
 export function getInstanceStatus(botId: number): string | undefined {
   return instanceStatus.get(botId);
+}
+
+export function getLastError(botId: number): { code: number | string; reason: string } | null {
+  return lastError.get(botId) ?? null;
 }
 
 export async function getQRCode(botId: number): Promise<string | null> {
@@ -82,6 +89,7 @@ export function forceRestartInstance(botId: number) {
   instances.delete(botId);
   qrCodes.delete(botId);
   reconnectAttempts.delete(botId); // reset counter on manual restart
+  lastError.delete(botId);
   instanceStatus.set(botId, "connecting");
   clearSession(botId); // wipe stale credentials so Baileys generates a fresh QR
   startInstance(botId).catch(console.error);
@@ -187,6 +195,8 @@ async function startInstance(botId: number) {
     if (connection === "open") {
       clearTimeout(timeout);
       qrCodes.delete(botId);
+      reconnectAttempts.delete(botId);
+      lastError.delete(botId);
       instanceStatus.set(botId, "connected");
 
       const db = getDb();
@@ -209,10 +219,31 @@ async function startInstance(botId: number) {
       qrCodes.delete(botId); // always clear stale QR on close
       const statusCode = (lastDisconnect?.error as any)?.output?.statusCode;
       const reason = (lastDisconnect?.error as any)?.message ?? "unknown";
+      lastError.set(botId, { code: statusCode ?? "?", reason });
       console.log(`[Baileys] Bot ${botId} disconnected — code ${statusCode}, reason: ${reason}`);
 
-      // 401/403 = logged out, 405 = connection failure (session rejected)
-      // All three mean the session is invalid — don't retry, clear and wait for new QR
+      // 515 = restartRequired: NORMAL after a successful QR scan. Reconnect fast
+      // reusing the just-saved credentials. This is the expected happy path.
+      if (statusCode === 515) {
+        const attempts = (reconnectAttempts.get(botId) ?? 0) + 1;
+        reconnectAttempts.set(botId, attempts);
+        if (attempts > 5) {
+          // Looping on 515 means the session is being rejected after scan —
+          // classic datacenter-IP block by WhatsApp. Stop and report.
+          clearTimeout(timeout);
+          clearSession(botId);
+          reconnectAttempts.delete(botId);
+          instanceStatus.set(botId, "error");
+          console.error(`[Baileys] Bot ${botId} stuck in 515 loop — likely IP blocked by WhatsApp`);
+        } else {
+          console.log(`[Baileys] Bot ${botId} restart required (515), reconnecting #${attempts}`);
+          instanceStatus.set(botId, "reconnecting");
+          setTimeout(() => startInstance(botId), 1500);
+        }
+        return;
+      }
+
+      // 401/403/405 = session invalid/rejected — don't retry, wait for new QR
       const sessionInvalid = statusCode === 401 || statusCode === 403 || statusCode === 405;
 
       if (sessionInvalid) {
@@ -226,13 +257,12 @@ async function startInstance(botId: number) {
           .where(eq(whatsappInstances.botId, botId))
           .run();
       } else {
-        // 515 = restartRequired (normal after QR scan), 428 = connectionClosed, etc.
+        // 428 connectionClosed, network blips, etc. — retry a few times
         const attempts = (reconnectAttempts.get(botId) ?? 0) + 1;
         reconnectAttempts.set(botId, attempts);
         console.log(`[Baileys] Bot ${botId} will reconnect (attempt ${attempts}/5)`);
 
         if (attempts >= 5) {
-          // Too many reconnect failures — give up, let user try again manually
           clearTimeout(timeout);
           clearSession(botId);
           reconnectAttempts.delete(botId);

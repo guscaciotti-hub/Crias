@@ -204,7 +204,7 @@ function AIConfigModal({ bot, onClose }: { bot: BotWithInstance; onClose: () => 
 
 function QRModal({ botId, onClose, onRetry }: { botId: number; onClose: () => void; onRetry: () => void }) {
   const statusQuery = trpc.whatsapp.status.useQuery({ botId }, { refetchInterval: 2000 });
-  const { status, qr } = statusQuery.data ?? {};
+  const { status, qr, lastError } = statusQuery.data ?? {};
   const connected = status === "connected";
   const [timedOut, setTimedOut] = useState(false);
 
@@ -247,8 +247,24 @@ function QRModal({ botId, onClose, onRetry }: { botId: number; onClose: () => vo
           ) : failed ? (
             <div className="py-4 space-y-3">
               <p className="text-sm text-muted-foreground">
-                Não foi possível gerar o QR Code. Verifique os logs do Render para detalhes.
+                A conexão foi rejeitada pelo WhatsApp.
               </p>
+              {lastError && (
+                <div className="bg-red-50 border border-red-200 rounded-lg p-3 text-left">
+                  <p className="text-xs font-mono text-red-700">
+                    Código: <strong>{lastError.code}</strong>
+                  </p>
+                  <p className="text-xs font-mono text-red-700 break-words">
+                    {lastError.reason}
+                  </p>
+                </div>
+              )}
+              {(lastError?.code === 405 || lastError?.code === 401 || lastError?.code === 403) && (
+                <p className="text-xs text-amber-600">
+                  ⚠️ Código {lastError.code} geralmente significa que o IP do servidor foi
+                  bloqueado pelo WhatsApp. Comum em hospedagem cloud (Render/AWS).
+                </p>
+              )}
               <Button className="w-full" onClick={onRetry}>Tentar novamente</Button>
             </div>
           ) : qr ? (
