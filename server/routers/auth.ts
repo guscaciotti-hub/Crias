@@ -50,7 +50,20 @@ export const authRouter = router({
       const db = getDb();
       const openId = `local_${input.email.toLowerCase().replace(/[^a-z0-9]/g, "_")}`;
 
-      const existing = db.select({ id: users.id }).from(users).where(eq(users.openId, openId)).get();
+      const existing = db.select().from(users).where(eq(users.openId, openId)).get();
+
+      // Migrated user (old demo_ account): no password yet → let them set one now
+      if (existing && !existing.passwordHash) {
+        const updated = db.update(users)
+          .set({ passwordHash: hashPassword(input.password), name: input.name })
+          .where(eq(users.id, existing.id))
+          .returning().get();
+        const token = makeSessionToken(updated.id);
+        const member = db.select({ id: workspaceMembers.id })
+          .from(workspaceMembers).where(eq(workspaceMembers.userId, updated.id)).get();
+        return { token, user: safeUser(updated), hasWorkspace: !!member };
+      }
+
       if (existing) {
         throw new TRPCError({ code: "CONFLICT", message: "E-mail já cadastrado. Faça login." });
       }
@@ -64,7 +77,9 @@ export const authRouter = router({
       }).returning().get();
 
       const token = makeSessionToken(user.id);
-      return { token, user: safeUser(user), hasWorkspace: false };
+      const member = db.select({ id: workspaceMembers.id })
+        .from(workspaceMembers).where(eq(workspaceMembers.userId, user.id)).get();
+      return { token, user: safeUser(user), hasWorkspace: !!member };
     }),
 
   login: publicProcedure

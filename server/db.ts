@@ -194,6 +194,8 @@ function initSchema() {
   try { db.run(sql`ALTER TABLE bots ADD COLUMN ai_system_prompt TEXT`); } catch {}
   try { db.run(sql`ALTER TABLE users ADD COLUMN password_hash TEXT`); } catch {}
   try { db.run(sql`ALTER TABLE bots ADD COLUMN alert_numbers TEXT NOT NULL DEFAULT '[]'`); } catch {}
+  // Migrate old demo_ prefix to local_ so existing accounts keep their data
+  try { db.run(sql`UPDATE users SET open_id = 'local_' || SUBSTR(open_id, 6) WHERE open_id LIKE 'demo_%'`); } catch {}
 
   db.run(sql`CREATE TABLE IF NOT EXISTS conversation_states (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
