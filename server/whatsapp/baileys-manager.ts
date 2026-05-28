@@ -8,9 +8,6 @@ import QRCode from "qrcode";
 
 const require = createRequire(import.meta.url);
 
-// Cache WhatsApp version to avoid extra HTTP requests
-let cachedVersion: [number, number, number] | null = null;
-
 // Active instances map: botId → socket
 const instances = new Map<number, any>();
 
@@ -96,14 +93,13 @@ async function startInstance(botId: number) {
 
   console.log(`[Baileys] Starting instance for bot ${botId}`);
 
-  let makeWASocket: any, useMultiFileAuthState: any, DisconnectReason: any, fetchLatestBaileysVersion: any;
+  let makeWASocket: any, useMultiFileAuthState: any, DisconnectReason: any;
 
   try {
     const baileys = require("@whiskeysockets/baileys");
     makeWASocket = baileys.default ?? baileys.makeWASocket ?? baileys;
     useMultiFileAuthState = baileys.useMultiFileAuthState;
     DisconnectReason = baileys.DisconnectReason;
-    fetchLatestBaileysVersion = baileys.fetchLatestBaileysVersion;
   } catch (e) {
     console.error("[Baileys] Library not available:", e);
     return;
@@ -115,23 +111,12 @@ async function startInstance(botId: number) {
 
   const { state, saveCreds } = await useMultiFileAuthState(sessDir);
 
-  if (!cachedVersion && fetchLatestBaileysVersion) {
-    try {
-      const { version } = await fetchLatestBaileysVersion();
-      cachedVersion = version;
-      console.log(`[Baileys] Using WA version ${version}`);
-    } catch {
-      cachedVersion = [2, 3000, 1015901307];
-      console.warn("[Baileys] Could not fetch latest WA version, using fallback");
-    }
-  }
-
   const sock = makeWASocket({
-    version: cachedVersion ?? [2, 3000, 1015901307],
     auth: state,
     logger: pino({ level: "silent" }),
     printQRInTerminal: false,
-    browser: ["Ubuntu", "Chrome", "22.0.0"],
+    browser: ["AtendêAI Bot", "Safari", "3.0"],
+    syncFullHistory: false,
   });
 
   instances.set(botId, sock);
