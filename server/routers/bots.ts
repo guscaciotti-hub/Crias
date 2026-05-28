@@ -104,6 +104,8 @@ export const botsRouter = router({
       persona: z.string().optional(),
       tone: z.enum(["formal", "friendly", "professional", "casual"]).optional(),
       systemPrompt: z.string().optional(),
+      agentMode: z.enum(["flow", "ai"]).optional(),
+      aiSystemPrompt: z.string().optional(),
       welcomeMessage: z.string().optional(),
       offHoursMessage: z.string().optional(),
       handoffTriggers: z.array(z.string()).optional(),
@@ -123,6 +125,17 @@ export const botsRouter = router({
         .where(and(eq(bots.id, id), eq(bots.workspaceId, wsId)))
         .returning()
         .get();
+    }),
+
+  testAI: protectedProcedure
+    .input(z.object({ botId: z.number(), message: z.string() }))
+    .mutation(async ({ ctx, input }) => {
+      const db = getDb();
+      const wsId = await getWorkspaceId(ctx.user.id);
+      const bot = db.select().from(bots).where(and(eq(bots.id, input.botId), eq(bots.workspaceId, wsId))).get();
+      if (!bot) throw new TRPCError({ code: "NOT_FOUND" });
+      const { runAIAgent } = await import("../whatsapp/ai-agent.js");
+      return runAIAgent(db, input.botId, -input.botId, input.message);
     }),
 
   delete: protectedProcedure

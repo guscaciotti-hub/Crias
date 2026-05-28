@@ -64,6 +64,8 @@ function initSchema() {
     niche TEXT NOT NULL DEFAULT 'custom',
     persona TEXT,
     tone TEXT NOT NULL DEFAULT 'friendly',
+    agent_mode TEXT NOT NULL DEFAULT 'flow',
+    ai_system_prompt TEXT,
     system_prompt TEXT,
     welcome_message TEXT,
     off_hours_message TEXT,
@@ -175,6 +177,10 @@ function initSchema() {
     created_at INTEGER NOT NULL DEFAULT (strftime('%s','now')),
     updated_at INTEGER NOT NULL DEFAULT (strftime('%s','now'))
   )`);
+
+  // Migrations for existing databases
+  try { db.run(sql`ALTER TABLE bots ADD COLUMN agent_mode TEXT NOT NULL DEFAULT 'flow'`); } catch {}
+  try { db.run(sql`ALTER TABLE bots ADD COLUMN ai_system_prompt TEXT`); } catch {}
 
   db.run(sql`CREATE TABLE IF NOT EXISTS conversation_states (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
