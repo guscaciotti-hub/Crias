@@ -115,11 +115,14 @@ async function startInstance(botId: number) {
   try {
     let makeWASocket: any, useMultiFileAuthState: any;
 
+    let fetchLatestBaileysVersion: any, Browsers: any;
     try {
       const baileys = require("@whiskeysockets/baileys");
       // Baileys 6.x exports named exports via CJS
       makeWASocket = baileys.makeWASocket ?? baileys.default?.makeWASocket;
       useMultiFileAuthState = baileys.useMultiFileAuthState ?? baileys.default?.useMultiFileAuthState;
+      fetchLatestBaileysVersion = baileys.fetchLatestBaileysVersion ?? baileys.default?.fetchLatestBaileysVersion;
+      Browsers = baileys.Browsers ?? baileys.default?.Browsers;
       if (!makeWASocket || !useMultiFileAuthState) throw new Error("makeWASocket not found in module");
     } catch (e) {
       console.error("[Baileys] Failed to load library:", e);
@@ -128,13 +131,24 @@ async function startInstance(botId: number) {
       return;
     }
 
+    // Fetch the current WhatsApp Web version so Baileys isn't rejected for being outdated
+    let waVersion: [number, number, number] | undefined;
+    try {
+      const { version, isLatest } = await fetchLatestBaileysVersion();
+      waVersion = version;
+      console.log(`[Baileys] Bot ${botId} WA version ${version.join(".")} (isLatest=${isLatest})`);
+    } catch (e) {
+      console.warn("[Baileys] Could not fetch latest version, using built-in:", (e as Error).message);
+    }
+
     const { state, saveCreds } = await useMultiFileAuthState(sessDir(botId));
 
     const sock = makeWASocket({
+      version: waVersion,
       auth: state,
       logger: pino({ level: "silent" }),
       printQRInTerminal: false,
-      browser: ["AtendêAI Bot", "Safari", "3.0"],
+      browser: Browsers ? Browsers.ubuntu("Desktop") : ["Ubuntu", "Desktop", "22.04.4"],
       syncFullHistory: false,
     });
 
