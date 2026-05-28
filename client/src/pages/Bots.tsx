@@ -259,10 +259,12 @@ function QRModal({ botId, onClose, onRetry }: { botId: number; onClose: () => vo
                   </p>
                 </div>
               )}
-              {(lastError?.code === 405 || lastError?.code === 401 || lastError?.code === 403) && (
+              {[401, 403, 405, 408, 500].includes(Number(lastError?.code)) && (
                 <p className="text-xs text-amber-600">
-                  ⚠️ Código {lastError.code} geralmente significa que o IP do servidor foi
-                  bloqueado pelo WhatsApp. Comum em hospedagem cloud (Render/AWS).
+                  ⚠️ Código {lastError?.code}: o WhatsApp está recusando o pareamento.
+                  Isso quase sempre indica que o IP do servidor (Render/AWS) está
+                  bloqueado pelo WhatsApp. A solução é usar um proxy residencial
+                  ou um servidor com IP não-datacenter.
                 </p>
               )}
               <Button className="w-full" onClick={onRetry}>Tentar novamente</Button>

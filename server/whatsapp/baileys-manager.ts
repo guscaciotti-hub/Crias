@@ -9,6 +9,27 @@ import QRCode from "qrcode";
 
 const require = createRequire(import.meta.url);
 
+// Build an HTTP/SOCKS proxy agent from WHATSAPP_PROXY env var, if set.
+// WhatsApp blocks datacenter IPs (AWS/Render/etc) — routing through a
+// residential proxy makes the connection look like a normal home user.
+// Example: WHATSAPP_PROXY=http://user:pass@host:port
+//          WHATSAPP_PROXY=socks5://user:pass@host:port
+function buildProxyAgent(): any {
+  const url = process.env.WHATSAPP_PROXY;
+  if (!url) return undefined;
+  try {
+    if (url.startsWith("socks")) {
+      const { SocksProxyAgent } = require("socks-proxy-agent");
+      return new SocksProxyAgent(url);
+    }
+    const { HttpsProxyAgent } = require("https-proxy-agent");
+    return new HttpsProxyAgent(url);
+  } catch (e) {
+    console.error("[Baileys] Failed to build proxy agent:", e);
+    return undefined;
+  }
+}
+
 // Active instances map: botId → socket
 const instances = new Map<number, any>();
 
@@ -155,6 +176,9 @@ async function startInstance(botId: number) {
 
     const { state, saveCreds } = await useMultiFileAuthState(sessDir(botId));
 
+    const proxyAgent = buildProxyAgent();
+    if (proxyAgent) console.log(`[Baileys] Bot ${botId} using proxy from WHATSAPP_PROXY`);
+
     const sock = makeWASocket({
       version: waVersion,
       auth: state,
@@ -165,6 +189,7 @@ async function startInstance(botId: number) {
       connectTimeoutMs: 60000,
       keepAliveIntervalMs: 25000,
       retryRequestDelayMs: 2000,
+      ...(proxyAgent ? { agent: proxyAgent, fetchAgent: proxyAgent } : {}),
     });
 
   instances.set(botId, sock);
@@ -243,8 +268,10 @@ async function startInstance(botId: number) {
         return;
       }
 
-      // 401/403/405 = session invalid/rejected — don't retry, wait for new QR
-      const sessionInvalid = statusCode === 401 || statusCode === 403 || statusCode === 405;
+      // 401/403/405 = rejected, 500 = badSession (corrupted/invalid signature).
+      // All mean the session can't be reused — clear it and wait for a fresh QR.
+      const sessionInvalid =
+        statusCode === 401 || statusCode === 403 || statusCode === 405 || statusCode === 500;
 
       if (sessionInvalid) {
         clearTimeout(timeout);
