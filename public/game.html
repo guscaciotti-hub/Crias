@@ -1616,7 +1616,7 @@ const SAVE_KEY = 'crias_coreorb_v6';
 const MAP_SOURCE_W = 1248, MAP_SOURCE_H = 1248;
 const MAP_SCALE = 1.5;
 const MAP_W_PX = MAP_SOURCE_W * MAP_SCALE, MAP_H_PX = MAP_SOURCE_H * MAP_SCALE; // 1872
-const GRID = 24, TILE = MAP_W_PX / GRID; // 78
+const GRID = 48, TILE = MAP_W_PX / GRID; // 39
 const MOVE_DURATION = 420; // walking pace — cadência natural de passo
 
 // ============================================================================
@@ -1764,37 +1764,59 @@ const PARTY_MAX = 6; // 1 active + 5 standby
 //   player_spawn(12,11) core_orb(11-12,11-12)
 // ============================================================================
 const COLLISION = [
-  //  0  1  2  3  4  5  6  7  8  9 10 11 12 13 14 15 16 17 18 19 20 21 22 23
-  [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1], //  0 borda
-  [1, 1, 1, 1, 1, 1, 1, 1, 0, 0, 0, 1, 1, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 1], //  1 água esq, cave_portal@16-18
-  [1, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 1], //  2 água esq, cave path
-  [1, 0, 1, 1, 1, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1], //  3 água/rochas esq
-  [1, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1], //  4 Coliseu norte
-  [1, 0, 0, 0, 1, 1, 0, 0, 0, 1, 1, 0, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 1], //  5 Coliseu (arena@11,5)
-  [1, 0, 0, 1, 1, 1, 0, 0, 0, 1, 1, 0, 0, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 1], //  6 Coliseu
-  [1, 0, 1, 1, 1, 1, 0, 0, 0, 0, 1, 1, 1, 1, 0, 0, 0, 0, 0, 1, 1, 1, 0, 1], //  7 Coliseu sul + casas dir
-  [1, 0, 1, 1, 0, 0, 0, 0, 0, 0, 1, 1, 0, 0, 0, 1, 0, 0, 0, 1, 1, 1, 0, 1], //  8 casas esq+dir
-  [1, 0, 1, 1, 1, 1, 0, 0, 1, 1, 0, 0, 0, 0, 0, 1, 0, 0, 0, 1, 1, 1, 0, 1], //  9 casas esq+dir
-  [1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 1], // 10 praça (mae@4, vendedor@18)
-  [1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1], // 11 praça (lulu@6, guia@8, spawn@12, rocco@16)
-  [1, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 1], // 12 prédios sul
-  [1, 0, 0, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 1], // 13 prédios sul
-  [1, 0, 1, 1, 1, 1, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 1], // 14 prédios sul
-  [1, 0, 1, 1, 1, 1, 0, 0, 1, 1, 0, 0, 0, 0, 1, 1, 0, 0, 0, 1, 1, 1, 1, 1], // 15 prédios sul + obstáculos
-  [1, 0, 1, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1], // 16 caminho
-  [1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 0, 0, 0, 0, 0, 0, 0, 1], // 17 área sábio (sage@5)
-  [1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 0, 0, 0, 0, 0, 0, 1], // 18 casa sul-dir (corpo)
-  [1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 0, 0, 0, 0, 0, 0, 1], // 19 casa sul-dir (corpo)
-  [1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 1, 1, 1, 1, 1, 1, 1, 1], // 20 estrutura sul-dir
-  [1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1], // 21 estrutura sul-dir
-  [1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1], // 22 estrutura sul-dir
-  [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1], // 23 borda
+  [1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1], //  0 borda
+  [1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1], //  1 água esq, cave_portal@36
+  [1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,0,0,0,0,0,0,1,1,1,1,1,1,1,1,1,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,1], //  2 (2)
+  [1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,0,0,0,0,0,0,1,1,1,1,1,1,1,1,1,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,1], //  3 (3)
+  [1,1,0,0,0,0,0,0,0,0,0,0,0,0,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,1], //  4 Coliseu norte
+  [1,1,0,0,0,0,0,0,0,0,0,0,0,0,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,1], //  5 (5)
+  [1,1,0,0,1,1,1,1,1,1,1,1,1,1,1,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,1], //  6 (6)
+  [1,1,0,0,1,1,1,1,1,1,1,1,1,1,1,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,1], //  7 (7)
+  [1,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,1,1,1,1,1,1,1,1,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,1], //  8 (8)
+  [1,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,1,1,1,1,1,1,1,1,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,1], //  9 (9)
+  [1,1,0,0,0,0,0,0,1,1,1,1,0,0,0,0,0,0,1,1,1,1,0,0,1,1,1,1,1,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,1], // 10 (10)
+  [1,1,0,0,0,0,0,0,1,1,1,1,0,0,0,0,0,0,1,1,1,1,0,0,1,1,1,1,1,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,1], // 11 spawn@24
+  [1,1,0,0,0,0,1,1,1,1,1,1,0,0,0,0,0,0,1,1,1,1,0,0,0,0,1,1,1,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,1], // 12 (12)
+  [1,1,0,0,0,0,1,1,1,1,1,1,0,0,0,0,0,0,1,1,1,1,0,0,0,0,1,1,1,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,1], // 13 (13)
+  [1,1,0,0,1,1,1,1,1,1,1,1,0,0,0,0,0,0,0,0,1,1,1,1,1,1,1,1,0,0,0,0,0,0,0,0,0,0,1,1,1,1,1,1,0,0,1,1], // 14 (14)
+  [1,1,0,0,1,1,1,1,1,1,1,1,0,0,0,0,0,0,0,0,1,1,1,1,1,1,1,1,0,0,0,0,0,0,0,0,0,0,1,1,1,1,1,1,0,0,1,1], // 15 (15)
+  [1,1,0,0,1,1,1,1,0,0,0,0,0,0,0,0,0,0,0,0,1,1,1,1,0,0,0,0,0,0,1,1,0,0,0,0,0,0,1,1,1,1,1,1,0,0,1,1], // 16 (16)
+  [1,1,0,0,1,1,1,1,0,0,0,0,0,0,0,0,0,0,0,0,1,1,1,1,0,0,0,0,0,0,1,1,0,0,0,0,0,0,1,1,1,1,1,1,0,0,1,1], // 17 (17)
+  [1,1,0,0,1,1,1,1,1,1,1,1,0,0,0,0,1,1,1,1,0,0,0,0,0,0,0,0,0,0,1,1,0,0,0,0,0,0,1,1,1,1,1,1,0,0,1,1], // 18 (18)
+  [1,1,0,0,1,1,1,1,1,1,1,1,0,0,0,0,1,1,1,1,0,0,0,0,0,0,0,0,0,0,1,1,0,0,0,0,0,0,1,1,1,1,1,1,0,0,1,1], // 19 (19)
+  [1,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,1,1,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,1,0,0,0,0,1,1], // 20 (20)
+  [1,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,1,1,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,1,0,0,0,0,1,1], // 21 (21)
+  [1,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,1], // 22 (22)
+  [1,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,1], // 23 (23)
+  [1,1,0,0,0,0,0,0,0,0,0,0,0,0,1,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,1,0,0,0,0,0,0,1,1], // 24 (24)
+  [1,1,0,0,0,0,0,0,0,0,0,0,0,0,1,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,1,0,0,0,0,0,0,1,1], // 25 (25)
+  [1,1,0,0,0,0,1,1,1,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,1,1,1,1,1,1,1,1,1], // 26 (26)
+  [1,1,0,0,0,0,1,1,1,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,1,1,1,1,1,1,1,1,1], // 27 (27)
+  [1,1,0,0,1,1,1,1,1,1,1,1,0,0,0,0,0,0,1,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,1,1,1,1,1,1,1,1,1], // 28 (28)
+  [1,1,0,0,1,1,1,1,1,1,1,1,0,0,0,0,0,0,1,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,1,1,1,1,1,1,1,1,1], // 29 (29)
+  [1,1,0,0,1,1,1,1,1,1,1,1,0,0,0,0,1,1,1,1,0,0,0,0,0,0,0,0,1,1,1,1,0,0,0,0,0,0,1,1,1,1,1,1,1,1,1,1], // 30 (30)
+  [1,1,0,0,1,1,1,1,1,1,1,1,0,0,0,0,1,1,1,1,0,0,0,0,0,0,0,0,1,1,1,1,0,0,0,0,0,0,1,1,1,1,1,1,1,1,1,1], // 31 (31)
+  [1,1,0,0,1,1,1,1,1,1,1,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,1], // 32 (32)
+  [1,1,0,0,1,1,1,1,1,1,1,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,1], // 33 (33)
+  [1,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,1,1,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,1], // 34 (34)
+  [1,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,1,1,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,1], // 35 (35)
+  [1,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,1,1,1,1,1,0,0,0,0,0,0,0,0,0,0,0,0,1,1], // 36 (36)
+  [1,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,1,1,1,1,1,0,0,0,0,0,0,0,0,0,0,0,0,1,1], // 37 (37)
+  [1,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,1,1,1,0,0,0,0,0,0,0,0,0,0,0,0,1,1], // 38 (38)
+  [1,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,1,1,1,0,0,0,0,0,0,0,0,0,0,0,0,1,1], // 39 (39)
+  [1,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,1,0,0,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1], // 40 (40)
+  [1,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,1,0,0,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1], // 41 (41)
+  [1,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1], // 42 (42)
+  [1,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1], // 43 (43)
+  [1,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1], // 44 (44)
+  [1,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1], // 45 (45)
+  [1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1], // 46 (46)
+  [1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1] // 47 borda
 ];
-
 const NPCS_TEMPLATE = [
-  { id: 'mae', x: 4, y: 10, emoji: '👩‍🦰', name: 'Mãe Lyra', type: 'home', healing: true,
+  { id: 'mae', x: 8, y: 20, emoji: '👩‍🦰', name: 'Mãe Lyra', type: 'home', healing: true,
     dialog: ['Bem-vindo de volta. Sua Cria precisa descansar?','Pronto, fortalecida pela energia do Nexus.'] },
-  { id: 'guia', x: 8, y: 11, emoji: '🧙', name: 'Guia Solis', type: 'ludi',
+  { id: 'guia', x: 16, y: 22, emoji: '🧙', name: 'Guia Solis', type: 'ludi',
     dialog: [
       'Salve, jovem domador! Bem-vindo ao Nexus — o coração do mundo das Crias.',
       'As Crias são criaturas mágicas que habitam cada canto desta terra.',
@@ -1811,32 +1833,32 @@ const NPCS_TEMPLATE = [
       'O Guarda Kalos bloqueia a entrada até lá — foque no treino!'
     ],
     gift: { qty: 1, given: false } },
-  { id: 'shop', x: 18, y: 10, emoji: '🧔', name: 'Vendedor Bartô', type: 'shop',
+  { id: 'shop', x: 36, y: 20, emoji: '🧔', name: 'Vendedor Bartô', type: 'shop',
     shopItems: [
       { key: 'orbeComum',    qty: 1, price: 80,  icon: '🔵', name: 'Orbe de Captura',  desc: 'Captura Crias selvagens na Caverna. 30% de chance base.' },
       { key: 'orbeCriacao',  qty: 1, price: 500, icon: '🌟', name: 'Orbe da Criação',  desc: 'Use no Core Orb para manifestar uma Cria Única exclusiva.' },
     ],
     gift: { qty: 0, given: true } },
-  { id: 'rival1', x: 6, y: 11, emoji: '👧', name: 'Lulu', type: 'trainer',
+  { id: 'rival1', x: 12, y: 22, emoji: '👧', name: 'Lulu', type: 'trainer',
     dialog: ['Tua Cria já nasceu? Bora ver no que ela é boa!'],
     trainer: { level: 2, defeated: false, reward: 35 } },
-  { id: 'rival2', x: 16, y: 11, emoji: '🧑‍🦱', name: 'Rocco', type: 'trainer',
+  { id: 'rival2', x: 32, y: 22, emoji: '🧑‍🦱', name: 'Rocco', type: 'trainer',
     dialog: ['Eu sou Rocco e tô na batalha desde criancinha. Vem!'],
     trainer: { level: 3, defeated: false, reward: 60 } },
-  { id: 'sage', x: 5, y: 17, emoji: '🥋', name: 'Mestre Yuri', type: 'trainer',
+  { id: 'sage', x: 10, y: 34, emoji: '🥋', name: 'Mestre Yuri', type: 'trainer',
     dialog: ['Provando teu valor antes de partir pra Caverna?', 'Derrote-me e te darei algo especial — um Orbe da Criação.'],
     trainer: { level: 4, defeated: false, reward: 100 } },
-  { id: 'arena', x: 11, y: 5, emoji: '🎭', name: 'Mestre Augusto', type: 'arena',
+  { id: 'arena', x: 22, y: 10, emoji: '🎭', name: 'Mestre Augusto', type: 'arena',
     dialog: [
       'Este é o Coliseu do Nexus. Aqui rolarão os Torneios oficiais.',
       'No produto final: 64 vagas, R$10 entrada, prêmio em PIX real.',
       'Por ora, é só preview. Treine na Caverna.'
     ]},
-  { id: 'mage', x: 18, y: 13, emoji: '🔮', name: 'Líder Júpiter', type: 'trainer',
+  { id: 'mage', x: 36, y: 26, emoji: '🔮', name: 'Líder Júpiter', type: 'trainer',
     dialog: ['Eu guardo a Cúpula. Se queres entrar, prova teu vínculo com a Cria.'],
     trainer: { level: 5, defeated: false, reward: 140 } },
 
-  { id: 'cave_guard', x: 18, y: 3, emoji: '⚔️', name: 'Guarda Kalos', type: 'cave_guard',
+  { id: 'cave_guard', x: 36, y: 6, emoji: '⚔️', name: 'Guarda Kalos', type: 'cave_guard',
     dialog: [
       'Alto lá! A Caverna Sombria não é lugar para Crias inexperientes.',
       'Volte quando sua Cria estiver no nível 5 ou acima.'
@@ -1845,12 +1867,12 @@ const NPCS_TEMPLATE = [
       'Sua Cria provou seu valor. Pode entrar na Caverna Sombria.',
       'Cuidado lá dentro — as sombras guardam perigos reais.'
     ] },
-  { id: 'cave_portal', x: 18, y: 1, emoji: '🕳️', name: 'Entrada da Caverna', type: 'cave_portal',
+  { id: 'cave_portal', x: 36, y: 2, emoji: '🕳️', name: 'Entrada da Caverna', type: 'cave_portal',
     dialog: ['As profundezas chamam... Você entra na Caverna Sombria?', 'Crias poderosas habitam as trevas. Prepare sua Cria.'] },
 ];
 
 const WILD_ZONES = [
-  { x: 18, y: 1 }, { x: 18, y: 2 }, { x: 18, y: 3 }
+  { x: 36, y: 2 }, { x: 36, y: 4 }, { x: 36, y: 6 }
 ];
 
 // ============================================================================
@@ -2099,7 +2121,7 @@ function newGameState(playerName, monster) {
     playerName,
     cria: monster || null, // null until first Core Orb manifestation
     party: [], // up to 5 standby monsters
-    player: { x: 12, y: 11, dir: 'down' },
+    player: { x: 24, y: 22, dir: 'down' },
     coins: 80,
     potions: 1,
     items: { orbeComum: 3, orbeAvancado: 0, orbeElite: 0, orbeMitico: 0, orbeCriacao: 0 }, // orbeCriacao given by Guia Solis
@@ -2613,7 +2635,7 @@ function getInteractable() {
   }
   for (const npc of state.npcs) if (npc.x === t.x && npc.y === t.y) return { npc };
   // Core Orb interaction — player facing toward orb center (tile 11,11 / 12,11)
-  if ((t.x === 11 || t.x === 12) && (t.y === 11 || t.y === 12)) return { coreOrb: true };
+  if ((t.x === 22 || t.x === 23 || t.x === 24) && (t.y === 22 || t.y === 23 || t.y === 24)) return { coreOrb: true };
   return null;
 }
 function updateActionButton() {
@@ -3535,7 +3557,7 @@ function endBattle(result, isCapture) {
     // Restore all creatures and teleport to main city
     state.cria.hp = state.cria.maxHp;
     if (state.party) state.party.forEach(m => { m.hp = m.maxHp; });
-    state.player.x = 4; state.player.y = 11;
+    state.player.x = 8; state.player.y = 22;
     state.scene = 'world';
     craPosHistory = [];
     showToast('Equipe restaurada! De volta à cidade...');
@@ -3815,7 +3837,7 @@ function navigateToQuest(questId) {
   if (questId === 'q1') {
     const hasOrb = state.items && (state.items.orbeCriacao || 0) > 0;
     if (hasOrb) {
-      nav = { x: 11, y: 11, label: 'Core Orb' };
+      nav = { x: 23, y: 23, label: 'Core Orb' };
     } else {
       nav = { x: 8, y: 11, label: 'Guia Solis' };
     }
@@ -4629,7 +4651,7 @@ function render(now) {
   drawLabels(camX, camY, cw, ch);
 
   // Ambient: orb aura (at center of map plaza)
-  const orbX = 11.5 * TILE, orbY = 11.5 * TILE;
+  const orbX = 23 * TILE, orbY = 23 * TILE;
   if (orbX > camX - 100 && orbX < camX + cw + 100) {
     FX.orbAura(orbX, orbY);
   }
@@ -4851,7 +4873,7 @@ function drawQuestHint(camX, camY, now) {
       tx = guia.x; ty = guia.y;
       color = '#ffd34d'; // golden hint
     } else {
-      tx = 11.5; ty = 11.5; // core orb center
+      tx = 23; ty = 23; // core orb center
       color = '#a78bfa'; // purple hint
     }
   } else {
@@ -4859,7 +4881,7 @@ function drawQuestHint(camX, camY, now) {
   }
 
   const cx = (tx + 0.5) * TILE - camX;
-  const cy = (ty + 0.5) * TILE - camY + (tx === 11.5 ? 0 : 16);
+  const cy = (ty + 0.5) * TILE - camY + (tx === 23 ? 0 : 16);
 
   // Pulsing ring
   const phase = (now / 1100) % 1;
@@ -4880,7 +4902,7 @@ function drawQuestHint(camX, camY, now) {
   ctx.stroke();
 
   // Floating exclamation above (only for NPC hint)
-  if (tx !== 11.5) {
+  if (tx !== 23) {
     const bob = Math.sin(now / 300) * 3;
     const ay = cy - 58 + bob;
     // Speech-bubble background
@@ -5025,7 +5047,7 @@ function drawLabels(camX, camY, cw, ch) {
     { x: 20, y: 7.5, text: '🏪 Loja' },
     { x: 3, y: 14, text: '⚔️ Dojo' },
     { x: 20, y: 13, text: '🔮 Cúpula' },
-    { x: 11, y: 11, text: '✨ Core Orb', sub: 'Pressione A' },
+    { x: 23, y: 23, text: '✨ Core Orb', sub: 'Pressione A' },
     { x: 18, y: 0.5, text: '🕳️ Caverna' }
   ];
   ctx.font = 'bold 13px sans-serif';
