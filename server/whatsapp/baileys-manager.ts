@@ -1,5 +1,6 @@
 import { createRequire } from "module";
 import { EventEmitter } from "events";
+import { rmSync } from "fs";
 import { getDb } from "../db.js";
 import { whatsappInstances } from "../../drizzle/schema.js";
 import { eq } from "drizzle-orm";
@@ -64,11 +65,21 @@ export async function sendMessage(botId: number, to: string, text: string): Prom
   }
 }
 
+function sessDir(botId: number) {
+  return process.env.SESSIONS_DIR
+    ? `${process.env.SESSIONS_DIR}/bot-${botId}`
+    : `./sessions/bot-${botId}`;
+}
+
+function clearSession(botId: number) {
+  try { rmSync(sessDir(botId), { recursive: true, force: true }); } catch {}
+}
+
 export function forceRestartInstance(botId: number) {
-  // Drop maps — old socket will GC; start fresh
   instances.delete(botId);
   qrCodes.delete(botId);
   instanceStatus.set(botId, "connecting");
+  clearSession(botId); // wipe stale credentials so Baileys generates a fresh QR
   startInstance(botId).catch(console.error);
 }
 
@@ -105,11 +116,7 @@ async function startInstance(botId: number) {
     return;
   }
 
-  const sessDir = process.env.SESSIONS_DIR
-    ? `${process.env.SESSIONS_DIR}/bot-${botId}`
-    : `./sessions/bot-${botId}`;
-
-  const { state, saveCreds } = await useMultiFileAuthState(sessDir);
+  const { state, saveCreds } = await useMultiFileAuthState(sessDir(botId));
 
   const sock = makeWASocket({
     auth: state,
@@ -165,18 +172,20 @@ async function startInstance(botId: number) {
       const reason = (lastDisconnect?.error as any)?.message ?? "unknown";
       console.log(`[Baileys] Bot ${botId} disconnected — code ${statusCode}, reason: ${reason}`);
 
-      const shouldReconnect = statusCode !== 401 && statusCode !== 403;
+      const isLoggedOut = statusCode === 401 || statusCode === 403;
 
-      if (shouldReconnect) {
-        instanceStatus.set(botId, "reconnecting");
-        setTimeout(() => startInstance(botId), 5000);
-      } else {
+      if (isLoggedOut) {
+        // Session is invalid — wipe credentials so next connect generates fresh QR
+        clearSession(botId);
         instanceStatus.set(botId, "disconnected");
         const db = getDb();
         db.update(whatsappInstances)
           .set({ status: "disconnected", updatedAt: new Date() })
           .where(eq(whatsappInstances.botId, botId))
           .run();
+      } else {
+        instanceStatus.set(botId, "reconnecting");
+        setTimeout(() => startInstance(botId), 5000);
       }
     }
   });
