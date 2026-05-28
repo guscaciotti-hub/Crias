@@ -4638,12 +4638,14 @@ function render(now) {
   if (state.cria) renderables.push({ type: 'cria', x: cX, y: cY });
   renderables.push({ type: 'player', x: pX, y: pY });
 
-  // Core Orb depth-sort: re-stamp the orb's map region when entities walk behind it.
-  // Sort Y = bottom of orb sphere (tile 25), so player at y<25 renders behind, y>25 renders in front.
-  const ORB_X1 = 19 * TILE, ORB_Y1 = 18 * TILE;
-  const ORB_X2 = 28 * TILE, ORB_Y2 = 26 * TILE;
+  // Core Orb depth-sort: re-stamp the orb's map region clipped to the orb's ellipse shape.
+  // Entities with y < ORB_SORT_Y render before the stamp (appear behind orb).
+  // Entities with y > ORB_SORT_Y render after (appear in front).
+  // Ellipse derived from pixel analysis of the orb sphere: center≈(24,22), rx≈4, ry≈3.6 tiles.
+  const ORB_STAMP_X1 = 20 * TILE, ORB_STAMP_Y1 = 18 * TILE;
+  const ORB_STAMP_X2 = 28 * TILE, ORB_STAMP_Y2 = 26 * TILE;
   const ORB_SORT_Y = 25 * TILE;
-  renderables.push({ type: 'orb', x: ORB_X1, y: ORB_SORT_Y });
+  renderables.push({ type: 'orb', x: ORB_STAMP_X1, y: ORB_SORT_Y });
 
   renderables.sort((a, b) => a.y - b.y);
 
@@ -4654,14 +4656,24 @@ function render(now) {
     else if (r.type === 'cria') drawCriaSprite(sx, sy, now);
     else if (r.type === 'player') drawPlayer(sx, sy, now);
     else if (r.type === 'orb') {
-      // Re-stamp orb region from map image on top of entities drawn so far (behind orb)
-      const imgX = Math.round(ORB_X1 * _scaleX);
-      const imgY = Math.round(ORB_Y1 * _scaleY);
-      const imgW = Math.round((ORB_X2 - ORB_X1) * _scaleX);
-      const imgH = Math.round((ORB_Y2 - ORB_Y1) * _scaleY);
+      // Clip to the orb sphere ellipse so only pixels inside the orb body are re-stamped
+      const orbCX = 24 * TILE - camX;
+      const orbCY = 22 * TILE - camY;
+      const orbRX = 4.0 * TILE;
+      const orbRY = 3.6 * TILE;
+      ctx.save();
+      ctx.beginPath();
+      ctx.ellipse(orbCX, orbCY, orbRX, orbRY, 0, 0, Math.PI * 2);
+      ctx.clip();
+      const imgX = Math.round(ORB_STAMP_X1 * _scaleX);
+      const imgY = Math.round(ORB_STAMP_Y1 * _scaleY);
+      const imgW = Math.round((ORB_STAMP_X2 - ORB_STAMP_X1) * _scaleX);
+      const imgH = Math.round((ORB_STAMP_Y2 - ORB_STAMP_Y1) * _scaleY);
       ctx.imageSmoothingEnabled = false;
       ctx.drawImage(assets.map, imgX, imgY, imgW, imgH,
-        ORB_X1 - camX, ORB_Y1 - camY, ORB_X2 - ORB_X1, ORB_Y2 - ORB_Y1);
+        ORB_STAMP_X1 - camX, ORB_STAMP_Y1 - camY,
+        ORB_STAMP_X2 - ORB_STAMP_X1, ORB_STAMP_Y2 - ORB_STAMP_Y1);
+      ctx.restore();
     }
   }
 
