@@ -1784,11 +1784,11 @@ const COLLISION = [
   [1,0,0,0,1,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,1,1,1,0,0,0,0,0,1,0,0,0,0,0,0,0,0,1,1,1,1,0,0,0,1,1],
   [1,0,0,0,1,1,1,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,1,0,0,0,1,0,0,0,1,1,1,1,1,0,0,0,1],
   [1,0,0,0,0,1,1,1,1,1,1,1,1,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,1,0,0,0,0,0,0,0,1,1,1,1,1,0,0,0,1],
-  [1,0,0,0,0,1,1,0,0,0,0,0,0,0,0,1,1,1,1,1,0,0,0,0,0,0,0,0,0,1,1,0,0,0,0,0,0,0,0,1,0,1,1,0,0,0,0,1],
-  [1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,1,0,0,0,1,1,0,0,0,0,0,0,0,0,1,1,1,1,0,0,0,0,1],
-  [1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,1,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1],
-  [1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1],
-  [1,0,0,0,0,0,0,0,0,0,0,0,0,1,1,1,0,0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1],
+  [1,0,0,0,0,1,1,0,0,0,0,0,0,0,0,1,1,1,1,1,0,0,1,1,1,1,1,0,0,1,1,0,0,0,0,0,0,0,0,1,0,1,1,0,0,0,0,1],
+  [1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,1,1,1,1,0,0,1,1,0,0,0,0,0,0,0,0,1,1,1,1,0,0,0,0,1],
+  [1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,1,1,1,1,1,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1],
+  [1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,1,1,1,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1],
+  [1,0,0,0,0,0,0,0,0,0,0,0,0,1,1,1,0,0,0,0,0,0,1,1,1,1,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1],
   [1,0,0,0,0,0,0,0,0,0,0,0,0,1,1,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1],
   [1,0,0,0,0,0,0,0,0,0,0,0,0,1,1,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,1,1,0,0,0,0,0,0,1],
   [1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,0,1,1,1,1,1,0,0,1],
@@ -2005,17 +2005,79 @@ function loadImage(src, timeout) {
   });
 }
 
+// Builds a per-pixel mask of the orb area: map pixels shown where sprite is opaque,
+// plus strongly-blue aura pixels near center. Ground pixels → transparent.
+// This way the map's own orb is used for depth-sort (no double-orb), and the
+// ground never appears in front of entities.
+function buildOrbMask(mapImg, orbSprite) {
+  const tx1 = 21, ty1 = 18, tx2 = 27, ty2 = 24;
+  const worldX = tx1 * TILE, worldY = ty1 * TILE;
+  const worldW = (tx2 - tx1) * TILE, worldH = (ty2 - ty1) * TILE;
+
+  const imgScaleX = (mapImg.naturalWidth  || mapImg.width)  / MAP_W_PX;
+  const imgScaleY = (mapImg.naturalHeight || mapImg.height) / MAP_H_PX;
+
+  // Draw map orb region at world-pixel size
+  const tmp = document.createElement('canvas');
+  tmp.width = worldW; tmp.height = worldH;
+  const tmpCtx = tmp.getContext('2d');
+  tmpCtx.drawImage(mapImg,
+    Math.round(worldX * imgScaleX), Math.round(worldY * imgScaleY),
+    Math.round(worldW * imgScaleX), Math.round(worldH * imgScaleY),
+    0, 0, worldW, worldH);
+
+  // Draw sprite to same size to extract its alpha shape
+  const spriteTmp = document.createElement('canvas');
+  spriteTmp.width = worldW; spriteTmp.height = worldH;
+  const sprCtx = spriteTmp.getContext('2d');
+  const sw = orbSprite.naturalWidth || orbSprite.width;
+  const sh = orbSprite.naturalHeight || orbSprite.height;
+  sprCtx.drawImage(orbSprite, 0, 0, sw, sh, 0, 0, worldW, worldH);
+
+  const mapData = tmpCtx.getImageData(0, 0, worldW, worldH);
+  const sprData = sprCtx.getImageData(0, 0, worldW, worldH);
+  const md = mapData.data, sd = sprData.data;
+
+  const cx = worldW / 2, cy = worldH / 2;
+  const maxDistSq = (worldW * 0.55) * (worldW * 0.55);
+
+  for (let i = 0; i < md.length; i += 4) {
+    const sprA = sd[i + 3];
+    if (sprA > 20) {
+      md[i + 3] = 255; // inside sprite body/aura → keep full map pixel
+    } else {
+      // Outside sprite silhouette: keep only strongly-blue aura near center
+      const r = md[i], g = md[i + 1], b = md[i + 2];
+      const px = (i >> 2) % worldW, py = (i >> 2) / worldW | 0;
+      const dSq = (px - cx) * (px - cx) + (py - cy) * (py - cy);
+      md[i + 3] = (b > r + 20 && b > g + 10 && b > 90 && dSq < maxDistSq) ? 255 : 0;
+    }
+  }
+  tmpCtx.putImageData(mapData, 0, 0);
+
+  const out = document.createElement('canvas');
+  out.width = worldW; out.height = worldH;
+  out.getContext('2d').drawImage(tmp, 0, 0);
+  out._worldX = worldX;
+  out._worldY = worldY;
+  return out;
+}
+
 function loadAssets() {
   // Nada bloqueia a tela de loading — tudo carrega em background
   // O game loop já verifica assets.map antes de renderizar (if (!assets.map) return)
   loadImage(MAP_URL, 20000).then(img => {
     assets.map = img;
+    if (assets.orbSprite) assets.orbMask = buildOrbMask(img, assets.orbSprite);
   }).catch(() => {});
   (function loadOrbSprite(){
     const el = document.getElementById('d-orb-sprite');
     if (!el || !el.textContent.trim()) return;
     const dataUrl = 'data:image/png;base64,' + el.textContent.trim();
-    loadImage(dataUrl, 10000).then(img => { assets.orbSprite = img; }).catch(() => {});
+    loadImage(dataUrl, 10000).then(img => {
+      assets.orbSprite = img;
+      if (assets.map) assets.orbMask = buildOrbMask(assets.map, img);
+    }).catch(() => {});
   })();
   loadImage(CAVE1_MAP_URL, 20000).then(img => { assets.cave1map = img; }).catch(() => {});
   // Guarda Kalos pixel-art sprite (loaded from <script type="text/plain"> base64 element)
@@ -2130,7 +2192,7 @@ function newGameState(playerName, monster) {
     playerName,
     cria: monster || null, // null until first Core Orb manifestation
     party: [], // up to 5 standby monsters
-    player: { x: 24, y: 22, dir: 'down' },
+    player: { x: 24, y: 26, dir: 'down' },
     coins: 80,
     potions: 1,
     items: { orbeComum: 3, orbeAvancado: 0, orbeElite: 0, orbeMitico: 0, orbeCriacao: 0 }, // orbeCriacao given by Guia Solis
@@ -4662,12 +4724,10 @@ function render(now) {
     if (r.type === 'npc') drawNPC(r.npc, sx, sy, now);
     else if (r.type === 'cria') drawCriaSprite(sx, sy, now);
     else if (r.type === 'player') drawPlayer(sx, sy, now);
-    else if (r.type === 'orb' && assets.orbSprite) {
-      const os = assets.orbSprite;
-      const sw = os.naturalWidth || os.width, sh = os.naturalHeight || os.height;
-      ctx.imageSmoothingEnabled = true;
-      ctx.drawImage(os, 0, 0, sw, sh,
-        21*TILE - camX, 18*TILE - camY, 6*TILE, 6*TILE);
+    else if (r.type === 'orb' && assets.orbMask) {
+      const ov = assets.orbMask;
+      ctx.imageSmoothingEnabled = false;
+      ctx.drawImage(ov, ov._worldX - camX, ov._worldY - camY);
     }
   }
 
