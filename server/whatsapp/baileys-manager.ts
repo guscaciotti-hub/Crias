@@ -18,6 +18,9 @@ const qrCodes = new Map<number, string>();
 // Instance status: botId → status string
 const instanceStatus = new Map<number, string>();
 
+// Reconnect attempt counter: botId → count (reset on QR scan or manual restart)
+const reconnectAttempts = new Map<number, number>();
+
 // Message handler (injected by message-bridge)
 let messageHandler: ((botId: number, from: string, text: string) => Promise<string | null>) | null = null;
 
@@ -78,6 +81,7 @@ function clearSession(botId: number) {
 export function forceRestartInstance(botId: number) {
   instances.delete(botId);
   qrCodes.delete(botId);
+  reconnectAttempts.delete(botId); // reset counter on manual restart
   instanceStatus.set(botId, "connecting");
   clearSession(botId); // wipe stale credentials so Baileys generates a fresh QR
   startInstance(botId).catch(console.error);
@@ -158,7 +162,10 @@ async function startInstance(botId: number) {
   instances.set(botId, sock);
   instanceStatus.set(botId, "connecting");
 
-  sock.ev.on("creds.update", saveCreds);
+  sock.ev.on("creds.update", () => {
+    reconnectAttempts.delete(botId); // QR was scanned — reset retry counter
+    saveCreds();
+  });
 
   sock.ev.on("connection.update", async ({ connection, lastDisconnect, qr }: any) => {
     if (qr) {
@@ -211,6 +218,7 @@ async function startInstance(botId: number) {
       if (sessionInvalid) {
         clearTimeout(timeout);
         clearSession(botId);
+        reconnectAttempts.delete(botId);
         instanceStatus.set(botId, "error");
         const db = getDb();
         db.update(whatsappInstances)
@@ -218,8 +226,22 @@ async function startInstance(botId: number) {
           .where(eq(whatsappInstances.botId, botId))
           .run();
       } else {
-        instanceStatus.set(botId, "reconnecting");
-        setTimeout(() => startInstance(botId), 5000);
+        // 515 = restartRequired (normal after QR scan), 428 = connectionClosed, etc.
+        const attempts = (reconnectAttempts.get(botId) ?? 0) + 1;
+        reconnectAttempts.set(botId, attempts);
+        console.log(`[Baileys] Bot ${botId} will reconnect (attempt ${attempts}/5)`);
+
+        if (attempts >= 5) {
+          // Too many reconnect failures — give up, let user try again manually
+          clearTimeout(timeout);
+          clearSession(botId);
+          reconnectAttempts.delete(botId);
+          instanceStatus.set(botId, "error");
+          console.error(`[Baileys] Bot ${botId} giving up after ${attempts} reconnect attempts`);
+        } else {
+          instanceStatus.set(botId, "reconnecting");
+          setTimeout(() => startInstance(botId), 5000);
+        }
       }
     }
   });

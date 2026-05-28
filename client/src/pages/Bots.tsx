@@ -220,7 +220,8 @@ function QRModal({ botId, onClose, onRetry }: { botId: number; onClose: () => vo
     if (qr || connected) setTimedOut(false);
   }, [qr, connected]);
 
-  const failed = status === "error" || (timedOut && !qr && !connected);
+  // Don't show failure during reconnecting — that's the normal post-scan restart phase
+  const failed = status === "error" || (timedOut && !qr && !connected && status !== "reconnecting");
 
   useEffect(() => {
     if (connected) {
