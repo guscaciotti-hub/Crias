@@ -1,133 +1,233 @@
-import { trpc } from "@/lib/trpc";
+import React, { useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
-import { Loader2, Users, Building, Bot, MessageCircle, Shield } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { trpc } from "@/lib/trpc";
+import { Users, Bot, MessageSquare, DollarSign, Brain, TrendingUp, Shield, ChevronDown } from "lucide-react";
+
+const PLAN_COLORS: Record<string, string> = {
+  trial:    "bg-gray-100 text-gray-700",
+  starter:  "bg-blue-100 text-blue-700",
+  pro:      "bg-purple-100 text-purple-700",
+  business: "bg-emerald-100 text-emerald-700",
+};
+const PLAN_LABELS: Record<string, string> = {
+  trial: "Trial", starter: "Starter", pro: "Pro", business: "Business",
+};
+
+function StatCard({ icon: Icon, label, value, sub }: {
+  icon: React.ElementType; label: string; value: string; sub?: string;
+}) {
+  return (
+    <Card>
+      <CardContent className="p-5">
+        <div className="flex items-center justify-between mb-3">
+          <p className="text-sm text-muted-foreground">{label}</p>
+          <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center">
+            <Icon className="w-4 h-4 text-primary" />
+          </div>
+        </div>
+        <p className="text-2xl font-bold">{value}</p>
+        {sub && <p className="text-xs text-muted-foreground mt-1">{sub}</p>}
+      </CardContent>
+    </Card>
+  );
+}
 
 export default function Admin() {
-  const { data: stats, isLoading: loadingStats } = trpc.admin.getStats.useQuery();
-  const { data: users, isLoading: loadingUsers } = trpc.admin.listUsers.useQuery();
-  const { data: workspaces, isLoading: loadingWs } = trpc.admin.listWorkspaces.useQuery();
+  const [activeTab, setActiveTab] = useState<"overview" | "workspaces" | "users">("overview");
+  const [changingPlan, setChangingPlan] = useState<number | null>(null);
 
-  const isLoading = loadingStats || loadingUsers || loadingWs;
+  const summary    = trpc.admin.summary.useQuery();
+  const workspaces = trpc.admin.listWorkspaces.useQuery();
+  const users      = trpc.admin.listUsers.useQuery();
+  const changePlan = trpc.admin.changePlan.useMutation({ onSuccess: () => workspaces.refetch() });
+
+  const s = summary.data;
 
   return (
-    <div className="p-8">
-      <div className="mb-6 flex items-center gap-3">
-        <div className="w-10 h-10 bg-red-100 rounded-xl flex items-center justify-center">
-          <Shield className="w-5 h-5 text-red-600" />
-        </div>
+    <div className="space-y-6">
+      <div className="flex items-center gap-2">
+        <Shield className="w-6 h-6 text-primary" />
         <div>
-          <h1 className="font-display text-2xl font-bold text-gray-900">Painel Admin</h1>
-          <p className="text-gray-500 text-sm">Visão geral de toda a plataforma</p>
+          <h1 className="text-2xl font-bold">Painel Admin</h1>
+          <p className="text-sm text-muted-foreground">Gestão de usuários, planos e custos de IA</p>
         </div>
       </div>
 
-      {isLoading ? (
-        <div className="flex justify-center py-12">
-          <Loader2 className="w-7 h-7 animate-spin text-green-600" />
+      {/* Tabs */}
+      <div className="flex gap-1 border-b">
+        {(["overview", "workspaces", "users"] as const).map(tab => (
+          <button key={tab} onClick={() => setActiveTab(tab)}
+            className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
+              activeTab === tab
+                ? "border-primary text-primary"
+                : "border-transparent text-muted-foreground hover:text-foreground"
+            }`}>
+            {tab === "overview" ? "Visão Geral" : tab === "workspaces" ? "Workspaces" : "Usuários"}
+          </button>
+        ))}
+      </div>
+
+      {/* Overview */}
+      {activeTab === "overview" && (
+        <div className="space-y-6">
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+            <StatCard icon={Users} label="Usuários" value={String(s?.totalUsers ?? "...")} />
+            <StatCard icon={Bot} label="Bots" value={String(s?.totalBots ?? "...")} />
+            <StatCard icon={MessageSquare} label="Mensagens" value={String(s?.totalMessages ?? "...")} />
+            <StatCard icon={Brain} label="Tokens IA"
+              value={s ? ((s.totalInputTokens + s.totalOutputTokens) / 1000).toFixed(1) + "k" : "..."}
+              sub="tokens totais" />
+          </div>
+
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-base flex items-center gap-2">
+                <DollarSign className="w-4 h-4" /> Custo Total IA (GPT-4o mini)
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="grid md:grid-cols-3 gap-6">
+                <div>
+                  <p className="text-sm text-muted-foreground mb-1">Custo em USD</p>
+                  <p className="text-3xl font-bold">${s?.totalCostUsd?.toFixed(4) ?? "0.0000"}</p>
+                </div>
+                <div>
+                  <p className="text-sm text-muted-foreground mb-1">Custo em R$</p>
+                  <p className="text-3xl font-bold text-emerald-600">
+                    R$ {s?.totalCostBrl?.toFixed(2) ?? "0,00"}
+                  </p>
+                </div>
+                <div>
+                  <p className="text-sm text-muted-foreground mb-1">Tokens entrada / saída</p>
+                  <p className="text-lg font-semibold">
+                    {(s?.totalInputTokens ?? 0).toLocaleString()} / {(s?.totalOutputTokens ?? 0).toLocaleString()}
+                  </p>
+                  <p className="text-xs text-muted-foreground">R$0,78/1M entrada · R$3,12/1M saída</p>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-base flex items-center gap-2">
+                <TrendingUp className="w-4 h-4" /> Workspaces por Plano
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="flex flex-wrap gap-6">
+                {["trial", "starter", "pro", "business"].map(plan => (
+                  <div key={plan} className="text-center">
+                    <p className="text-3xl font-bold">{s?.byPlan?.[plan] ?? 0}</p>
+                    <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${PLAN_COLORS[plan]}`}>
+                      {PLAN_LABELS[plan]}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </CardContent>
+          </Card>
         </div>
-      ) : (
-        <>
-          {/* Platform stats */}
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
-            {[
-              { label: "Usuários", value: stats?.totalUsers ?? 0, icon: Users, color: "text-blue-600", bg: "bg-blue-50" },
-              { label: "Workspaces", value: stats?.totalWorkspaces ?? 0, icon: Building, color: "text-green-600", bg: "bg-green-50" },
-              { label: "Bots criados", value: stats?.totalBots ?? 0, icon: Bot, color: "text-purple-600", bg: "bg-purple-50" },
-              { label: "Total mensagens", value: stats?.totalMessages ?? 0, icon: MessageCircle, color: "text-amber-600", bg: "bg-amber-50" },
-            ].map((card, i) => (
-              <Card key={i}>
-                <CardContent className="p-5">
-                  <div className={`w-10 h-10 ${card.bg} rounded-lg flex items-center justify-center mb-3`}>
-                    <card.icon className={`w-5 h-5 ${card.color}`} />
-                  </div>
-                  <div className="text-2xl font-bold text-gray-900">{card.value}</div>
-                  <div className="text-sm text-gray-500 mt-0.5">{card.label}</div>
-                </CardContent>
-              </Card>
-            ))}
-          </div>
+      )}
 
-          <div className="grid md:grid-cols-2 gap-6">
-            {/* Users */}
-            <Card>
-              <CardHeader className="pb-3">
-                <CardTitle className="text-base">Usuários ({(users ?? []).length})</CardTitle>
-              </CardHeader>
-              <CardContent>
-                {(users ?? []).length === 0 ? (
-                  <p className="text-gray-400 text-sm text-center py-4">Nenhum usuário</p>
-                ) : (
-                  <div className="space-y-2 max-h-80 overflow-y-auto">
-                    {(users ?? []).map((u: any) => (
-                      <div key={u.id} className="flex items-center justify-between p-2.5 bg-gray-50 rounded-lg">
-                        <div className="flex items-center gap-2.5">
-                          <div className="w-8 h-8 bg-green-100 rounded-full flex items-center justify-center text-sm font-medium text-green-700">
-                            {u.name?.[0]?.toUpperCase() ?? "?"}
-                          </div>
-                          <div>
-                            <div className="font-medium text-sm text-gray-900 leading-tight">{u.name}</div>
-                            <div className="text-xs text-gray-500">{u.email}</div>
-                          </div>
-                        </div>
-                        <Badge
-                          className={`text-xs ${
-                            u.role === "admin"
-                              ? "bg-red-100 text-red-700"
-                              : "bg-gray-100 text-gray-600"
-                          }`}
-                        >
-                          {u.role}
-                        </Badge>
-                      </div>
-                    ))}
+      {/* Workspaces */}
+      {activeTab === "workspaces" && (
+        <div className="space-y-3">
+          {workspaces.isLoading && <p className="text-muted-foreground text-sm">Carregando...</p>}
+          {workspaces.data?.map(ws => (
+            <Card key={ws.id}>
+              <CardContent className="p-4">
+                <div className="flex items-start justify-between flex-wrap gap-3">
+                  <div className="space-y-1 flex-1">
+                    <div className="flex items-center gap-2">
+                      <p className="font-semibold">{ws.name}</p>
+                      <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${PLAN_COLORS[ws.plan]}`}>
+                        {PLAN_LABELS[ws.plan]}
+                      </span>
+                    </div>
+                    <p className="text-sm text-muted-foreground">
+                      {ws.owner?.name} · {ws.owner?.email}
+                    </p>
+                    <div className="flex flex-wrap gap-4 text-xs pt-1">
+                      <span className="text-muted-foreground">🤖 {ws.botCount} bots ({ws.aiBotCount} IA)</span>
+                      <span className="text-muted-foreground">💬 {ws.messageCount.toLocaleString()} msgs</span>
+                      <span className="text-muted-foreground">🧠 {ws.ai.calls} chamadas IA</span>
+                      <span className="font-semibold text-emerald-700">💵 R$ {ws.ai.costBrl.toFixed(4)}</span>
+                      <span className="text-muted-foreground">(${ws.ai.costUsd.toFixed(6)} USD)</span>
+                    </div>
                   </div>
-                )}
+
+                  <div className="flex items-center gap-2">
+                    {changingPlan === ws.id ? (
+                      <div className="flex gap-1 flex-wrap">
+                        {(["trial", "starter", "pro", "business"] as const).map(plan => (
+                          <Button key={plan} size="sm"
+                            variant={ws.plan === plan ? "default" : "outline"}
+                            className="text-xs h-7"
+                            disabled={changePlan.isPending}
+                            onClick={() => { changePlan.mutate({ workspaceId: ws.id, plan }); setChangingPlan(null); }}>
+                            {PLAN_LABELS[plan]}
+                          </Button>
+                        ))}
+                        <Button size="sm" variant="ghost" className="h-7 text-xs"
+                          onClick={() => setChangingPlan(null)}>✕</Button>
+                      </div>
+                    ) : (
+                      <Button size="sm" variant="outline" className="text-xs"
+                        onClick={() => setChangingPlan(ws.id)}>
+                        Mudar plano <ChevronDown className="w-3 h-3 ml-1" />
+                      </Button>
+                    )}
+                  </div>
+                </div>
               </CardContent>
             </Card>
+          ))}
+        </div>
+      )}
 
-            {/* Workspaces */}
-            <Card>
-              <CardHeader className="pb-3">
-                <CardTitle className="text-base">Workspaces ({(workspaces ?? []).length})</CardTitle>
-              </CardHeader>
-              <CardContent>
-                {(workspaces ?? []).length === 0 ? (
-                  <p className="text-gray-400 text-sm text-center py-4">Nenhum workspace</p>
-                ) : (
-                  <div className="space-y-2 max-h-80 overflow-y-auto">
-                    {(workspaces ?? []).map((ws: any) => (
-                      <div key={ws.id} className="flex items-center justify-between p-2.5 bg-gray-50 rounded-lg">
-                        <div className="flex items-center gap-2.5">
-                          <div className="w-8 h-8 bg-blue-100 rounded-full flex items-center justify-center text-sm font-medium text-blue-700">
-                            {ws.name?.[0]?.toUpperCase() ?? "W"}
-                          </div>
-                          <div>
-                            <div className="font-medium text-sm text-gray-900 leading-tight">{ws.name}</div>
-                            <div className="text-xs text-gray-500">ID #{ws.id}</div>
-                          </div>
-                        </div>
-                        <Badge
-                          className={`text-xs capitalize ${
-                            ws.plan === "business"
-                              ? "bg-amber-100 text-amber-700"
-                              : ws.plan === "pro"
-                              ? "bg-purple-100 text-purple-700"
-                              : ws.plan === "starter"
-                              ? "bg-blue-100 text-blue-700"
-                              : "bg-gray-100 text-gray-600"
-                          }`}
-                        >
-                          {ws.plan}
-                        </Badge>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </CardContent>
-            </Card>
-          </div>
-        </>
+      {/* Users */}
+      {activeTab === "users" && (
+        <div className="rounded-lg border overflow-hidden">
+          <table className="w-full text-sm">
+            <thead className="bg-muted/50">
+              <tr>
+                <th className="text-left p-3 font-medium">Nome</th>
+                <th className="text-left p-3 font-medium">Email</th>
+                <th className="text-left p-3 font-medium">Workspace</th>
+                <th className="text-left p-3 font-medium">Plano</th>
+                <th className="text-left p-3 font-medium">Role</th>
+              </tr>
+            </thead>
+            <tbody>
+              {users.isLoading && (
+                <tr><td colSpan={5} className="p-4 text-center text-muted-foreground">Carregando...</td></tr>
+              )}
+              {users.data?.map(u => (
+                <tr key={u.id} className="border-t hover:bg-muted/20">
+                  <td className="p-3 font-medium">{u.name}</td>
+                  <td className="p-3 text-muted-foreground">{u.email}</td>
+                  <td className="p-3">{u.workspace?.name ?? "—"}</td>
+                  <td className="p-3">
+                    {u.workspace?.plan ? (
+                      <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${PLAN_COLORS[u.workspace.plan]}`}>
+                        {PLAN_LABELS[u.workspace.plan]}
+                      </span>
+                    ) : "—"}
+                  </td>
+                  <td className="p-3">
+                    <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${
+                      u.role === "admin" ? "bg-red-100 text-red-700" : "bg-gray-100 text-gray-700"
+                    }`}>
+                      {u.role}
+                    </span>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       )}
     </div>
   );

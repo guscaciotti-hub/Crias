@@ -178,6 +178,17 @@ function initSchema() {
     updated_at INTEGER NOT NULL DEFAULT (strftime('%s','now'))
   )`);
 
+  db.run(sql`CREATE TABLE IF NOT EXISTS ai_usage (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    workspace_id INTEGER NOT NULL REFERENCES workspaces(id),
+    bot_id INTEGER NOT NULL REFERENCES bots(id),
+    conversation_id INTEGER,
+    input_tokens INTEGER NOT NULL DEFAULT 0,
+    output_tokens INTEGER NOT NULL DEFAULT 0,
+    cost_usd REAL NOT NULL DEFAULT 0,
+    created_at INTEGER NOT NULL DEFAULT (strftime('%s','now'))
+  )`);
+
   // Migrations for existing databases
   try { db.run(sql`ALTER TABLE bots ADD COLUMN agent_mode TEXT NOT NULL DEFAULT 'flow'`); } catch {}
   try { db.run(sql`ALTER TABLE bots ADD COLUMN ai_system_prompt TEXT`); } catch {}

@@ -188,6 +188,18 @@ export const conversationStates = sqliteTable("conversation_states", {
   updatedAt: integer("updated_at", { mode: "timestamp" }).notNull().default(now),
 });
 
+// ────────────────────────────── AI usage tracking ───────────────────
+export const aiUsage = sqliteTable("ai_usage", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  workspaceId: integer("workspace_id").notNull().references(() => workspaces.id),
+  botId: integer("bot_id").notNull().references(() => bots.id),
+  conversationId: integer("conversation_id"),
+  inputTokens: integer("input_tokens").notNull().default(0),
+  outputTokens: integer("output_tokens").notNull().default(0),
+  costUsd: real("cost_usd").notNull().default(0),
+  createdAt: integer("created_at", { mode: "timestamp" }).notNull().default(now),
+});
+
 // ────────────────────────────── sessions (auth) ─────────────────────
 export const sessions = sqliteTable("sessions", {
   id: text("id").primaryKey(),
