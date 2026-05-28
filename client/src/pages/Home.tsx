@@ -21,7 +21,8 @@ export default function Home() {
       localStorage.setItem("atendeai_token", data.token);
       localStorage.removeItem("atendeai_wsid");
       setLoading(false);
-      navigate("/dashboard");
+      // New user (no workspace) → onboarding; existing user → dashboard
+      navigate(data.hasWorkspace ? "/dashboard" : "/onboarding");
     },
     onError: (err) => {
       setError(err.message);

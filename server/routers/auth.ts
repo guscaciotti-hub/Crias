@@ -35,7 +35,10 @@ export const authRouter = router({
         expiresAt,
       }).run();
 
-      return { token: sessionId, user };
+      const member = db.select().from(workspaceMembers)
+        .where(eq(workspaceMembers.userId, user.id)).get();
+
+      return { token: sessionId, user, hasWorkspace: !!member };
     }),
 
   me: protectedProcedure.query(({ ctx }) => ctx.user),
