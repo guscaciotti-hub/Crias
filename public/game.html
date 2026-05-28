@@ -4618,14 +4618,6 @@ function render(now) {
     Math.round(cw   * _scaleX), Math.round(ch   * _scaleY),
     0, 0, cw, ch);
 
-  // Orb sprite bottom half — always behind all entities
-  if (assets.orbSprite) {
-    const os = assets.orbSprite;
-    const sw = os.naturalWidth || os.width, sh = os.naturalHeight || os.height;
-    ctx.imageSmoothingEnabled = true;
-    ctx.drawImage(os, 0, sh/2, sw, sh/2,
-      21*TILE - camX, 21*TILE - camY, 6*TILE, 3*TILE);
-  }
 
   // Cria follow position — always exactly 1 cell behind player
   let cX, cY;
@@ -4656,10 +4648,10 @@ function render(now) {
   if (state.cria) renderables.push({ type: 'cria', x: cX, y: cY });
   renderables.push({ type: 'player', x: pX, y: pY });
 
-  // Core Orb top-half depth-sort: sprite equator at tile y=21.
-  // When player y < 21*TILE they walk north → orb top renders after → player hidden behind.
-  // When player y > 21*TILE they walk south → player renders after → player in front.
-  const ORB_SORT_Y = 21 * TILE;
+  // Core Orb depth-sort: full sprite sorted at the base of the sphere (y=24).
+  // Player y < 24*TILE → player renders before orb → orb covers player (red zone).
+  // Player y ≥ 24*TILE → player renders after orb → player in front (collision barrier there).
+  const ORB_SORT_Y = 24 * TILE;
   renderables.push({ type: 'orb', x: 21 * TILE, y: ORB_SORT_Y });
 
   renderables.sort((a, b) => a.y - b.y);
@@ -4674,8 +4666,8 @@ function render(now) {
       const os = assets.orbSprite;
       const sw = os.naturalWidth || os.width, sh = os.naturalHeight || os.height;
       ctx.imageSmoothingEnabled = true;
-      ctx.drawImage(os, 0, 0, sw, sh/2,
-        21*TILE - camX, 18*TILE - camY, 6*TILE, 3*TILE);
+      ctx.drawImage(os, 0, 0, sw, sh,
+        21*TILE - camX, 18*TILE - camY, 6*TILE, 6*TILE);
     }
   }
 
