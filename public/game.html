@@ -626,6 +626,8 @@
     animation: questPulse 1.8s ease-in-out infinite;
   }
   #questQuickBtn.show { display: flex; }
+  /* Stops pulsing once the player has opened the missions panel at least once */
+  #questQuickBtn.seen { animation: none; box-shadow: 0 0 10px rgba(255,215,0,0.35), 0 2px 8px rgba(0,0,0,0.6); }
   @keyframes questPulse {
     0%,100% { box-shadow: 0 0 10px rgba(255,215,0,0.4), 0 2px 8px rgba(0,0,0,0.6); border-color: #ffd700; }
     50% { box-shadow: 0 0 22px rgba(255,215,0,0.85), 0 2px 8px rgba(0,0,0,0.6); border-color: #ffe85a; }
@@ -640,16 +642,32 @@
   /* ── Dialog Portrait ─── */
   #dialogPortrait {
     display: none;
-    width: 200px;
-    height: 135px;
-    object-fit: cover;
-    border-radius: 8px 8px 0 0;
+    width: 116px;
+    height: 148px;
+    border-radius: 8px;
     border: 2px solid #4dc3ff;
-    border-bottom: none;
-    margin: -12px -12px 8px -12px;
-    image-rendering: auto;
+    background: linear-gradient(180deg, #16263e 0%, #0b1422 100%);
+    margin: -4px auto 8px auto;
+    position: relative;
+    overflow: hidden;
+    box-shadow: 0 0 14px rgba(77,195,255,0.25);
   }
   #dialogPortrait.show { display: block; }
+  #dialogPortraitImg {
+    display: none;
+    width: 100%; height: 100%;
+    object-fit: contain;
+    object-position: center bottom;
+    image-rendering: auto;
+  }
+  #dialogPortraitImg.show { display: block; }
+  #dialogPortraitEmoji {
+    position: absolute; inset: 0;
+    display: none;
+    align-items: center; justify-content: center;
+    font-size: 72px; line-height: 1;
+  }
+  #dialogPortraitEmoji.show { display: flex; }
 
   #menuBtn {
     position: fixed;
@@ -1461,7 +1479,10 @@
 <!-- DIALOG -->
 <div id="dialog" class="overlay">
   <div class="panel" style="overflow:visible;">
-    <img id="dialogPortrait" src="" alt=""/>
+    <div id="dialogPortrait">
+      <img id="dialogPortraitImg" src="" alt=""/>
+      <span id="dialogPortraitEmoji"></span>
+    </div>
     <div style="display:flex;align-items:center;gap:10px;margin-bottom:6px;">
       <div id="dialogAvatar" style="font-size:32px;line-height:1;min-width:36px;text-align:center;"></div>
       <div class="speaker" id="dialogSpeaker" style="margin-bottom:0"></div>
@@ -2755,21 +2776,34 @@ const NPC_AVATARS = {
   'Rocco': '🧑‍🦱', 'Mestre Yuri': '🥋', 'Mestre Augusto': '🎭',
   'Líder Júpiter': '🔮', 'Espírito Ancã': '🕯️', 'Entrada da Caverna': '🕳️',
 };
+// NPCs that have a real sprite → show it as the dialog portrait (igual ao sprite no mapa)
+const NPC_PORTRAIT_SPRITE = {
+  'Guia Solis': 'guiaMage',
+  'Guarda Kalos': 'guardaKalos',
+};
 function renderDialog() {
   document.getElementById('dialogSpeaker').textContent = dialogSpeaker;
   document.getElementById('dialogText').textContent = dialogLines[dialogIndex];
   document.getElementById('dialogNext').textContent = dialogIndex < dialogLines.length - 1 ? '▼ Toque pra continuar' : '✓ Fechar';
   const av = document.getElementById('dialogAvatar');
   if (av) av.textContent = NPC_AVATARS[dialogSpeaker] || '';
-  // Show portrait for Guia Solis
-  const portrait = document.getElementById('dialogPortrait');
-  if (portrait) {
-    if (dialogSpeaker === 'Guia Solis' && assets.guiaPortrait) {
-      portrait.src = assets.guiaPortrait.src;
-      portrait.classList.add('show');
+  // Portrait — always show the speaker's picture: their sprite if we have one, else a big emoji.
+  const box = document.getElementById('dialogPortrait');
+  const img = document.getElementById('dialogPortraitImg');
+  const emo = document.getElementById('dialogPortraitEmoji');
+  if (box && img && emo) {
+    const sprKey = NPC_PORTRAIT_SPRITE[dialogSpeaker];
+    const spr = sprKey && assets[sprKey];
+    if (spr && spr.complete) {
+      img.src = spr.src;
+      img.classList.add('show');
+      emo.classList.remove('show');
     } else {
-      portrait.classList.remove('show');
+      img.classList.remove('show');
+      emo.textContent = NPC_AVATARS[dialogSpeaker] || '❔';
+      emo.classList.add('show');
     }
+    box.classList.add('show');
   }
 }
 function advanceDialog() {
@@ -3711,8 +3745,18 @@ function switchMenuTab(tab) {
   if (tab === 'crias') populateCriasTab();
   else if (tab === 'inv') populateInvTab();
   else if (tab === 'dex') populateDexTab();
-  else if (tab === 'quest') populateQuestTab();
+  else if (tab === 'quest') { populateQuestTab(); markQuestsSeen(); }
   else if (tab === 'mapa') populateMapTab();
+}
+
+// Player has now SEEN the missions — stop the quest button from pulsing (persisted).
+function markQuestsSeen() {
+  if (state && !state.questsSeen) {
+    state.questsSeen = true;
+    saveGame();
+  }
+  const btn = document.getElementById('questQuickBtn');
+  if (btn) btn.classList.add('seen');
 }
 
 // ── Crias Tab ────────────────────────────────────────────────────────────────
@@ -3887,13 +3931,13 @@ const DEFAULT_QUESTS = [
   { id:'q5', type:'side', title:'Primeira Captura', desc:'Use um Orbe de Captura para sincronizar uma Cria selvagem.', progress:0, total:1, done: false },
 ];
 
-// Quest navigation targets — tile positions to navigate to
+// Quest navigation targets — tile positions to navigate to (real NPC positions)
 const QUEST_NAV = {
-  q1: { x: 8, y: 11, label: 'Guia Solis' },    // Guia Solis position
-  q2: { x: 6, y: 11, label: 'Lulu (treinador)' },
-  q3: { x: 18, y: 3,  label: 'Caverna Sombria' },
-  q4: { x: 8, y: 11,  label: 'NPCs da cidade' },
-  q5: { x: 18, y: 3,  label: 'Caverna Sombria' },
+  q1: { x: 16, y: 22, label: 'Guia Solis' },         // Guia Solis @ (16,22)
+  q2: { x: 12, y: 22, label: 'Lulu (treinadora)' },  // Lulu @ (12,22)
+  q3: { x: 36, y: 6,  label: 'Guarda Kalos / Caverna' }, // cave gate @ (36,6)
+  q4: { x: 8,  y: 20, label: 'NPCs da cidade' },     // Mãe Lyra @ (8,20)
+  q5: { x: 36, y: 6,  label: 'Caverna Sombria' },
 };
 
 function navigateToQuest(questId) {
@@ -3912,7 +3956,7 @@ function navigateToQuest(questId) {
     if (hasOrb) {
       nav = { x: 23, y: 23, label: 'Core Orb' };
     } else {
-      nav = { x: 8, y: 11, label: 'Guia Solis' };
+      nav = { x: 16, y: 22, label: 'Guia Solis' };
     }
   }
   if (!nav) return;
@@ -3944,24 +3988,38 @@ function walkPlayerToward(tx, ty) {
   }
 }
 
+// Live progress for a quest, derived from game state
+function evalQuest(q) {
+  let prog = q.progress || 0;
+  if (q.id === 'q1') prog = state.cria ? 1 : 0;
+  if (q.id === 'q2') prog = Math.min(state.trainerWins || 0, q.total);
+  if (q.id === 'q3') prog = state.cria ? Math.min(state.cria.level, q.total) : 0;
+  return { prog, done: prog >= q.total };
+}
+
 function populateQuestTab() {
   const panel = document.getElementById('mp-quest');
   const quests = state.quests && state.quests.length ? state.quests : DEFAULT_QUESTS;
   const mainQ = quests.filter(q => q.type === 'main');
   const sideQ = quests.filter(q => q.type === 'side');
-  const renderQ = (list) => list.map(q => {
-    // Auto-update progress based on game state
-    let prog = q.progress;
-    if (q.id === 'q1' && state.cria) prog = 1;
-    if (q.id === 'q3' && state.cria) prog = Math.min(state.cria.level, q.total);
-    if (q.id === 'q2') prog = Math.min(state.trainerWins || 0, q.total);
-    const pct = Math.round((prog/q.total)*100);
-    const done = prog >= q.total;
+
+  // status: 'done' | 'active' | 'locked'
+  const card = (q, status) => {
+    if (status === 'locked') {
+      return `<div class="quest-card" style="opacity:.4;cursor:default;">
+        <div class="quest-title">🔒 Próxima missão</div>
+        <div class="quest-desc">Conclua a missão atual para revelá-la.</div>
+      </div>`;
+    }
+    const { prog } = evalQuest(q);
+    const pct = Math.round((prog / q.total) * 100);
     const nav = QUEST_NAV[q.id];
-    const navHint = (!done && nav) ? `<div style="font-size:10px;color:#ffd700;margin-top:6px;">📍 Toque para navegar</div>` : '';
-    return `<div class="quest-card" data-qid="${q.id}" style="${done ? 'opacity:.5' : ''}">
+    const isDone = status === 'done';
+    const navHint = (status === 'active' && nav)
+      ? `<div style="font-size:10px;color:#ffd700;margin-top:6px;">📍 Toque para ir até: ${nav.label}</div>` : '';
+    return `<div class="quest-card" data-qid="${q.id}" style="${isDone ? 'opacity:.5;' : ''}${status === 'active' ? 'border:1px solid #ffd700;' : ''}">
       <span class="quest-label ${q.type}">${q.type === 'main' ? '⚡ PRINCIPAL' : '· Secundária'}</span>
-      <div class="quest-title">${done ? '✅ ' : ''}${q.title}</div>
+      <div class="quest-title">${isDone ? '✅ ' : (status === 'active' ? '➤ ' : '')}${q.title}</div>
       <div class="quest-desc">${q.desc}</div>
       <div class="quest-progress">
         <div style="font-size:10px;color:#8ab0dd;margin-bottom:2px;">${prog}/${q.total}</div>
@@ -3969,16 +4027,28 @@ function populateQuestTab() {
       </div>
       ${navHint}
     </div>`;
-  }).join('');
-  panel.innerHTML = `
-    <div style="font-size:11px;color:#8ab0dd;text-transform:uppercase;letter-spacing:.1em;font-weight:600;">Missões Principais</div>
-    ${renderQ(mainQ)}
-    <div style="font-size:11px;color:#8ab0dd;text-transform:uppercase;letter-spacing:.1em;font-weight:600;margin-top:4px;">Missões Secundárias</div>
-    ${renderQ(sideQ)}
-  `;
-  // Attach click handlers for navigation
-  panel.querySelectorAll('.quest-card[data-qid]').forEach(card => {
-    card.addEventListener('click', () => navigateToQuest(card.dataset.qid));
+  };
+
+  // ONE sequence: show completed steps + the single active step; hide future steps behind a lock.
+  const activeIndex = mainQ.findIndex(q => !evalQuest(q).done);
+  const onboardingComplete = activeIndex === -1;
+  let html = `<div style="font-size:11px;color:#8ab0dd;text-transform:uppercase;letter-spacing:.1em;font-weight:600;">Sua Jornada</div>`;
+  mainQ.forEach((q, i) => {
+    if (onboardingComplete || i < activeIndex) html += card(q, 'done');
+    else if (i === activeIndex) html += card(q, 'active');
+    // i > activeIndex → hidden until previous completes
+  });
+  if (!onboardingComplete && activeIndex < mainQ.length - 1) html += card(null, 'locked');
+
+  // Side quests unlock only after the onboarding sequence is complete
+  if (onboardingComplete && sideQ.length) {
+    html += `<div style="font-size:11px;color:#8ab0dd;text-transform:uppercase;letter-spacing:.1em;font-weight:600;margin-top:8px;">Missões Secundárias</div>`;
+    sideQ.forEach(q => html += card(q, evalQuest(q).done ? 'done' : 'active'));
+  }
+
+  panel.innerHTML = html;
+  panel.querySelectorAll('.quest-card[data-qid]').forEach(c => {
+    c.addEventListener('click', () => navigateToQuest(c.dataset.qid));
   });
 }
 
@@ -4196,6 +4266,8 @@ function drawComposedPlayer(px, py, now) {
   const w=48, h=60-squashY;
   ctx.imageSmoothingEnabled = true;
   ctx.drawImage(sprite,px+TILE/2-w/2+swayX+leanX,py+TILE-h+6+bob+squashY,w,h);
+  // Player name tag — below the sprite (same rule as NPCs)
+  if (state && state.playerName) drawNameBelow(px+TILE/2, py, state.playerName, '#7CFC9B');
 }
 
 // Event listeners do onboarding
@@ -4855,6 +4927,19 @@ function render(now) {
   drawDebugCollision(camX, camY, cw, ch);
 }
 
+// ── Shared name tag — ALWAYS drawn BELOW the sprite so the character is visible ──
+function drawNameBelow(cx, py, name, color) {
+  ctx.font = 'bold 12px sans-serif';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  const tw = ctx.measureText(name).width;
+  const ty = Math.round(py + TILE + 6);
+  ctx.fillStyle = 'rgba(0,0,0,0.78)';
+  ctx.fillRect(Math.round(cx - tw / 2 - 4), ty, tw + 8, 15);
+  ctx.fillStyle = color;
+  ctx.fillText(name, Math.round(cx), ty + 8);
+}
+
 // ── Pixel-art knight sprite for Guarda Kalos ─────────────────────────────────
 function drawKnightNPC(npc, px, py, now) {
   // Uses real pixel-art PNG sprite (loaded from <script id="d-guarda-kalos">)
@@ -4882,15 +4967,8 @@ function drawKnightNPC(npc, px, py, now) {
     ctx.fillRect(bx - 10, by - 56, 20, 56);
   }
 
-  // Name tag
-  ctx.font = 'bold 12px sans-serif';
-  ctx.textAlign = 'center';
-  ctx.textBaseline = 'middle';
-  const tw = ctx.measureText(npc.name).width;
-  ctx.fillStyle = 'rgba(0,0,0,0.78)';
-  ctx.fillRect(bx - tw / 2 - 4, py - 18, tw + 8, 15);
-  ctx.fillStyle = '#4dc3ff';
-  ctx.fillText(npc.name, bx, py - 9);
+  // Name tag — below the sprite
+  drawNameBelow(bx, py, npc.name, '#4dc3ff');
 }
 
 
@@ -4919,15 +4997,8 @@ function drawMageNPC(npc, px, py, now) {
     ctx.fillRect(bx - 10, by - 58, 20, 58);
   }
 
-  // Name tag
-  ctx.font = 'bold 12px sans-serif';
-  ctx.textAlign = 'center';
-  ctx.textBaseline = 'middle';
-  const tw = ctx.measureText(npc.name).width;
-  ctx.fillStyle = 'rgba(0,0,0,0.78)';
-  ctx.fillRect(bx - tw / 2 - 4, py - 18, tw + 8, 15);
-  ctx.fillStyle = '#a78bfa';
-  ctx.fillText(npc.name, bx, py - 9);
+  // Name tag — below the sprite
+  drawNameBelow(bx, py, npc.name, '#a78bfa');
 }
 
 // ── Generic NPC draw (emoji) ──────────────────────────────────────────────────
@@ -4946,12 +5017,8 @@ function drawNPC(npc, px, py, now) {
   ctx.fill();
   const bob = Math.sin(now / 400 + (npc.x + npc.y)) * 1.5;
   ctx.fillText(npc.emoji, px + TILE/2, py + TILE - 26 + bob);
-  ctx.font = 'bold 12px sans-serif';
-  const tw = ctx.measureText(npc.name).width;
-  ctx.fillStyle = 'rgba(0,0,0,0.75)';
-  ctx.fillRect(px + TILE/2 - tw/2 - 4, py - 16, tw + 8, 15);
-  ctx.fillStyle = '#4dc3ff';
-  ctx.fillText(npc.name, px + TILE/2, py - 7);
+  // Name tag — below the sprite
+  drawNameBelow(px + TILE/2, py, npc.name, '#4dc3ff');
 }
 
 // ── Subtle quest hint: pulsing glow on floor to guide new players ─────────────
@@ -5615,7 +5682,11 @@ function startGame() {
   // Stop abertura theme, transition to city music
   MUSIC.transitionToCity();
   document.getElementById('menuBtn').style.display = 'block';
-  document.getElementById('questQuickBtn').classList.add('show');
+  const _qbtn = document.getElementById('questQuickBtn');
+  _qbtn.classList.add('show');
+  // Pulse only until the player has opened the missions panel at least once
+  if (state && state.questsSeen) _qbtn.classList.add('seen');
+  else _qbtn.classList.remove('seen');
   if (!state.shownTutorial) {
     state.shownTutorial = true;
     saveGame();
