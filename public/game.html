@@ -4819,7 +4819,7 @@ function render(now) {
   // Cols 22-26 are the crystal sphere — pass-behind effect must remain there.
   if (state && state.scene !== 'cave1' &&
       pY >= 18 * TILE && pY < 23 * TILE &&
-      ((pX >= 20 * TILE && pX < 23 * TILE) || (pX >= 27 * TILE && pX < 29 * TILE))) {
+      pX >= 27 * TILE && pX < 29 * TILE) {
     drawPlayer(pX - camX, pY - camY, now);
   }
 
