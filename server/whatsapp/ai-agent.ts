@@ -40,8 +40,11 @@ export async function runAIAgent(
   const systemPrompt = bot.aiSystemPrompt ||
     `Você é ${bot.name}, assistente virtual de ${bot.businessName}. Responda de forma ${bot.tone === "formal" ? "formal e profissional" : "amigável e simpática"}. Seja conciso e útil.`;
 
+  const handoffCondition = (bot as any).handoffCondition as string | null | undefined;
   const handoffTriggers = (bot.handoffTriggers ?? []) as string[];
-  const handoffLine = handoffTriggers.length > 0
+  const handoffLine = handoffCondition?.trim()
+    ? `\nRegra de transferência para humano: ${handoffCondition.trim()}. Quando essa condição for atendida, responda normalmente mas adicione exatamente "[HANDOFF]" ao final da sua mensagem.`
+    : handoffTriggers.length > 0
     ? `\nSe o cliente mencionar: ${handoffTriggers.join(", ")} — responda normalmente mas inclua exatamente "[HANDOFF]" no final.`
     : "";
 

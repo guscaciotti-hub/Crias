@@ -276,6 +276,7 @@ export const botsRouter = router({
       welcomeMessage: z.string().optional(),
       offHoursMessage: z.string().optional(),
       handoffTriggers: z.array(z.string()).optional(),
+      handoffCondition: z.string().optional(),
       forbiddenTopics: z.array(z.string()).optional(),
       alertNumbers: z.array(z.string()).optional(),
       responseDelay: z.number().optional(),

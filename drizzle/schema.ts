@@ -56,6 +56,7 @@ export const bots = sqliteTable("bots", {
   forbiddenTopics: text("forbidden_topics", { mode: "json" }).$type<string[]>().notNull().default([]),
   alertNumbers: text("alert_numbers", { mode: "json" }).$type<string[]>().notNull().default([]),
   responseDelay: integer("response_delay").notNull().default(4), // segundos antes de responder (4-30)
+  handoffCondition: text("handoff_condition"),
   status: text("status", { enum: ["active", "inactive", "disconnected"] }).notNull().default("active"),
   createdAt: integer("created_at", { mode: "timestamp" }).notNull().default(now),
   updatedAt: integer("updated_at", { mode: "timestamp" }).notNull().default(now),

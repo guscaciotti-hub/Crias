@@ -14,7 +14,7 @@ type BotWithInstance = {
   id: number; name: string; businessName: string; businessDescription?: string | null;
   agentMode: string; aiSystemPrompt?: string | null; systemPrompt?: string | null;
   tone: string; alertNumbers?: string[] | null; forbiddenTopics?: string[] | null;
-  responseDelay?: number | null;
+  responseDelay?: number | null; handoffCondition?: string | null;
   instance: { status: string } | null;
 };
 
@@ -30,6 +30,7 @@ function AgentEditorModal({ bot, onClose }: { bot: BotWithInstance; onClose: () 
   const [tone, setTone]           = useState<"formal"|"friendly"|"professional"|"casual">(bot.tone as any ?? "friendly");
   const [doRules, setDoRules]     = useState(bot.systemPrompt ?? "");
   const [dontRules, setDontRules] = useState((bot.forbiddenTopics ?? []).join("\n"));
+  const [handoffCondition, setHandoffCondition] = useState(bot.handoffCondition ?? "");
   const [alertNumbers, setAlertNumbers] = useState<string[]>(bot.alertNumbers ?? []);
   const [alertInput, setAlertInput]     = useState("");
   const [responseDelay, setResponseDelay] = useState<number>(bot.responseDelay ?? DEFAULT_DELAY);
@@ -72,6 +73,7 @@ function AgentEditorModal({ bot, onClose }: { bot: BotWithInstance; onClose: () 
       id: bot.id, agentMode: "ai", aiSystemPrompt: prompt, systemPrompt: doRules,
       businessDescription: desc, tone,
       forbiddenTopics: dontRules.split("\n").map(s => s.trim()).filter(Boolean),
+      handoffCondition,
       alertNumbers,
       responseDelay: clampDelay(responseDelay),
     });
@@ -196,33 +198,49 @@ function AgentEditorModal({ bot, onClose }: { bot: BotWithInstance; onClose: () 
             </p>
           </div>
 
-          {/* Alertas handoff */}
-          <div>
-            <p className="text-sm font-semibold flex items-center gap-1.5 mb-1">
-              <Bell className="w-4 h-4 text-primary" /> Alertas de handoff
+          {/* Transferência para Humano */}
+          <div className="space-y-4">
+            <p className="text-sm font-semibold flex items-center gap-1.5">
+              <Bell className="w-4 h-4 text-primary" /> Transferência para Humano
             </p>
-            <p className="text-xs text-muted-foreground mb-2">
-              Quando o agente transferir para humano, esses números recebem aviso no WhatsApp.
-            </p>
-            <div className="flex gap-2 mb-2">
-              <Input placeholder="Ex: 5511999998888" value={alertInput}
-                onChange={e => setAlertInput(e.target.value)}
-                onKeyDown={e => e.key === "Enter" && (e.preventDefault(), addAlert())}
-                className="text-sm" />
-              <Button type="button" size="sm" variant="outline" onClick={addAlert}>Adicionar</Button>
+
+            {/* Condição de handoff */}
+            <div>
+              <p className="text-xs font-medium mb-1.5">Quando transferir?</p>
+              <textarea
+                className="w-full border rounded-xl p-3 text-sm min-h-[72px] resize-none focus:outline-none focus:ring-2 focus:ring-primary/30 bg-background"
+                placeholder={"Ex: quando o cliente quiser agendar uma call ou reunião\nquando pedir orçamento personalizado\nquando reclamar de um problema"}
+                value={handoffCondition}
+                onChange={e => setHandoffCondition(e.target.value)}
+              />
+              <p className="text-xs text-muted-foreground mt-1">
+                Descreva a condição em linguagem natural. O agente vai seguir essa regra para decidir quando transferir — sem inventar.
+              </p>
             </div>
-            {alertNumbers.length > 0 && (
-              <div className="flex flex-wrap gap-2">
-                {alertNumbers.map(n => (
-                  <span key={n} className="flex items-center gap-1 bg-muted px-2 py-0.5 rounded-full text-xs">
-                    <PhoneCall className="w-3 h-3" />{n}
-                    <button onClick={() => setAlertNumbers(p => p.filter(x => x !== n))} className="ml-0.5 hover:text-destructive">
-                      <X className="w-3 h-3" />
-                    </button>
-                  </span>
-                ))}
+
+            {/* Números de alerta */}
+            <div>
+              <p className="text-xs font-medium mb-1.5">Números que recebem aviso (WhatsApp)</p>
+              <div className="flex gap-2 mb-2">
+                <Input placeholder="Ex: 5511999998888" value={alertInput}
+                  onChange={e => setAlertInput(e.target.value)}
+                  onKeyDown={e => e.key === "Enter" && (e.preventDefault(), addAlert())}
+                  className="text-sm" />
+                <Button type="button" size="sm" variant="outline" onClick={addAlert}>Adicionar</Button>
               </div>
-            )}
+              {alertNumbers.length > 0 && (
+                <div className="flex flex-wrap gap-2">
+                  {alertNumbers.map(n => (
+                    <span key={n} className="flex items-center gap-1 bg-muted px-2 py-0.5 rounded-full text-xs">
+                      <PhoneCall className="w-3 h-3" />{n}
+                      <button onClick={() => setAlertNumbers(p => p.filter(x => x !== n))} className="ml-0.5 hover:text-destructive">
+                        <X className="w-3 h-3" />
+                      </button>
+                    </span>
+                  ))}
+                </div>
+              )}
+            </div>
           </div>
 
           {/* Testar */}

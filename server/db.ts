@@ -195,6 +195,7 @@ function initSchema() {
   try { db.run(sql`ALTER TABLE users ADD COLUMN password_hash TEXT`); } catch {}
   try { db.run(sql`ALTER TABLE bots ADD COLUMN alert_numbers TEXT NOT NULL DEFAULT '[]'`); } catch {}
   try { db.run(sql`ALTER TABLE bots ADD COLUMN response_delay INTEGER NOT NULL DEFAULT 4`); } catch {}
+  try { db.run(sql`ALTER TABLE bots ADD COLUMN handoff_condition TEXT`); } catch {}
   // existing users default to verified so they are not locked out
   try { db.run(sql`ALTER TABLE users ADD COLUMN email_verified INTEGER NOT NULL DEFAULT 1`); } catch {}
   // Migrate old demo_ prefix to local_ so existing accounts keep their data
