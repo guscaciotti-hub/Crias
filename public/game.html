@@ -4701,9 +4701,10 @@ function render(now) {
   // BOTTOM HALF drawn here (before entities) → characters walk in front of lower orb.
   // TOP HALF drawn after FX.draw() as foreground → always covers characters in upper area.
   const ORB_DX = 19.50, ORB_DY = 17.74, ORB_DW = 8.94, ORB_DH = 9.07;
-  // Split at 75% of frame height → top 75% always in front of player.
+  // Split at content vertical-centre (y≈0.4695 of 512px frame = 50% of orb visual).
+  // Top half drawn after entities (player passes behind); bottom half before (player in front).
   // 2-px source overlap (_orbSeam) eliminates the 1-px seam at the join.
-  const ORB_SPLIT   = 0.75;
+  const ORB_SPLIT   = 0.4695;
   const _orbSeam    = 2; // px of sprite overlap to hide the seam
   const _orbRX = viewportW / canvas.width;
   const _orbRY = viewportH / canvas.height;
