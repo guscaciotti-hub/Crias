@@ -33,12 +33,11 @@ app.use(
 // JSON body parsing for other routes
 app.use(express.json());
 
-// Serve static client files in production
-// In dev (tsx): __dirname = .../server/  → ../../client/dist = .../client/dist ✓
-// In prod (compiled): __dirname = .../server/dist/server/ → ../../../client/dist = .../client/dist ✓
-const clientDist = process.env.NODE_ENV === "production"
-  ? path.join(__dirname, "../../../client/dist")
-  : path.join(__dirname, "../../client/dist");
+// Serve static client files — detect the right path automatically
+import { existsSync } from "fs";
+const prodPath = path.join(__dirname, "../../../client/dist");
+const devPath = path.join(__dirname, "../../client/dist");
+const clientDist = existsSync(prodPath) ? prodPath : devPath;
 app.use(express.static(clientDist));
 app.get("*", (req, res) => {
   res.sendFile(path.join(clientDist, "index.html"));
