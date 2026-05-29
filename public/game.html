@@ -4704,7 +4704,7 @@ function render(now) {
   // Split at content vertical-centre (y≈0.4695 of 512px frame = 50% of orb visual).
   // Top half drawn after entities (player passes behind); bottom half before (player in front).
   // 2-px source overlap (_orbSeam) eliminates the 1-px seam at the join.
-  const ORB_SPLIT   = 0.4695;
+  const ORB_SPLIT   = 0.50; // raised from 0.4695 to cover player feet (extend 6px below tile boundary)
   const _orbSeam    = 2; // px of sprite overlap to hide the seam
   const _orbRX = viewportW / canvas.width;
   const _orbRY = viewportH / canvas.height;
