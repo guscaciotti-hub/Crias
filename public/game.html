@@ -4743,19 +4743,14 @@ function render(now) {
   for (const r of renderables) {
     const sx = r.x - camX;
     const sy = r.y - camY;
-    // Left half of orb: sprite is transparent here, so manually clip the player's
-    // upper body above the split — identical pass-behind result as the opaque right half.
-    const _inLeftFace = r.x >= 20 * TILE && r.x < 24 * TILE &&
+    // Left crystal face has transparent pixels — skip entity so orb appears solid there.
+    // Orb foreground sprite + glow will cover this zone; player is redrawn after for stone border.
+    if (r.x >= 21 * TILE && r.x < 24 * TILE &&
+        r.y >= ORB_DY * TILE && r.y < _splitWorldY) continue;
+    // Rest of orb zone: standard feet clip (body visible, feet hidden below equator).
+    const _inPassZone = r.x >= ORB_DX * TILE && r.x < 28 * TILE &&
         r.y >= ORB_DY * TILE && r.y < _splitWorldY;
-    // Right half: sprite is opaque, only clip feet to prevent seam bleed.
-    const _inPassZone = !_inLeftFace && r.x >= ORB_DX * TILE && r.x < 28 * TILE &&
-        r.y >= ORB_DY * TILE && r.y < _splitWorldY;
-    if (_inLeftFace) {
-      ctx.save();
-      ctx.beginPath();
-      ctx.rect(0, _splitScreenY, canvas.width, canvas.height);
-      ctx.clip();
-    } else if (_inPassZone) {
+    if (_inPassZone) {
       ctx.save();
       ctx.beginPath();
       ctx.rect(0, 0, canvas.width, _splitScreenY - 8);
@@ -4764,7 +4759,7 @@ function render(now) {
     if (r.type === 'npc') drawNPC(r.npc, sx, sy, now);
     else if (r.type === 'cria') drawCriaSprite(sx, sy, now);
     else if (r.type === 'player') drawPlayer(sx, sy, now);
-    if (_inLeftFace || _inPassZone) ctx.restore();
+    if (_inPassZone) ctx.restore();
   }
 
   drawLabels(camX, camY, cw, ch);
@@ -4824,13 +4819,14 @@ function render(now) {
     ctx.restore();
   }
 
-  // Redraw player on top of the orb stone-platform wall edges (cols 20-21 left, cols 27-28 right).
-  // The orb top-half sprite has opaque stone pixels at both edges that cover the player;
-  // redrawing after the foreground pass guarantees they appear in front.
-  // Cols 22-26 are the crystal sphere — pass-behind effect must remain there.
+  // Redraw player on top of the orb stone-platform wall borders (both sides).
+  // Right border cols 27-28: opaque sprite pixels cover entity draw; redraw restores player.
+  // Left border cols 19-20: symmetric — player stays in front of the left stone edge.
+  // Crystal zone (cols 21-26) keeps the pass-behind effect (entity skipped or covered by sprite).
   if (state && state.scene !== 'cave1' &&
       pY >= 18 * TILE && pY < 23 * TILE &&
-      pX >= 27 * TILE && pX < 29 * TILE) {
+      ((pX >= 27 * TILE && pX < 29 * TILE) ||
+       (pX >= 19 * TILE && pX < 21 * TILE))) {
     drawPlayer(pX - camX, pY - camY, now);
   }
 
