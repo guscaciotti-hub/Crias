@@ -4739,21 +4739,32 @@ function render(now) {
   }
 
   const _splitWorldY = (_orbDY + ORB_SPLIT * _orbDH) * TILE;
+  const _splitScreenY = Math.round(_splitWorldY - camY);
   for (const r of renderables) {
     const sx = r.x - camX;
     const sy = r.y - camY;
-    const _inPassZone = r.x >= ORB_DX * TILE && r.x < 28 * TILE &&
+    // Left half of orb: sprite is transparent here, so manually clip the player's
+    // upper body above the split — identical pass-behind result as the opaque right half.
+    const _inLeftFace = r.x >= 20 * TILE && r.x < 24 * TILE &&
         r.y >= ORB_DY * TILE && r.y < _splitWorldY;
-    if (_inPassZone) {
+    // Right half: sprite is opaque, only clip feet to prevent seam bleed.
+    const _inPassZone = !_inLeftFace && r.x >= ORB_DX * TILE && r.x < 28 * TILE &&
+        r.y >= ORB_DY * TILE && r.y < _splitWorldY;
+    if (_inLeftFace) {
       ctx.save();
       ctx.beginPath();
-      ctx.rect(0, 0, canvas.width, Math.round(_splitWorldY - camY) - 8);
+      ctx.rect(0, _splitScreenY, canvas.width, canvas.height);
+      ctx.clip();
+    } else if (_inPassZone) {
+      ctx.save();
+      ctx.beginPath();
+      ctx.rect(0, 0, canvas.width, _splitScreenY - 8);
       ctx.clip();
     }
     if (r.type === 'npc') drawNPC(r.npc, sx, sy, now);
     else if (r.type === 'cria') drawCriaSprite(sx, sy, now);
     else if (r.type === 'player') drawPlayer(sx, sy, now);
-    if (_inPassZone) ctx.restore();
+    if (_inLeftFace || _inPassZone) ctx.restore();
   }
 
   drawLabels(camX, camY, cw, ch);
