@@ -13,6 +13,7 @@ export const users = sqliteTable("users", {
   email: text("email").notNull(),
   avatarUrl: text("avatar_url"),
   passwordHash: text("password_hash"),
+  emailVerified: integer("email_verified", { mode: "boolean" }).notNull().default(true),
   role: text("role", { enum: ["admin", "user"] }).notNull().default("user"),
   createdAt: integer("created_at", { mode: "timestamp" }).notNull().default(now),
 });
@@ -206,6 +207,16 @@ export const aiUsage = sqliteTable("ai_usage", {
 export const sessions = sqliteTable("sessions", {
   id: text("id").primaryKey(),
   userId: integer("user_id").notNull().references(() => users.id),
+  expiresAt: integer("expires_at", { mode: "timestamp" }).notNull(),
+  createdAt: integer("created_at", { mode: "timestamp" }).notNull().default(now),
+});
+
+// ────────────────────────────── email tokens ────────────────────────
+export const emailTokens = sqliteTable("email_tokens", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  userId: integer("user_id").notNull().references(() => users.id),
+  code: text("code").notNull(),
+  type: text("type", { enum: ["verify_email", "reset_password"] }).notNull(),
   expiresAt: integer("expires_at", { mode: "timestamp" }).notNull(),
   createdAt: integer("created_at", { mode: "timestamp" }).notNull().default(now),
 });

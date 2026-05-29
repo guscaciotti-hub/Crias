@@ -194,8 +194,19 @@ function initSchema() {
   try { db.run(sql`ALTER TABLE bots ADD COLUMN ai_system_prompt TEXT`); } catch {}
   try { db.run(sql`ALTER TABLE users ADD COLUMN password_hash TEXT`); } catch {}
   try { db.run(sql`ALTER TABLE bots ADD COLUMN alert_numbers TEXT NOT NULL DEFAULT '[]'`); } catch {}
+  // existing users default to verified so they are not locked out
+  try { db.run(sql`ALTER TABLE users ADD COLUMN email_verified INTEGER NOT NULL DEFAULT 1`); } catch {}
   // Migrate old demo_ prefix to local_ so existing accounts keep their data
   try { db.run(sql`UPDATE users SET open_id = 'local_' || SUBSTR(open_id, 6) WHERE open_id LIKE 'demo_%'`); } catch {}
+
+  db.run(sql`CREATE TABLE IF NOT EXISTS email_tokens (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id INTEGER NOT NULL REFERENCES users(id),
+    code TEXT NOT NULL,
+    type TEXT NOT NULL,
+    expires_at INTEGER NOT NULL,
+    created_at INTEGER NOT NULL DEFAULT (strftime('%s','now'))
+  )`);
 
   db.run(sql`CREATE TABLE IF NOT EXISTS conversation_states (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
