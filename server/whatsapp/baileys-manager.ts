@@ -8,7 +8,7 @@ import { Boom } from "@hapi/boom";
 import { EventEmitter } from "events";
 import { rmSync, mkdirSync, existsSync } from "fs";
 import { getDb } from "../db.js";
-import { whatsappInstances } from "../../drizzle/schema.js";
+import { whatsappInstances, bots } from "../../drizzle/schema.js";
 import { eq } from "drizzle-orm";
 import pino from "pino";
 import QRCode from "qrcode";
@@ -257,7 +257,11 @@ async function startInstance(botId: number) {
         try { await sock.readMessages([msg.key]); } catch {}
 
         const reply = await messageHandler(botId, from, text);
-        if (reply) await humanizedSend(sock, from, reply);
+        if (reply) {
+          // Tempo de Resposta configurado por agente (segundos), default 3
+          const cfg = getDb().select({ d: bots.responseDelay }).from(bots).where(eq(bots.id, botId)).get();
+          await humanizedSend(sock, from, reply, cfg?.d ?? 3);
+        }
       } catch (e) {
         console.error(`[Baileys] Error handling message for bot ${botId}:`, e);
       }
@@ -267,18 +271,23 @@ async function startInstance(botId: number) {
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
-// Sends a reply the way a person would: shows "typing…" and waits a delay
-// proportional to the message length, with random jitter, to avoid being
-// flagged as a bot by WhatsApp.
-async function humanizedSend(sock: any, to: string, text: string) {
-  // Tunable via env; defaults are conservative.
-  const perChar = Number(process.env.WA_DELAY_PER_CHAR ?? 55);   // ms per character
-  const minMs   = Number(process.env.WA_DELAY_MIN ?? 1200);      // floor
-  const maxMs   = Number(process.env.WA_DELAY_MAX ?? 9000);      // ceiling
+// Sends a reply the way a person would: shows "typing…" and waits before
+// sending, to avoid being flagged as a bot by WhatsApp.
+//
+// `responseDelaySec` is the per-agent "Tempo de Resposta" (2-30s). It acts as
+// the floor for the wait; the existing humanization layer (length-proportional
+// typing time + ±20% jitter) operates on top and may extend it for long texts.
+async function humanizedSend(sock: any, to: string, text: string, responseDelaySec = 3) {
+  // Safety clamp: never below 2s, never above 30s — even if a bad value slips through.
+  const baseDelayMs = Math.min(30, Math.max(2, responseDelaySec)) * 1000;
 
-  const base = Math.min(maxMs, Math.max(minMs, text.length * perChar));
+  // Humanization (unchanged behaviour): proportional typing time + jitter.
+  const perChar = Number(process.env.WA_DELAY_PER_CHAR ?? 55);   // ms per character
+  const maxMs   = Math.max(Number(process.env.WA_DELAY_MAX ?? 9000), baseDelayMs);
+
+  const base = Math.min(maxMs, Math.max(baseDelayMs, text.length * perChar));
   const jitter = base * (0.8 + Math.random() * 0.4); // ±20%
-  const delay = Math.round(Math.min(maxMs, jitter));
+  const delay = Math.round(Math.max(2000, Math.min(maxMs, jitter))); // hard floor 2s
 
   try {
     await sock.sendPresenceUpdate("composing", to);

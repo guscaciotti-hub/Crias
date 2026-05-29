@@ -63,6 +63,14 @@ Responda em JSON com exatamente estes campos:
   }
 }
 
+// Tempo de Resposta: sempre entre 2 e 30 segundos, default 3.
+// Valores fora do intervalo são ajustados automaticamente (não rejeitados).
+const MIN_DELAY = 2, MAX_DELAY = 30, DEFAULT_DELAY = 3;
+function clampDelay(v: number | undefined): number {
+  if (v == null || Number.isNaN(v)) return DEFAULT_DELAY;
+  return Math.min(MAX_DELAY, Math.max(MIN_DELAY, Math.round(v)));
+}
+
 async function getWorkspaceId(userId: number): Promise<number> {
   const db = getDb();
   const member = db
@@ -268,16 +276,19 @@ export const botsRouter = router({
       handoffTriggers: z.array(z.string()).optional(),
       forbiddenTopics: z.array(z.string()).optional(),
       alertNumbers: z.array(z.string()).optional(),
+      responseDelay: z.number().optional(),
       status: z.enum(["active", "inactive", "disconnected"]).optional(),
     }))
     .mutation(async ({ ctx, input }) => {
       const db = getDb();
       const wsId = await getWorkspaceId(ctx.user.id);
-      const { id, ...fields } = input;
+      const { id, responseDelay, ...fields } = input;
       const bot = db.select().from(bots).where(and(eq(bots.id, id), eq(bots.workspaceId, wsId))).get();
       if (!bot) throw new TRPCError({ code: "NOT_FOUND" });
+      // Clamp response delay to the safe 2-30s range regardless of what's sent
+      const delayField = responseDelay !== undefined ? { responseDelay: clampDelay(responseDelay) } : {};
       return db.update(bots)
-        .set({ ...fields, updatedAt: new Date() })
+        .set({ ...fields, ...delayField, updatedAt: new Date() })
         .where(and(eq(bots.id, id), eq(bots.workspaceId, wsId)))
         .returning().get();
     }),

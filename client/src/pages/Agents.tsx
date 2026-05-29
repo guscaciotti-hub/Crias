@@ -14,8 +14,12 @@ type BotWithInstance = {
   id: number; name: string; businessName: string; businessDescription?: string | null;
   agentMode: string; aiSystemPrompt?: string | null; systemPrompt?: string | null;
   tone: string; alertNumbers?: string[] | null; forbiddenTopics?: string[] | null;
+  responseDelay?: number | null;
   instance: { status: string } | null;
 };
+
+const MIN_DELAY = 2, MAX_DELAY = 30, DEFAULT_DELAY = 3;
+const clampDelay = (v: number) => Math.min(MAX_DELAY, Math.max(MIN_DELAY, Math.round(v || DEFAULT_DELAY)));
 
 // ─────────────────────────────────────────────────────────────────────────────
 // AGENT EDITOR MODAL (IA only — no mode toggle)
@@ -28,6 +32,7 @@ function AgentEditorModal({ bot, onClose }: { bot: BotWithInstance; onClose: () 
   const [dontRules, setDontRules] = useState((bot.forbiddenTopics ?? []).join("\n"));
   const [alertNumbers, setAlertNumbers] = useState<string[]>(bot.alertNumbers ?? []);
   const [alertInput, setAlertInput]     = useState("");
+  const [responseDelay, setResponseDelay] = useState<number>(bot.responseDelay ?? DEFAULT_DELAY);
   const [chatMsg, setChatMsg]     = useState("");
   const [chatLog, setChatLog]     = useState<{ role: string; text: string }[]>([]);
   const [syncBanner, setSyncBanner] = useState(false);
@@ -68,6 +73,7 @@ function AgentEditorModal({ bot, onClose }: { bot: BotWithInstance; onClose: () 
       businessDescription: desc, tone,
       forbiddenTopics: dontRules.split("\n").map(s => s.trim()).filter(Boolean),
       alertNumbers,
+      responseDelay: clampDelay(responseDelay),
     });
   };
 
@@ -159,6 +165,35 @@ function AgentEditorModal({ bot, onClose }: { bot: BotWithInstance; onClose: () 
               </div>
             </div>
             <p className="text-xs text-muted-foreground mt-1">Uma regra por linha.</p>
+          </div>
+
+          {/* Tempo de Resposta */}
+          <div>
+            <p className="text-sm font-semibold mb-1">Tempo de Resposta</p>
+            <p className="text-xs text-muted-foreground mb-3">
+              Define quanto tempo o agente aguarda antes de responder uma mensagem.
+            </p>
+            <div className="flex items-center gap-4">
+              <input
+                type="range" min={MIN_DELAY} max={MAX_DELAY} step={1}
+                value={responseDelay}
+                onChange={e => setResponseDelay(Number(e.target.value))}
+                className="flex-1 accent-primary"
+              />
+              <div className="flex items-center gap-1.5 shrink-0">
+                <Input
+                  type="number" min={MIN_DELAY} max={MAX_DELAY}
+                  value={responseDelay}
+                  onChange={e => setResponseDelay(Number(e.target.value))}
+                  onBlur={() => setResponseDelay(d => clampDelay(d))}
+                  className="w-20 text-center"
+                />
+                <span className="text-sm text-muted-foreground">seg</span>
+              </div>
+            </div>
+            <p className="text-xs text-muted-foreground mt-1.5">
+              Mínimo {MIN_DELAY}s, máximo {MAX_DELAY}s. A humanização (digitando…) atua em conjunto.
+            </p>
           </div>
 
           {/* Alertas handoff */}
