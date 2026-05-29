@@ -4189,6 +4189,17 @@ function drawComposedPlayer(px, py, now) {
   const w=48, h=60-squashY;
   ctx.imageSmoothingEnabled = true;
   ctx.drawImage(sprite,px+TILE/2-w/2+swayX+leanX,py+TILE-h+6+bob+squashY,w,h);
+
+  // Player name tag — below sprite
+  const pname = (state && state.playerName) || 'Treinador';
+  ctx.font = 'bold 11px sans-serif';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  const ptw = ctx.measureText(pname).width;
+  ctx.fillStyle = 'rgba(0,0,0,0.72)';
+  ctx.fillRect(px + TILE/2 - ptw/2 - 4, py + TILE + 2, ptw + 8, 14);
+  ctx.fillStyle = '#fff';
+  ctx.fillText(pname, px + TILE/2, py + TILE + 10);
 }
 
 // Event listeners do onboarding
@@ -4875,15 +4886,15 @@ function drawKnightNPC(npc, px, py, now) {
     ctx.fillRect(bx - 10, by - 56, 20, 56);
   }
 
-  // Name tag
+  // Name tag — below sprite
   ctx.font = 'bold 12px sans-serif';
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
   const tw = ctx.measureText(npc.name).width;
   ctx.fillStyle = 'rgba(0,0,0,0.78)';
-  ctx.fillRect(bx - tw / 2 - 4, py - 18, tw + 8, 15);
+  ctx.fillRect(bx - tw / 2 - 4, py + TILE + 2, tw + 8, 15);
   ctx.fillStyle = '#4dc3ff';
-  ctx.fillText(npc.name, bx, py - 9);
+  ctx.fillText(npc.name, bx, py + TILE + 11);
 }
 
 
@@ -4988,15 +4999,15 @@ function drawMageNPC(npc, px, py, now) {
   p(ox + 4, oy + 21, 1, 1, '#7838B8'); // gem
   p(ox + 8, oy + 21, 1, 1, '#7838B8');
 
-  // --- Name tag ---
+  // --- Name tag — below sprite ---
   ctx.font = 'bold 12px sans-serif';
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
   const tw = ctx.measureText(npc.name).width;
   ctx.fillStyle = 'rgba(0,0,0,0.78)';
-  ctx.fillRect(bx - tw / 2 - 4, py - 18, tw + 8, 15);
+  ctx.fillRect(bx - tw / 2 - 4, py + TILE + 2, tw + 8, 15);
   ctx.fillStyle = '#a78bfa';
-  ctx.fillText(npc.name, bx, py - 9);
+  ctx.fillText(npc.name, bx, py + TILE + 11);
 }
 
 // ── Generic NPC draw (emoji) ──────────────────────────────────────────────────
@@ -5018,9 +5029,9 @@ function drawNPC(npc, px, py, now) {
   ctx.font = 'bold 12px sans-serif';
   const tw = ctx.measureText(npc.name).width;
   ctx.fillStyle = 'rgba(0,0,0,0.75)';
-  ctx.fillRect(px + TILE/2 - tw/2 - 4, py - 16, tw + 8, 15);
+  ctx.fillRect(px + TILE/2 - tw/2 - 4, py + TILE + 2, tw + 8, 15);
   ctx.fillStyle = '#4dc3ff';
-  ctx.fillText(npc.name, px + TILE/2, py - 7);
+  ctx.fillText(npc.name, px + TILE/2, py + TILE + 11);
 }
 
 // ── Subtle quest hint: pulsing glow on floor to guide new players ─────────────
@@ -5066,10 +5077,10 @@ function drawQuestHint(camX, camY, now) {
   ctx.ellipse(cx, cy, 16, 6.5, 0, 0, Math.PI * 2);
   ctx.stroke();
 
-  // Floating exclamation above (only for NPC hint)
+  // Floating exclamation above head (only for NPC hint)
   if (tx !== 23) {
     const bob = Math.sin(now / 300) * 3;
-    const ay = cy - 58 + bob;
+    const ay = cy - 88 + bob;
     // Speech-bubble background
     ctx.fillStyle = 'rgba(20,15,5,0.85)';
     ctx.beginPath();
@@ -5203,6 +5214,17 @@ function drawPlayer(px, py, now) {
   const dx = px + TILE/2 - w/2;
   const dy = py + TILE - h + 4 + bob;
   ctx.drawImage(sprite, dx, dy, w, h);
+
+  // Player name tag — below sprite
+  const pname = (state && state.playerName) || 'Treinador';
+  ctx.font = 'bold 11px sans-serif';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  const ptw = ctx.measureText(pname).width;
+  ctx.fillStyle = 'rgba(0,0,0,0.72)';
+  ctx.fillRect(px + TILE/2 - ptw/2 - 4, py + TILE + 2, ptw + 8, 14);
+  ctx.fillStyle = '#fff';
+  ctx.fillText(pname, px + TILE/2, py + TILE + 10);
 }
 
 function drawLabels(camX, camY, cw, ch) {
