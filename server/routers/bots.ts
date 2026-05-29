@@ -295,13 +295,30 @@ export const botsRouter = router({
         .where(and(eq(bots.id, id), eq(bots.workspaceId, wsId)))
         .returning().get();
 
-      // When the AI prompt changes, close active conversations so the next
-      // message starts a fresh one — prevents old context from bleeding in.
-      if (fields.aiSystemPrompt !== undefined) {
+      // When prompt or business description changes:
+      // 1. Close active conversations → next message starts fresh (no stale history)
+      // 2. Delete FAQ knowledge docs auto-created by templates → they belong to the
+      //    old configuration and would otherwise pollute the knowledge context.
+      //    User-added docs (type != 'faq') are preserved.
+      if (fields.aiSystemPrompt !== undefined || fields.businessDescription !== undefined) {
         db.update(conversations)
           .set({ status: "closed", updatedAt: new Date() })
           .where(and(eq(conversations.botId, id), eq(conversations.status, "active")))
           .run();
+
+        const faqDocs = db.select({ id: knowledgeDocuments.id })
+          .from(knowledgeDocuments)
+          .where(and(eq(knowledgeDocuments.botId, id), eq(knowledgeDocuments.type, "faq")))
+          .all();
+        for (const doc of faqDocs) {
+          db.delete(knowledgeChunks).where(eq(knowledgeChunks.documentId, doc.id)).run();
+        }
+        if (faqDocs.length > 0) {
+          db.delete(knowledgeDocuments)
+            .where(and(eq(knowledgeDocuments.botId, id), eq(knowledgeDocuments.type, "faq")))
+            .run();
+        }
+
         try {
           const { clearBotConvCache } = await import("../whatsapp/message-bridge.js");
           clearBotConvCache(id);

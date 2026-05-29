@@ -40,6 +40,12 @@ export async function runAIAgent(
   const systemPrompt = bot.aiSystemPrompt ||
     `Você é ${bot.name}, assistente virtual de ${bot.businessName}. Responda de forma ${bot.tone === "formal" ? "formal e profissional" : "amigável e simpática"}. Seja conciso e útil.`;
 
+  // Anchor the AI to the current business reality — prevents stale knowledge
+  // chunks from older templates from overriding what the company actually does.
+  const businessCtx = bot.businessDescription
+    ? `\n\nInformações atuais sobre a empresa (use como fonte principal):\n${bot.businessDescription}`
+    : "";
+
   const handoffCondition = (bot as any).handoffCondition as string | null | undefined;
   const handoffTriggers = (bot.handoffTriggers ?? []) as string[];
   const handoffLine = handoffCondition?.trim()
@@ -52,7 +58,7 @@ export async function runAIAgent(
   const chatMessages: OpenAI.Chat.ChatCompletionMessageParam[] = [
     {
       role: "system",
-      content: `${systemPrompt}${knowledgeContext}${handoffLine}\n\nResponda sempre em português brasileiro.`,
+      content: `${systemPrompt}${businessCtx}${knowledgeContext}${handoffLine}\n\nResponda sempre em português brasileiro.`,
     },
     ...history.map(m => ({
       role: (m.role === "user" ? "user" : "assistant") as "user" | "assistant",
