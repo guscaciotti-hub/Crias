@@ -60,7 +60,11 @@ pnpm run build
 # 8. Configura PM2
 echo "[8/8] Iniciando com PM2..."
 pm2 delete atendeai 2>/dev/null || true
-pm2 start server/dist/server/index.js --name atendeai
+NODE_ENV=production \
+  DB_PATH=/root/atendeai/data/atendeai.db \
+  SESSIONS_DIR=/root/atendeai/data/sessions \
+  ADMIN_EMAIL=guscaciotti@gmail.com \
+  pm2 start server/dist/server/index.js --name atendeai
 pm2 save
 pm2 startup | tail -1 | bash 2>/dev/null || true
 
