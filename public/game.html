@@ -4743,11 +4743,9 @@ function render(now) {
   for (const r of renderables) {
     const sx = r.x - camX;
     const sy = r.y - camY;
-    // Left crystal face has transparent pixels — skip entity so orb appears solid there.
-    // Orb foreground sprite + glow will cover this zone; player is redrawn after for stone border.
-    if (r.x >= 21 * TILE && r.x < 24 * TILE &&
-        r.y >= ORB_DY * TILE && r.y < _splitWorldY) continue;
-    // Rest of orb zone: standard feet clip (body visible, feet hidden below equator).
+    // Pass-behind feet clip — identical across the whole orb width (both halves).
+    // The orb sprite is symmetric, so the same clip + foreground draw hides the
+    // player behind the crystal on the left exactly as it does on the right.
     const _inPassZone = r.x >= ORB_DX * TILE && r.x < 28 * TILE &&
         r.y >= ORB_DY * TILE && r.y < _splitWorldY;
     if (_inPassZone) {
