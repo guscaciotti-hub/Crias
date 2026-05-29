@@ -133,8 +133,12 @@ export async function initMessageBridge() {
         const b = batch;
         b.timer = setTimeout(async () => {
           pendingBatch.delete(batchKey);
-          // Join all buffered texts into one turn (newline-separated)
-          const combined = b.texts.join("\n");
+          // Join all buffered texts into one turn.
+          // When there are multiple messages, wrap them so the AI understands
+          // they are sequential thoughts from the same person, not fragments.
+          const combined = b.texts.length === 1
+            ? b.texts[0]
+            : `[O cliente enviou ${b.texts.length} mensagens seguidas]:\n${b.texts.map((t, i) => `${i + 1}. ${t}`).join("\n")}`;
 
           try {
             const freshBot = db.select().from(bots).where(eq(bots.id, botId)).get();
