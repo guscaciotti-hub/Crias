@@ -5,7 +5,8 @@ import Home from "./pages/Home";
 import Pricing from "./pages/Pricing";
 import Onboarding from "./pages/Onboarding";
 import Dashboard from "./pages/Dashboard";
-import Bots from "./pages/Bots";
+import Agents from "./pages/Agents";
+import Flows from "./pages/Flows";
 import FlowEditor from "./pages/FlowEditor";
 import Inbox from "./pages/Inbox";
 import Knowledge from "./pages/Knowledge";
@@ -55,15 +56,27 @@ export default function App() {
           }
         />
         <Route
-          path="/bots"
+          path="/agents"
           element={
             <AuthGuard>
               <DashboardLayout>
-                <Bots />
+                <Agents />
               </DashboardLayout>
             </AuthGuard>
           }
         />
+        <Route
+          path="/flows"
+          element={
+            <AuthGuard>
+              <DashboardLayout>
+                <Flows />
+              </DashboardLayout>
+            </AuthGuard>
+          }
+        />
+        {/* Legacy redirect */}
+        <Route path="/bots" element={<Navigate to="/agents" replace />} />
         <Route
           path="/bots/:botId/flow"
           element={

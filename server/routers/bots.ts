@@ -172,6 +172,33 @@ export const botsRouter = router({
       return bot;
     }),
 
+  // Mundo 2: cria um Fluxo (árvore de menus/botões)
+  createFlow: protectedProcedure
+    .input(z.object({ businessName: z.string().min(1) }))
+    .mutation(async ({ ctx, input }) => {
+      const db = getDb();
+      const wsId = await getWorkspaceId(ctx.user.id);
+
+      const bot = db.insert(bots).values({
+        workspaceId: wsId,
+        name: input.businessName,
+        businessName: input.businessName,
+        niche: "custom",
+        tone: "friendly",
+        agentMode: "flow",
+        status: "active",
+      }).returning().get();
+
+      db.insert(whatsappInstances).values({
+        botId: bot.id, workspaceId: wsId, instanceName: `bot-${bot.id}`, status: "disconnected",
+      }).run();
+
+      const { buildDefaultFlow } = await import("../routers/flows.js");
+      await buildDefaultFlow(db, wsId, bot.id, "custom" as Niche, input.businessName);
+
+      return bot;
+    }),
+
   // Fluxo 2: usuário configura tudo manualmente
   createBlank: protectedProcedure
     .input(z.object({ businessName: z.string().min(1) }))

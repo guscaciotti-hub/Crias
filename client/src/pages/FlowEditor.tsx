@@ -92,7 +92,7 @@ export default function FlowEditor() {
     <div className="flex flex-col h-screen bg-background">
       {/* Header */}
       <header className="flex items-center gap-3 px-4 py-3 border-b bg-card">
-        <Button variant="ghost" size="icon" onClick={() => navigate("/bots")}>
+        <Button variant="ghost" size="icon" onClick={() => navigate("/flows")}>
           <ArrowLeft className="w-4 h-4" />
         </Button>
         <div className="flex items-center gap-2 flex-1">

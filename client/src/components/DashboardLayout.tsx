@@ -4,14 +4,15 @@ import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { trpc } from "@/lib/trpc";
 import {
-  LayoutDashboard, Bot, MessageSquare, BookOpen,
+  LayoutDashboard, Bot, Brain, Zap, MessageSquare, BookOpen,
   BarChart3, CreditCard, Settings, Shield, Menu, X,
   LogOut, ChevronRight
 } from "lucide-react";
 
 const navItems = [
   { path: "/dashboard", icon: LayoutDashboard, label: "Dashboard" },
-  { path: "/bots", icon: Bot, label: "Bots" },
+  { path: "/agents", icon: Brain, label: "Agentes IA" },
+  { path: "/flows", icon: Zap, label: "Fluxos" },
   { path: "/inbox", icon: MessageSquare, label: "Caixa de Entrada" },
   { path: "/knowledge", icon: BookOpen, label: "Base de Conhecimento" },
   { path: "/analytics", icon: BarChart3, label: "Analytics" },
