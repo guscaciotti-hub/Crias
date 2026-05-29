@@ -253,11 +253,39 @@ async function startInstance(botId: number) {
         msg.message?.listResponseMessage?.title ?? "";
       if (!text.trim() || !messageHandler) continue;
       try {
+        // Mark incoming message as read (looks human)
+        try { await sock.readMessages([msg.key]); } catch {}
+
         const reply = await messageHandler(botId, from, text);
-        if (reply) await sock.sendMessage(from, { text: reply });
+        if (reply) await humanizedSend(sock, from, reply);
       } catch (e) {
         console.error(`[Baileys] Error handling message for bot ${botId}:`, e);
       }
     }
   });
+}
+
+const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+
+// Sends a reply the way a person would: shows "typing…" and waits a delay
+// proportional to the message length, with random jitter, to avoid being
+// flagged as a bot by WhatsApp.
+async function humanizedSend(sock: any, to: string, text: string) {
+  // Tunable via env; defaults are conservative.
+  const perChar = Number(process.env.WA_DELAY_PER_CHAR ?? 55);   // ms per character
+  const minMs   = Number(process.env.WA_DELAY_MIN ?? 1200);      // floor
+  const maxMs   = Number(process.env.WA_DELAY_MAX ?? 9000);      // ceiling
+
+  const base = Math.min(maxMs, Math.max(minMs, text.length * perChar));
+  const jitter = base * (0.8 + Math.random() * 0.4); // ±20%
+  const delay = Math.round(Math.min(maxMs, jitter));
+
+  try {
+    await sock.sendPresenceUpdate("composing", to);
+    await sleep(delay);
+    await sock.sendPresenceUpdate("paused", to);
+  } catch {
+    // presence not critical — fall through to send
+  }
+  await sock.sendMessage(to, { text });
 }
