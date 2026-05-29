@@ -4813,11 +4813,12 @@ function render(now) {
     ctx.restore();
   }
 
-  // Redraw player on top of the orb stone-platform wall (right edge cols 25-28, rows 18-23).
+  // Redraw player on top of the orb stone-platform wall (right edge cols 27-28 only).
   // The orb top-half sprite has opaque stone pixels there that cover the player;
   // redrawing after the foreground pass guarantees they appear in front.
+  // Cols 20-26 are the crystal sphere — pass-behind effect must remain there.
   if (state && state.scene !== 'cave1' &&
-      pX >= 25 * TILE && pX < 29 * TILE &&
+      pX >= 27 * TILE && pX < 29 * TILE &&
       pY >= 18 * TILE && pY < 23 * TILE) {
     drawPlayer(pX - camX, pY - camY, now);
   }
