@@ -39,17 +39,28 @@ else
   cd app
 fi
 
-# 6. Cria arquivo de variáveis de ambiente
+# 6. Cria arquivo de variáveis de ambiente PERSISTENTE (só se ainda não existir)
 echo "[6/8] Configurando variáveis de ambiente..."
-cat > /root/atendeai/app/server/.env << 'ENVEOF'
+PERSISTENT_ENV=/root/atendeai/data/.env
+if [ ! -f "$PERSISTENT_ENV" ]; then
+  cat > "$PERSISTENT_ENV" << 'ENVEOF'
 NODE_ENV=production
 PORT=3001
 DB_PATH=/root/atendeai/data/atendeai.db
 SESSIONS_DIR=/root/atendeai/data/sessions
 ADMIN_EMAIL=guscaciotti@gmail.com
 OPENAI_API_KEY=
+SMTP_HOST=
+SMTP_PORT=587
+SMTP_SECURE=false
+SMTP_USER=
+SMTP_PASS=
+SMTP_FROM=
 ENVEOF
-echo "  ⚠️  Edite /root/atendeai/app/server/.env para adicionar OPENAI_API_KEY se quiser IA"
+  echo "  ⚠️  Edite $PERSISTENT_ENV para adicionar OPENAI_API_KEY e SMTP"
+else
+  echo "  ✓ $PERSISTENT_ENV já existe — preservando suas chaves"
+fi
 
 # 7. Instala dependências e faz build
 echo "[7/8] Instalando dependências e compilando..."
@@ -57,14 +68,11 @@ cd /root/atendeai/app
 pnpm install --frozen-lockfile
 pnpm run build
 
-# 8. Configura PM2
+# 8. Configura PM2 (env vem do arquivo persistente carregado pelo server)
 echo "[8/8] Iniciando com PM2..."
 pm2 delete atendeai 2>/dev/null || true
-NODE_ENV=production \
-  DB_PATH=/root/atendeai/data/atendeai.db \
-  SESSIONS_DIR=/root/atendeai/data/sessions \
-  ADMIN_EMAIL=guscaciotti@gmail.com \
-  pm2 start server/dist/server/index.js --name atendeai
+ENV_FILE=/root/atendeai/data/.env \
+  pm2 start server/dist/server/index.js --name atendeai --update-env
 pm2 save
 pm2 startup | tail -1 | bash 2>/dev/null || true
 

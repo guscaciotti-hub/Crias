@@ -1,4 +1,10 @@
-import "dotenv/config";
+import dotenv from "dotenv";
+import { existsSync as _existsSync } from "fs";
+// Load env from a persistent location first (survives git pull / rebuild),
+// then fall back to the local .env in the app directory.
+const PERSISTENT_ENV = process.env.ENV_FILE || "/root/atendeai/data/.env";
+if (_existsSync(PERSISTENT_ENV)) dotenv.config({ path: PERSISTENT_ENV });
+dotenv.config();
 import express from "express";
 import cors from "cors";
 import path from "path";
