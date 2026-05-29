@@ -45,6 +45,12 @@ const reconnectAttempts = new Map<number, number>();
 // Last disconnect diagnostic: botId → { code, reason }
 const lastError = new Map<number, { code: number | string; reason: string }>();
 
+// Phone pairing: botId → phone digits (set before startInstance)
+const pairingPhones = new Map<number, string>();
+
+// Pairing codes returned by WhatsApp: botId → "XXXX-YYYY"
+const pairingCodes = new Map<number, string>();
+
 // Message handler (injected by message-bridge)
 let messageHandler: ((botId: number, from: string, text: string) => Promise<string | null>) | null = null;
 
@@ -109,11 +115,30 @@ function clearSession(botId: number) {
 export function forceRestartInstance(botId: number) {
   instances.delete(botId);
   qrCodes.delete(botId);
-  reconnectAttempts.delete(botId); // reset counter on manual restart
+  pairingCodes.delete(botId);
+  pairingPhones.delete(botId);
+  reconnectAttempts.delete(botId);
   lastError.delete(botId);
   instanceStatus.set(botId, "connecting");
-  clearSession(botId); // wipe stale credentials so Baileys generates a fresh QR
+  clearSession(botId);
   startInstance(botId).catch(console.error);
+}
+
+export function startPairingInstance(botId: number, phoneNumber: string) {
+  const cleanPhone = phoneNumber.replace(/\D/g, "");
+  instances.delete(botId);
+  qrCodes.delete(botId);
+  pairingCodes.delete(botId);
+  reconnectAttempts.delete(botId);
+  lastError.delete(botId);
+  pairingPhones.set(botId, cleanPhone);
+  instanceStatus.set(botId, "connecting");
+  clearSession(botId);
+  startInstance(botId).catch(console.error);
+}
+
+export function getPairingCode(botId: number): string | null {
+  return pairingCodes.get(botId) ?? null;
 }
 
 export async function disconnectInstance(botId: number) {
@@ -124,6 +149,8 @@ export async function disconnectInstance(botId: number) {
   }
   instanceStatus.set(botId, "disconnected");
   qrCodes.delete(botId);
+  pairingCodes.delete(botId);
+  pairingPhones.delete(botId);
 }
 
 export async function restoreInstances(connectedBotIds: number[]) {
@@ -195,6 +222,25 @@ async function startInstance(botId: number) {
   instances.set(botId, sock);
   instanceStatus.set(botId, "connecting");
 
+  // Phone pairing: request code shortly after socket creation if a phone was provided
+  const pairingPhone = pairingPhones.get(botId);
+  if (pairingPhone && !state.creds.registered) {
+    setTimeout(async () => {
+      try {
+        const code = await sock.requestPairingCode(pairingPhone);
+        pairingCodes.set(botId, code);
+        instanceStatus.set(botId, "pairing");
+        clearTimeout(timeout);
+        console.log(`[Baileys] Bot ${botId} pairing code: ${code}`);
+      } catch (e) {
+        console.error(`[Baileys] Bot ${botId} pairing code failed:`, e);
+        instanceStatus.set(botId, "error");
+        lastError.set(botId, { code: "pairing_failed", reason: (e as Error).message });
+        clearTimeout(timeout);
+      }
+    }, 3000);
+  }
+
   sock.ev.on("creds.update", () => {
     reconnectAttempts.delete(botId); // QR was scanned — reset retry counter
     saveCreds();
@@ -220,6 +266,8 @@ async function startInstance(botId: number) {
     if (connection === "open") {
       clearTimeout(timeout);
       qrCodes.delete(botId);
+      pairingCodes.delete(botId);
+      pairingPhones.delete(botId);
       reconnectAttempts.delete(botId);
       lastError.delete(botId);
       instanceStatus.set(botId, "connected");
