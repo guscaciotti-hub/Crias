@@ -4725,12 +4725,22 @@ function render(now) {
       Math.round((1 - ORB_SPLIT) * _orbDH * TILE) + Math.round(_orbSeam / 512 * _orbDH * TILE));
   }
 
+  const _splitWorldY = (_orbDY + ORB_SPLIT * _orbDH) * TILE;
   for (const r of renderables) {
     const sx = r.x - camX;
     const sy = r.y - camY;
+    const _inPassZone = r.x >= ORB_DX * TILE && r.x <= (ORB_DX + ORB_DW) * TILE &&
+        r.y >= ORB_DY * TILE && r.y < _splitWorldY;
+    if (_inPassZone) {
+      ctx.save();
+      ctx.beginPath();
+      ctx.rect(0, 0, canvas.width, Math.round(_splitWorldY - camY) - 8);
+      ctx.clip();
+    }
     if (r.type === 'npc') drawNPC(r.npc, sx, sy, now);
     else if (r.type === 'cria') drawCriaSprite(sx, sy, now);
     else if (r.type === 'player') drawPlayer(sx, sy, now);
+    if (_inPassZone) ctx.restore();
   }
 
   drawLabels(camX, camY, cw, ch);
