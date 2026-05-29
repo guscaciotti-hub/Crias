@@ -3,6 +3,7 @@ import makeWASocket, {
   fetchLatestBaileysVersion,
   makeCacheableSignalKeyStore,
   useMultiFileAuthState,
+  downloadMediaMessage,
 } from "@whiskeysockets/baileys";
 import { Boom } from "@hapi/boom";
 import { EventEmitter } from "events";
@@ -12,6 +13,7 @@ import { whatsappInstances, bots } from "../../drizzle/schema.js";
 import { eq } from "drizzle-orm";
 import pino from "pino";
 import QRCode from "qrcode";
+import OpenAI from "openai";
 
 const silentLogger = pino({ level: "silent" });
 
@@ -246,11 +248,17 @@ async function startInstance(botId: number) {
       if (msg.key.fromMe || !msg.message) continue;
       const from = msg.key.remoteJid ?? "";
       if (!from || from.endsWith("@g.us")) continue;
-      const text =
+      let text: string =
         msg.message?.conversation ??
         msg.message?.extendedTextMessage?.text ??
         msg.message?.buttonsResponseMessage?.selectedDisplayText ??
         msg.message?.listResponseMessage?.title ?? "";
+
+      // Transcribe voice/audio messages via Whisper
+      if (!text && (msg.message?.audioMessage || msg.message?.pttMessage)) {
+        text = await transcribeAudio(sock, msg);
+      }
+
       if (!text.trim() || !messageHandler) continue;
       try {
         // Small human-like delay before the blue ticks — a real person doesn't
@@ -274,6 +282,35 @@ async function startInstance(botId: number) {
 }
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+
+async function transcribeAudio(sock: any, msg: any): Promise<string> {
+  const key = process.env.OPENAI_API_KEY;
+  if (!key) return "";
+  try {
+    const buffer = await downloadMediaMessage(
+      msg, "buffer", {},
+      { logger: silentLogger, reuploadRequest: sock.updateMediaMessage }
+    ) as Buffer;
+    if (!buffer?.length) return "";
+
+    const audioMsg = msg.message?.audioMessage ?? msg.message?.pttMessage;
+    const mimetype = (audioMsg?.mimetype ?? "audio/ogg").split(";")[0];
+    const ext = mimetype.includes("mp4") ? "mp4" : mimetype.includes("mpeg") ? "mp3" : "ogg";
+
+    const openai = new OpenAI({ apiKey: key });
+    const file = new File([buffer], `audio.${ext}`, { type: mimetype });
+    const result = await openai.audio.transcriptions.create({
+      file,
+      model: "whisper-1",
+      language: "pt",
+    });
+    console.log(`[Baileys] Audio transcribed: "${result.text}"`);
+    return result.text ?? "";
+  } catch (e) {
+    console.error("[Baileys] Audio transcription failed:", e);
+    return "";
+  }
+}
 
 // Sends a reply the way a person would: shows "typing…" and waits before
 // sending, to avoid being flagged as a bot by WhatsApp.
