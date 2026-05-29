@@ -18,7 +18,7 @@ type BotWithInstance = {
   instance: { status: string } | null;
 };
 
-const MIN_DELAY = 2, MAX_DELAY = 30, DEFAULT_DELAY = 3;
+const MIN_DELAY = 4, MAX_DELAY = 30, DEFAULT_DELAY = 4;
 const clampDelay = (v: number) => Math.min(MAX_DELAY, Math.max(MIN_DELAY, Math.round(v || DEFAULT_DELAY)));
 
 // ─────────────────────────────────────────────────────────────────────────────

@@ -253,7 +253,11 @@ async function startInstance(botId: number) {
         msg.message?.listResponseMessage?.title ?? "";
       if (!text.trim() || !messageHandler) continue;
       try {
-        // Mark incoming message as read (looks human)
+        // Small human-like delay before the blue ticks — a real person doesn't
+        // read instantly. Tunable via env. Default 2-5s random.
+        const readMin = Number(process.env.WA_READ_DELAY_MIN ?? 2000);
+        const readMax = Number(process.env.WA_READ_DELAY_MAX ?? 5000);
+        await sleep(readMin + Math.floor(Math.random() * Math.max(0, readMax - readMin)));
         try { await sock.readMessages([msg.key]); } catch {}
 
         const reply = await messageHandler(botId, from, text);

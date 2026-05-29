@@ -90,6 +90,13 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         )}
       </nav>
 
+      {/* Anti-blocking note */}
+      <div className="mx-3 mb-2 px-3 py-2 rounded-lg bg-emerald-900/30 border border-emerald-700/30">
+        <p className="text-xs text-emerald-400/80 leading-relaxed">
+          Proteção anti-bloqueio ativa. O agente simula comportamento humano antes de responder.
+        </p>
+      </div>
+
       {/* User */}
       <div className="px-3 py-4 border-t border-white/10">
         <div className="flex items-center gap-3 mb-3">

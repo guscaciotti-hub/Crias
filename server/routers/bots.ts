@@ -2,7 +2,9 @@ import { z } from "zod";
 import { router, protectedProcedure } from "../trpc.js";
 import { getDb } from "../db.js";
 import {
-  bots, whatsappInstances, knowledgeDocuments, workspaceMembers
+  bots, whatsappInstances, knowledgeDocuments, knowledgeChunks,
+  conversations, messages, conversationStates, contacts,
+  flowNodes, flowEdges, aiUsage, autoMessages, workspaceMembers
 } from "../../drizzle/schema.js";
 import { eq, and } from "drizzle-orm";
 import { TRPCError } from "@trpc/server";
@@ -63,9 +65,9 @@ Responda em JSON com exatamente estes campos:
   }
 }
 
-// Tempo de Resposta: sempre entre 2 e 30 segundos, default 3.
+// Tempo de Resposta: sempre entre 4 e 30 segundos, default 4.
 // Valores fora do intervalo são ajustados automaticamente (não rejeitados).
-const MIN_DELAY = 2, MAX_DELAY = 30, DEFAULT_DELAY = 3;
+const MIN_DELAY = 4, MAX_DELAY = 30, DEFAULT_DELAY = 4;
 function clampDelay(v: number | undefined): number {
   if (v == null || Number.isNaN(v)) return DEFAULT_DELAY;
   return Math.min(MAX_DELAY, Math.max(MIN_DELAY, Math.round(v)));
@@ -311,7 +313,29 @@ export const botsRouter = router({
       const wsId = await getWorkspaceId(ctx.user.id);
       const bot = db.select().from(bots).where(and(eq(bots.id, input.id), eq(bots.workspaceId, wsId))).get();
       if (!bot) throw new TRPCError({ code: "NOT_FOUND" });
-      db.delete(bots).where(eq(bots.id, input.id)).run();
+      const botId = input.id;
+
+      // Cascade delete in FK-safe order (children before parents)
+      const convIds = db.select({ id: conversations.id }).from(conversations).where(eq(conversations.botId, botId)).all().map(r => r.id);
+      for (const cid of convIds) {
+        db.delete(messages).where(eq(messages.conversationId, cid)).run();
+        db.delete(conversationStates).where(eq(conversationStates.conversationId, cid)).run();
+      }
+      db.delete(conversations).where(eq(conversations.botId, botId)).run();
+      db.delete(contacts).where(eq(contacts.botId, botId)).run();
+
+      const docIds = db.select({ id: knowledgeDocuments.id }).from(knowledgeDocuments).where(eq(knowledgeDocuments.botId, botId)).all().map(r => r.id);
+      for (const did of docIds) {
+        db.delete(knowledgeChunks).where(eq(knowledgeChunks.documentId, did)).run();
+      }
+      db.delete(knowledgeDocuments).where(eq(knowledgeDocuments.botId, botId)).run();
+
+      db.delete(flowEdges).where(eq(flowEdges.botId, botId)).run();
+      db.delete(flowNodes).where(eq(flowNodes.botId, botId)).run();
+      db.delete(aiUsage).where(eq(aiUsage.botId, botId)).run();
+      db.delete(autoMessages).where(eq(autoMessages.botId, botId)).run();
+      db.delete(whatsappInstances).where(eq(whatsappInstances.botId, botId)).run();
+      db.delete(bots).where(eq(bots.id, botId)).run();
       return { ok: true };
     }),
 });
