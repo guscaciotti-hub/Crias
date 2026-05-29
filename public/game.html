@@ -2031,14 +2031,14 @@ function drawOrbGroundFX(camX, camY, now) {
   ctx.arc(orbCX, sy, rInner, 0, Math.PI * 2);
   ctx.fill();
 
-  // Blue neon glow ring — pulsing gradient matching orb colours.
-  const pulse = 0.72 + 0.28 * Math.sin((now || 0) / 900);
+  // Blue neon glow ring — bright cyan neon, pulsing, matching orb edge colour.
+  const pulse = 0.75 + 0.25 * Math.sin((now || 0) / 900);
   const rGlow = 4.8 * TILE;
   const gBlue = ctx.createRadialGradient(orbCX, sy, rInner * 0.5, orbCX, sy, rGlow);
-  gBlue.addColorStop(0.0,  `rgba(0,150,255,${+(0.55 * pulse).toFixed(2)})`);
-  gBlue.addColorStop(0.30, `rgba(0,210,255,${+(0.38 * pulse).toFixed(2)})`);
-  gBlue.addColorStop(0.60, `rgba(30,90,255,${+(0.22 * pulse).toFixed(2)})`);
-  gBlue.addColorStop(1.0,  'rgba(0,40,180,0)');
+  gBlue.addColorStop(0.0,  `rgba(80,220,255,${+(0.65 * pulse).toFixed(2)})`);
+  gBlue.addColorStop(0.25, `rgba(0,200,255,${+(0.50 * pulse).toFixed(2)})`);
+  gBlue.addColorStop(0.55, `rgba(0,160,255,${+(0.30 * pulse).toFixed(2)})`);
+  gBlue.addColorStop(1.0,  'rgba(0,80,200,0)');
   ctx.fillStyle = gBlue;
   ctx.beginPath();
   ctx.arc(orbCX, sy, rGlow, 0, Math.PI * 2);
@@ -4745,6 +4745,55 @@ function render(now) {
 
   // === Draw particles in world space ===
   FX.draw(ctx, camX, camY);
+
+  // === Orb foreground: upper half always in front of player ===
+  // Redraws neon glow + orb sprite clipped to the region above the orb's
+  // visual centre so the crystal structure covers the character even when
+  // standing inside the upper portion of the orb area.
+  if (state && state.scene !== 'cave1' && assets.orbSprite) {
+    const _cRX = viewportW / canvas.width;
+    const _cRY = viewportH / canvas.height;
+    const _yFix = (_cRY > 0 && _cRX > 0) ? _cRX / _cRY : 1;
+    const _dh  = ORB_DH * _yFix;
+    const _dy  = ORB_DY - (_dh - ORB_DH) * 0.5;
+    // Visual centre of orb content (content midpoint ≈ y 0.4695 of frame)
+    const _orbCenterScrY = (_dy + _dh * 0.4695) * TILE - camY;
+    if (_orbCenterScrY > 0) {
+      ctx.save();
+      // Clip to rows above the orb visual centre
+      ctx.beginPath();
+      ctx.rect(0, 0, cw, _orbCenterScrY);
+      ctx.clip();
+
+      // Redraw neon glow (upper half, in front of entities)
+      const _orbCX = 24 * TILE - camX;
+      const _orbCY = 22 * TILE - camY;
+      const _pulse = 0.75 + 0.25 * Math.sin(now / 900);
+      const _rGlow  = 4.8 * TILE;
+      const _rInner = 3.4 * TILE;
+      ctx.save();
+      ctx.scale(1, _yFix);
+      const _sy = _orbCY / _yFix;
+      const _gBlue = ctx.createRadialGradient(_orbCX, _sy, _rInner * 0.5, _orbCX, _sy, _rGlow);
+      _gBlue.addColorStop(0.0,  `rgba(80,220,255,${+( 0.65 * _pulse).toFixed(2)})`);
+      _gBlue.addColorStop(0.25, `rgba(0,200,255,${+( 0.50 * _pulse).toFixed(2)})`);
+      _gBlue.addColorStop(0.55, `rgba(0,160,255,${+( 0.30 * _pulse).toFixed(2)})`);
+      _gBlue.addColorStop(1.0,  'rgba(0,80,200,0)');
+      ctx.fillStyle = _gBlue;
+      ctx.beginPath();
+      ctx.arc(_orbCX, _sy, _rGlow, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.restore(); // removes scale
+
+      // Redraw orb sprite (upper half, in front of entities)
+      ctx.imageSmoothingEnabled = true;
+      ctx.drawImage(assets.orbSprite,
+        ORB_DX * TILE - camX, _dy * TILE - camY,
+        ORB_DW * TILE, _dh * TILE);
+
+      ctx.restore(); // removes clip
+    }
+  }
 
   // === Cave darkness overlay (radial light around player) ===
   if (isInCaveArea()) {
