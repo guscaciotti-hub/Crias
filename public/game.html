@@ -1976,8 +1976,12 @@ const ctx = canvas.getContext('2d');
 let viewportW = window.innerWidth;
 let viewportH = window.innerHeight;
 function fitCanvas() {
-  viewportW = window.innerWidth;
-  viewportH = window.innerHeight;
+  const w = window.innerWidth;
+  const h = window.innerHeight;
+  // Ignore mid-rotation readings — browser briefly reports 0 or wrong dimensions
+  if (w < 100 || h < 100) return;
+  viewportW = w;
+  viewportH = h;
   // Cap internal resolution for performance on mobile
   const internalW = Math.min(viewportW, 1280);
   const internalH = Math.min(viewportH, 720);
@@ -1987,8 +1991,17 @@ function fitCanvas() {
   canvas.style.height = viewportH + 'px';
   ctx.imageSmoothingEnabled = false;
 }
-window.addEventListener('resize', fitCanvas);
-window.addEventListener('orientationchange', () => setTimeout(fitCanvas, 200));
+// ResizeObserver fires only after layout stabilises — safe on orientation change.
+// Debounce 100ms to avoid redundant calls during animated resize.
+let _fitTimer;
+if (typeof ResizeObserver !== 'undefined') {
+  new ResizeObserver(() => { clearTimeout(_fitTimer); _fitTimer = setTimeout(fitCanvas, 100); })
+    .observe(document.documentElement);
+} else {
+  // Fallback for very old browsers
+  window.addEventListener('resize', fitCanvas);
+  window.addEventListener('orientationchange', () => setTimeout(fitCanvas, 400));
+}
 
 // ============================================================================
 // ASSET LOADING
