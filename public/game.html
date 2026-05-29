@@ -642,22 +642,22 @@
   /* ── Dialog Portrait ─── */
   #dialogPortrait {
     display: none;
-    width: 116px;
-    height: 148px;
-    border-radius: 8px;
+    width: 56px;
+    height: 56px;
+    border-radius: 50%;
     border: 2px solid #4dc3ff;
     background: linear-gradient(180deg, #16263e 0%, #0b1422 100%);
-    margin: -4px auto 8px auto;
+    flex-shrink: 0;
     position: relative;
     overflow: hidden;
-    box-shadow: 0 0 14px rgba(77,195,255,0.25);
+    box-shadow: 0 0 10px rgba(77,195,255,0.35);
   }
   #dialogPortrait.show { display: block; }
   #dialogPortraitImg {
     display: none;
     width: 100%; height: 100%;
-    object-fit: contain;
-    object-position: center bottom;
+    object-fit: cover;
+    object-position: top center;
     image-rendering: auto;
   }
   #dialogPortraitImg.show { display: block; }
@@ -665,7 +665,7 @@
     position: absolute; inset: 0;
     display: none;
     align-items: center; justify-content: center;
-    font-size: 72px; line-height: 1;
+    font-size: 30px; line-height: 1;
   }
   #dialogPortraitEmoji.show { display: flex; }
 
@@ -1479,12 +1479,11 @@
 <!-- DIALOG -->
 <div id="dialog" class="overlay">
   <div class="panel" style="overflow:visible;">
-    <div id="dialogPortrait">
-      <img id="dialogPortraitImg" src="" alt=""/>
-      <span id="dialogPortraitEmoji"></span>
-    </div>
     <div style="display:flex;align-items:center;gap:10px;margin-bottom:6px;">
-      <div id="dialogAvatar" style="font-size:32px;line-height:1;min-width:36px;text-align:center;"></div>
+      <div id="dialogPortrait">
+        <img id="dialogPortraitImg" src="" alt=""/>
+        <span id="dialogPortraitEmoji"></span>
+      </div>
       <div class="speaker" id="dialogSpeaker" style="margin-bottom:0"></div>
     </div>
     <div class="text" id="dialogText"></div>
@@ -2778,7 +2777,7 @@ const NPC_AVATARS = {
 };
 // NPCs that have a real sprite → show it as the dialog portrait (igual ao sprite no mapa)
 const NPC_PORTRAIT_SPRITE = {
-  'Guia Solis': 'guiaMage',
+  'Guia Solis': 'guiaPortrait',
   'Guarda Kalos': 'guardaKalos',
 };
 function renderDialog() {
