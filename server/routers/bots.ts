@@ -289,10 +289,25 @@ export const botsRouter = router({
       if (!bot) throw new TRPCError({ code: "NOT_FOUND" });
       // Clamp response delay to the safe 2-30s range regardless of what's sent
       const delayField = responseDelay !== undefined ? { responseDelay: clampDelay(responseDelay) } : {};
-      return db.update(bots)
+      const updated = db.update(bots)
         .set({ ...fields, ...delayField, updatedAt: new Date() })
         .where(and(eq(bots.id, id), eq(bots.workspaceId, wsId)))
         .returning().get();
+
+      // When the AI prompt changes, close active conversations so the next
+      // message starts a fresh one — prevents old context from bleeding in.
+      if (fields.aiSystemPrompt !== undefined) {
+        db.update(conversations)
+          .set({ status: "closed", updatedAt: new Date() })
+          .where(and(eq(conversations.botId, id), eq(conversations.status, "active")))
+          .run();
+        try {
+          const { clearBotConvCache } = await import("../whatsapp/message-bridge.js");
+          clearBotConvCache(id);
+        } catch {}
+      }
+
+      return updated;
     }),
 
   testAI: protectedProcedure

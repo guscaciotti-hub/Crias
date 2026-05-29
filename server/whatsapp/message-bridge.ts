@@ -8,6 +8,13 @@ import { runAIAgent } from "./ai-agent.js";
 const botWsCache = new Map<number, number>();
 const convCache = new Map<string, number>();
 
+export function clearBotConvCache(botId: number) {
+  for (const key of [...convCache.keys()]) {
+    if (key.startsWith(`${botId}:`)) convCache.delete(key);
+  }
+  botWsCache.delete(botId);
+}
+
 export async function initMessageBridge() {
   setMessageHandler(async (botId, from, text) => {
     try {
