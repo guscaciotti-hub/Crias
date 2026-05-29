@@ -4813,6 +4813,15 @@ function render(now) {
     ctx.restore();
   }
 
+  // Redraw player on top of the orb stone-platform wall (right edge cols 25-28, rows 18-23).
+  // The orb top-half sprite has opaque stone pixels there that cover the player;
+  // redrawing after the foreground pass guarantees they appear in front.
+  if (state && state.scene !== 'cave1' &&
+      pX >= 25 * TILE && pX < 29 * TILE &&
+      pY >= 18 * TILE && pY < 23 * TILE) {
+    drawPlayer(pX - camX, pY - camY, now);
+  }
+
   // === Cave darkness overlay (radial light around player) ===
   if (isInCaveArea()) {
     const px = pX + TILE/2 - camX;
