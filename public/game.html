@@ -4694,21 +4694,31 @@ function render(now) {
   if (state.cria) renderables.push({ type: 'cria', x: cX, y: cY });
   renderables.push({ type: 'player', x: pX, y: pY });
 
-  // Core Orb depth-sort. The transparent orb SPRITE (orb + aura, NO ground) is
-  // drawn over the map's baked orb, aligned so it reads as a single orb.
-  // Because the sprite has no ground pixels, the floor can NEVER cover the player —
-  // only the orb/aura overlaps entities, which is the desired effect.
-  // Sort line ≈ orb vertical centre: player above it (north/sides) renders first →
-  // orb covers player (passes behind); player below it (south) renders after → in front.
-  const ORB_SORT_Y = 23 * TILE;
-  renderables.push({ type: 'orb', x: 24 * TILE, y: ORB_SORT_Y });
-
   renderables.sort((a, b) => a.y - b.y);
 
-  // Sprite frame mapped so its orb content lands on the pedestal socket (centre 24,22),
-  // sized ~30% smaller than the baked orb (content ≈ 5.74 tiles), which the socket hides.
-  // Content occupies x[0.182,0.824] y[0.154,0.787] of the 512² frame → frame dest box:
-  const ORB_DX = 19.50, ORB_DY = 17.74, ORB_DW = 8.94, ORB_DH = 9.07; // world tiles
+  // Orb sprite split-draw: NO depth-sort to avoid seam artefacts.
+  // Content centre is at y≈0.4695 of the 512² frame (measured from actual PNG bbox).
+  // BOTTOM HALF drawn here (before entities) → characters walk in front of lower orb.
+  // TOP HALF drawn after FX.draw() as foreground → always covers characters in upper area.
+  const ORB_DX = 19.50, ORB_DY = 17.74, ORB_DW = 8.94, ORB_DH = 9.07;
+  const ORB_SPLIT = 0.4695; // content vertical-centre fraction of sprite frame
+  const _orbRX = viewportW / canvas.width;
+  const _orbRY = viewportH / canvas.height;
+  const _orbYFix = (_orbRY > 0 && _orbRX > 0) ? _orbRX / _orbRY : 1;
+  const _orbDH = ORB_DH * _orbYFix;
+  const _orbDY = ORB_DY - (_orbDH - ORB_DH) * 0.5;
+  const _orbSrcSplit = Math.round(512 * ORB_SPLIT); // ≈ 240 px into the sprite
+
+  if (assets.orbSprite) {
+    ctx.imageSmoothingEnabled = true;
+    // Bottom half: source y[240→512], dest from content-centre downward
+    ctx.drawImage(assets.orbSprite,
+      0, _orbSrcSplit, 512, 512 - _orbSrcSplit,
+      ORB_DX * TILE - camX,
+      (_orbDY + ORB_SPLIT * _orbDH) * TILE - camY,
+      ORB_DW * TILE,
+      (1 - ORB_SPLIT) * _orbDH * TILE);
+  }
 
   for (const r of renderables) {
     const sx = r.x - camX;
@@ -4716,18 +4726,6 @@ function render(now) {
     if (r.type === 'npc') drawNPC(r.npc, sx, sy, now);
     else if (r.type === 'cria') drawCriaSprite(sx, sy, now);
     else if (r.type === 'player') drawPlayer(sx, sy, now);
-    else if (r.type === 'orb' && assets.orbSprite) {
-      ctx.imageSmoothingEnabled = true;
-      // Correct aspect ratio so orb stays circular on any viewport shape.
-      const _cRX = viewportW / canvas.width;
-      const _cRY = viewportH / canvas.height;
-      const _yFix = (_cRY > 0 && _cRX > 0) ? _cRX / _cRY : 1;
-      const _dh = ORB_DH * _yFix;
-      const _dy = ORB_DY - (_dh - ORB_DH) * 0.5;
-      ctx.drawImage(assets.orbSprite,
-        ORB_DX * TILE - camX, _dy * TILE - camY,
-        ORB_DW * TILE, _dh * TILE);
-    }
   }
 
   drawLabels(camX, camY, cw, ch);
@@ -4746,53 +4744,16 @@ function render(now) {
   // === Draw particles in world space ===
   FX.draw(ctx, camX, camY);
 
-  // === Orb foreground: upper half always in front of player ===
-  // Redraws neon glow + orb sprite clipped to the region above the orb's
-  // visual centre so the crystal structure covers the character even when
-  // standing inside the upper portion of the orb area.
+  // === Orb top-half foreground: always in front of player ===
+  // Draws only the upper portion (source y[0→_orbSrcSplit]) after all entities,
+  // so the crystal structure of the upper orb is never occluded by characters.
+  // Uses the same _orbDY/_orbDH/_orbSrcSplit computed in the entity section above.
   if (state && state.scene !== 'cave1' && assets.orbSprite) {
-    const _cRX = viewportW / canvas.width;
-    const _cRY = viewportH / canvas.height;
-    const _yFix = (_cRY > 0 && _cRX > 0) ? _cRX / _cRY : 1;
-    const _dh  = ORB_DH * _yFix;
-    const _dy  = ORB_DY - (_dh - ORB_DH) * 0.5;
-    // Visual centre of orb content (content midpoint ≈ y 0.4695 of frame)
-    const _orbCenterScrY = (_dy + _dh * 0.4695) * TILE - camY;
-    if (_orbCenterScrY > 0) {
-      ctx.save();
-      // Clip to rows above the orb visual centre
-      ctx.beginPath();
-      ctx.rect(0, 0, cw, _orbCenterScrY);
-      ctx.clip();
-
-      // Redraw neon glow (upper half, in front of entities)
-      const _orbCX = 24 * TILE - camX;
-      const _orbCY = 22 * TILE - camY;
-      const _pulse = 0.75 + 0.25 * Math.sin(now / 900);
-      const _rGlow  = 4.8 * TILE;
-      const _rInner = 3.4 * TILE;
-      ctx.save();
-      ctx.scale(1, _yFix);
-      const _sy = _orbCY / _yFix;
-      const _gBlue = ctx.createRadialGradient(_orbCX, _sy, _rInner * 0.5, _orbCX, _sy, _rGlow);
-      _gBlue.addColorStop(0.0,  `rgba(80,220,255,${+( 0.65 * _pulse).toFixed(2)})`);
-      _gBlue.addColorStop(0.25, `rgba(0,200,255,${+( 0.50 * _pulse).toFixed(2)})`);
-      _gBlue.addColorStop(0.55, `rgba(0,160,255,${+( 0.30 * _pulse).toFixed(2)})`);
-      _gBlue.addColorStop(1.0,  'rgba(0,80,200,0)');
-      ctx.fillStyle = _gBlue;
-      ctx.beginPath();
-      ctx.arc(_orbCX, _sy, _rGlow, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.restore(); // removes scale
-
-      // Redraw orb sprite (upper half, in front of entities)
-      ctx.imageSmoothingEnabled = true;
-      ctx.drawImage(assets.orbSprite,
-        ORB_DX * TILE - camX, _dy * TILE - camY,
-        ORB_DW * TILE, _dh * TILE);
-
-      ctx.restore(); // removes clip
-    }
+    ctx.imageSmoothingEnabled = true;
+    ctx.drawImage(assets.orbSprite,
+      0, 0, 512, _orbSrcSplit,
+      ORB_DX * TILE - camX, _orbDY * TILE - camY,
+      ORB_DW * TILE, ORB_SPLIT * _orbDH * TILE);
   }
 
   // === Cave darkness overlay (radial light around player) ===
