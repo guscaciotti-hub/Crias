@@ -7,7 +7,7 @@ import { trpc } from "@/lib/trpc";
 import QRModal from "@/components/QRModal";
 import {
   Brain, Plus, Wifi, WifiOff, Trash2, QrCode, X, Send,
-  Bell, PhoneCall, Sparkles, Settings2, RefreshCw, ChevronDown, ChevronUp,
+  Bell, PhoneCall, Sparkles, Settings2, RefreshCw, ChevronDown, ChevronUp, Clock,
 } from "lucide-react";
 
 type BotWithInstance = {
@@ -15,6 +15,8 @@ type BotWithInstance = {
   agentMode: string; aiSystemPrompt?: string | null; systemPrompt?: string | null;
   tone: string; alertNumbers?: string[] | null; forbiddenTopics?: string[] | null;
   responseDelay?: number | null; handoffCondition?: string | null;
+  reactivationEnabled?: boolean | null; reactivationMessage?: string | null;
+  reactivationTimeoutMin?: number | null;
   instance: { status: string } | null;
 };
 
@@ -34,6 +36,9 @@ function AgentEditorModal({ bot, onClose }: { bot: BotWithInstance; onClose: () 
   const [alertNumbers, setAlertNumbers] = useState<string[]>(bot.alertNumbers ?? []);
   const [alertInput, setAlertInput]     = useState("");
   const [responseDelay, setResponseDelay] = useState<number>(bot.responseDelay ?? DEFAULT_DELAY);
+  const [reactivationEnabled, setReactivationEnabled] = useState(bot.reactivationEnabled ?? false);
+  const [reactivationMessage, setReactivationMessage] = useState(bot.reactivationMessage ?? "");
+  const [reactivationTimeoutMin, setReactivationTimeoutMin] = useState(bot.reactivationTimeoutMin ?? 30);
   const [chatMsg, setChatMsg]     = useState("");
   const [chatLog, setChatLog]     = useState<{ role: string; text: string }[]>([]);
   const [syncBanner, setSyncBanner] = useState(false);
@@ -76,6 +81,9 @@ function AgentEditorModal({ bot, onClose }: { bot: BotWithInstance; onClose: () 
       handoffCondition,
       alertNumbers,
       responseDelay: clampDelay(responseDelay),
+      reactivationEnabled,
+      reactivationMessage,
+      reactivationTimeoutMin,
     });
   };
 

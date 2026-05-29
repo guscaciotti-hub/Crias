@@ -58,6 +58,9 @@ export const bots = sqliteTable("bots", {
   responseDelay: integer("response_delay").notNull().default(4), // segundos antes de responder (4-30)
   handoffCondition: text("handoff_condition"),
   status: text("status", { enum: ["active", "inactive", "disconnected"] }).notNull().default("active"),
+  reactivationEnabled: integer("reactivation_enabled", { mode: "boolean" }).notNull().default(false),
+  reactivationMessage: text("reactivation_message"),
+  reactivationTimeoutMin: integer("reactivation_timeout_min").notNull().default(30),
   createdAt: integer("created_at", { mode: "timestamp" }).notNull().default(now),
   updatedAt: integer("updated_at", { mode: "timestamp" }).notNull().default(now),
 });
@@ -96,6 +99,7 @@ export const conversations = sqliteTable("conversations", {
   workspaceId: integer("workspace_id").notNull().references(() => workspaces.id),
   contactId: integer("contact_id").notNull().references(() => contacts.id),
   status: text("status", { enum: ["active", "handoff", "closed"] }).notNull().default("active"),
+  lastHumanActivityAt: integer("last_human_activity_at", { mode: "timestamp" }),
   createdAt: integer("created_at", { mode: "timestamp" }).notNull().default(now),
   updatedAt: integer("updated_at", { mode: "timestamp" }).notNull().default(now),
 });

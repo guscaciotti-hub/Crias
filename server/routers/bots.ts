@@ -281,6 +281,9 @@ export const botsRouter = router({
       alertNumbers: z.array(z.string()).optional(),
       responseDelay: z.number().optional(),
       status: z.enum(["active", "inactive", "disconnected"]).optional(),
+      reactivationEnabled: z.boolean().optional(),
+      reactivationMessage: z.string().optional(),
+      reactivationTimeoutMin: z.number().min(5).max(1440).optional(),
     }))
     .mutation(async ({ ctx, input }) => {
       const db = getDb();

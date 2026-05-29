@@ -4,6 +4,7 @@ import { getDb } from "../db.js";
 import { conversations, messages, contacts, workspaceMembers } from "../../drizzle/schema.js";
 import { eq, and, desc, sql } from "drizzle-orm";
 import { TRPCError } from "@trpc/server";
+import { sendMessage } from "../whatsapp/baileys-manager.js";
 
 async function getWsId(userId: number): Promise<number> {
   const db = getDb();
@@ -73,5 +74,62 @@ export const conversationsRouter = router({
         .set({ status: input.status, updatedAt: new Date() })
         .where(and(eq(conversations.id, input.id), eq(conversations.workspaceId, wsId)))
         .returning().get();
+    }),
+
+  sendHumanMessage: protectedProcedure
+    .input(z.object({ conversationId: z.number(), text: z.string().min(1) }))
+    .mutation(async ({ ctx, input }) => {
+      const db = getDb();
+      const wsId = await getWsId(ctx.user.id);
+
+      const conv = db.select().from(conversations)
+        .where(and(eq(conversations.id, input.conversationId), eq(conversations.workspaceId, wsId)))
+        .get();
+      if (!conv) throw new TRPCError({ code: "NOT_FOUND" });
+
+      const contact = db.select().from(contacts).where(eq(contacts.id, conv.contactId)).get();
+      if (!contact) throw new TRPCError({ code: "NOT_FOUND" });
+
+      const jid = `${contact.phone}@s.whatsapp.net`;
+      await sendMessage(conv.botId, jid, input.text);
+
+      db.insert(messages).values({
+        conversationId: conv.id, workspaceId: wsId, role: "human", content: input.text,
+      }).run();
+
+      db.update(conversations)
+        .set({ status: "handoff", lastHumanActivityAt: new Date(), updatedAt: new Date() })
+        .where(eq(conversations.id, conv.id))
+        .run();
+
+      const { clearConvCacheForContact } = await import("../whatsapp/message-bridge.js");
+      clearConvCacheForContact(conv.botId, contact.phone);
+
+      return { ok: true };
+    }),
+
+  humanTakeover: protectedProcedure
+    .input(z.object({ conversationId: z.number() }))
+    .mutation(async ({ ctx, input }) => {
+      const db = getDb();
+      const wsId = await getWsId(ctx.user.id);
+
+      const conv = db.select().from(conversations)
+        .where(and(eq(conversations.id, input.conversationId), eq(conversations.workspaceId, wsId)))
+        .get();
+      if (!conv) throw new TRPCError({ code: "NOT_FOUND" });
+
+      db.update(conversations)
+        .set({ status: "handoff", lastHumanActivityAt: new Date(), updatedAt: new Date() })
+        .where(eq(conversations.id, conv.id))
+        .run();
+
+      const contact = db.select().from(contacts).where(eq(contacts.id, conv.contactId)).get();
+      if (contact) {
+        const { clearConvCacheForContact } = await import("../whatsapp/message-bridge.js");
+        clearConvCacheForContact(conv.botId, contact.phone);
+      }
+
+      return { ok: true };
     }),
 });

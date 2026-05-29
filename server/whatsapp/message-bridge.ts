@@ -38,6 +38,18 @@ export function clearBotConvCache(botId: number) {
   botWsCache.delete(botId);
 }
 
+export function clearConvCacheForContact(botId: number, phone: string) {
+  const key = `${botId}:${phone}`;
+  convCache.delete(key);
+  // Also abort any pending batch for this contact
+  const batch = pendingBatch.get(key);
+  if (batch) {
+    clearTimeout(batch.timer);
+    batch.resolvers.forEach(r => r(null));
+    pendingBatch.delete(key);
+  }
+}
+
 export async function initMessageBridge() {
   setMessageHandler(async (botId, from, text) => {
     try {
@@ -73,7 +85,8 @@ export async function initMessageBridge() {
           .where(eq(contacts.id, contact.id)).run();
       }
 
-      // Resolve or create active conversation
+      // Resolve or create active conversation (also check for handoff to avoid bot
+      // responding while a human operator has taken over the conversation)
       const cacheKey = `${botId}:${phone}`;
       let convId = convCache.get(cacheKey);
       if (convId === undefined) {
@@ -83,6 +96,25 @@ export async function initMessageBridge() {
             eq(conversations.contactId, contact.id),
             eq(conversations.status, "active"),
           )).get();
+
+        if (!existing) {
+          // Check if there is an ongoing handoff conversation — if so, save the
+          // incoming message so the operator can see it but do NOT let the bot reply.
+          const handoffConv = db.select().from(conversations)
+            .where(and(
+              eq(conversations.botId, botId),
+              eq(conversations.contactId, contact.id),
+              eq(conversations.status, "handoff"),
+            )).get();
+
+          if (handoffConv) {
+            db.insert(messages).values({
+              conversationId: handoffConv.id, workspaceId: resolvedWsId, role: "user", content: text,
+            }).run();
+            return null;
+          }
+        }
+
         convId = existing
           ? existing.id
           : db.insert(conversations).values({

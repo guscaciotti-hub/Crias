@@ -15,6 +15,7 @@ import { createContext } from "./trpc.js";
 import { getDb } from "./db.js";
 import { initMessageBridge } from "./whatsapp/message-bridge.js";
 import { restoreInstances } from "./whatsapp/baileys-manager.js";
+import { startReactivationTimer } from "./whatsapp/reactivation-timer.js";
 import { whatsappInstances } from "../drizzle/schema.js";
 import { eq } from "drizzle-orm";
 import { mkdirSync } from "fs";
@@ -55,6 +56,7 @@ app.listen(PORT, async () => {
 
   // Initialize message bridge
   await initMessageBridge();
+  startReactivationTimer();
 
   // Note: on free tier (ephemeral filesystem) sessions are lost on restart,
   // so we mark all instances as disconnected and let users reconnect manually.

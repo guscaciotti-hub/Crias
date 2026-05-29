@@ -200,6 +200,11 @@ function initSchema() {
   try { db.run(sql`ALTER TABLE users ADD COLUMN email_verified INTEGER NOT NULL DEFAULT 1`); } catch {}
   // Migrate old demo_ prefix to local_ so existing accounts keep their data
   try { db.run(sql`UPDATE users SET open_id = 'local_' || SUBSTR(open_id, 6) WHERE open_id LIKE 'demo_%'`); } catch {}
+  // Reactivation timer fields
+  try { db.run(sql`ALTER TABLE bots ADD COLUMN reactivation_enabled INTEGER NOT NULL DEFAULT 0`); } catch {}
+  try { db.run(sql`ALTER TABLE bots ADD COLUMN reactivation_message TEXT`); } catch {}
+  try { db.run(sql`ALTER TABLE bots ADD COLUMN reactivation_timeout_min INTEGER NOT NULL DEFAULT 30`); } catch {}
+  try { db.run(sql`ALTER TABLE conversations ADD COLUMN last_human_activity_at INTEGER`); } catch {}
 
   db.run(sql`CREATE TABLE IF NOT EXISTS email_tokens (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
