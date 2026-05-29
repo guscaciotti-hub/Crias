@@ -5694,6 +5694,9 @@ function startGame() {
   var _ld = document.getElementById('loading');
   if (_ld) _ld.style.display = 'none';
   if (window.clearLoadingTimeout) window.clearLoadingTimeout();
+  // Desabilita o onerror da loading screen — erros pós-boot (ex: orientation change iOS)
+  // não devem re-mostrar a tela de loading e congelar o jogo.
+  window.onerror = null;
   loadAssets(); // carrega em background
   fitCanvas();
   initChat();
