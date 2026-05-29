@@ -4729,7 +4729,7 @@ function render(now) {
   for (const r of renderables) {
     const sx = r.x - camX;
     const sy = r.y - camY;
-    const _inPassZone = r.x >= ORB_DX * TILE && r.x <= (ORB_DX + ORB_DW) * TILE &&
+    const _inPassZone = r.x >= ORB_DX * TILE && r.x < 28 * TILE &&
         r.y >= ORB_DY * TILE && r.y < _splitWorldY;
     if (_inPassZone) {
       ctx.save();
@@ -4765,10 +4765,15 @@ function render(now) {
   // interior is transparent — without the glow, the player shows through the crystal faces.
   if (state && state.scene !== 'cave1' && assets.orbSprite) {
     ctx.imageSmoothingEnabled = true;
+    ctx.save();
+    ctx.beginPath();
+    ctx.rect(ORB_DX * TILE - camX, 0, (28 - ORB_DX) * TILE, canvas.height);
+    ctx.clip();
     ctx.drawImage(assets.orbSprite,
       0, 0, 512, _orbSrcSplit,
       ORB_DX * TILE - camX, Math.round(_orbDY * TILE - camY),
       ORB_DW * TILE, Math.round(ORB_SPLIT * _orbDH * TILE));
+    ctx.restore();
 
     // Foreground blue glow — clipped to the upper half so the player appears immersed
     // in the orb's energy field rather than standing in front of it.
