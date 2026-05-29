@@ -251,6 +251,61 @@ function AgentEditorModal({ bot, onClose }: { bot: BotWithInstance; onClose: () 
             </div>
           </div>
 
+          {/* Reativação Automática */}
+          <div className="space-y-4">
+            <p className="text-sm font-semibold flex items-center gap-1.5">
+              <Clock className="w-4 h-4 text-primary" /> Reativação Automática
+            </p>
+            <p className="text-xs text-muted-foreground">
+              Após um período de inatividade do operador, o bot reenvia uma mensagem e retoma o atendimento automaticamente.
+            </p>
+
+            {/* Toggle */}
+            <div className="flex items-center gap-3">
+              <button
+                type="button"
+                onClick={() => setReactivationEnabled(v => !v)}
+                className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${reactivationEnabled ? "bg-primary" : "bg-muted-foreground/30"}`}
+              >
+                <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${reactivationEnabled ? "translate-x-6" : "translate-x-1"}`} />
+              </button>
+              <span className="text-sm">Reativar bot automaticamente após inatividade do operador</span>
+            </div>
+
+            {reactivationEnabled && (
+              <div className="space-y-3 pl-1">
+                <div>
+                  <p className="text-xs font-medium mb-1.5">Mensagem de reativação</p>
+                  <textarea
+                    className="w-full border rounded-xl p-3 text-sm min-h-[80px] resize-none focus:outline-none focus:ring-2 focus:ring-primary/30 bg-background"
+                    placeholder="Ex: Atendimento humano encerrado. Posso ajudar em mais alguma coisa?"
+                    value={reactivationMessage}
+                    onChange={e => setReactivationMessage(e.target.value)}
+                  />
+                  <p className="text-xs text-muted-foreground mt-1">
+                    Mensagem que o bot envia ao cliente quando o atendimento humano é encerrado automaticamente.
+                  </p>
+                </div>
+                <div>
+                  <p className="text-xs font-medium mb-1.5">Minutos sem resposta do operador</p>
+                  <div className="flex items-center gap-2">
+                    <Input
+                      type="number" min={5} max={1440}
+                      value={reactivationTimeoutMin}
+                      onChange={e => setReactivationTimeoutMin(Number(e.target.value))}
+                      onBlur={() => setReactivationTimeoutMin(v => Math.min(1440, Math.max(5, Math.round(v || 30))))}
+                      className="w-24 text-center"
+                    />
+                    <span className="text-sm text-muted-foreground">minutos</span>
+                  </div>
+                  <p className="text-xs text-muted-foreground mt-1">
+                    Mínimo 5 min, máximo 1440 min (24h).
+                  </p>
+                </div>
+              </div>
+            )}
+          </div>
+
           {/* Testar */}
           <div>
             <button onClick={() => setExpandTest(v => !v)} className="flex items-center gap-2 text-sm font-semibold w-full text-left">
