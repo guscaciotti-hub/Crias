@@ -4701,23 +4701,27 @@ function render(now) {
   // BOTTOM HALF drawn here (before entities) → characters walk in front of lower orb.
   // TOP HALF drawn after FX.draw() as foreground → always covers characters in upper area.
   const ORB_DX = 19.50, ORB_DY = 17.74, ORB_DW = 8.94, ORB_DH = 9.07;
-  const ORB_SPLIT = 0.4695; // content vertical-centre fraction of sprite frame
+  // Split at 75% of frame height → top 75% always in front of player.
+  // 2-px source overlap (_orbSeam) eliminates the 1-px seam at the join.
+  const ORB_SPLIT   = 0.75;
+  const _orbSeam    = 2; // px of sprite overlap to hide the seam
   const _orbRX = viewportW / canvas.width;
   const _orbRY = viewportH / canvas.height;
   const _orbYFix = (_orbRY > 0 && _orbRX > 0) ? _orbRX / _orbRY : 1;
   const _orbDH = ORB_DH * _orbYFix;
   const _orbDY = ORB_DY - (_orbDH - ORB_DH) * 0.5;
-  const _orbSrcSplit = Math.round(512 * ORB_SPLIT); // ≈ 240 px into the sprite
+  const _orbSrcSplit = Math.round(512 * ORB_SPLIT); // ≈ 384 px
 
   if (assets.orbSprite) {
     ctx.imageSmoothingEnabled = true;
-    // Bottom half: source y[240→512], dest from content-centre downward
+    // Bottom quarter: source y[(384-2)→512], starts 2px early to hide seam
+    const _bSrcY = _orbSrcSplit - _orbSeam;
+    const _bDstY = Math.round((_orbDY + ORB_SPLIT * _orbDH) * TILE - camY) - Math.round(_orbSeam / 512 * _orbDH * TILE);
     ctx.drawImage(assets.orbSprite,
-      0, _orbSrcSplit, 512, 512 - _orbSrcSplit,
-      ORB_DX * TILE - camX,
-      (_orbDY + ORB_SPLIT * _orbDH) * TILE - camY,
+      0, _bSrcY, 512, 512 - _bSrcY,
+      ORB_DX * TILE - camX, _bDstY,
       ORB_DW * TILE,
-      (1 - ORB_SPLIT) * _orbDH * TILE);
+      Math.round((1 - ORB_SPLIT) * _orbDH * TILE) + Math.round(_orbSeam / 512 * _orbDH * TILE));
   }
 
   for (const r of renderables) {
@@ -4750,10 +4754,11 @@ function render(now) {
   // Uses the same _orbDY/_orbDH/_orbSrcSplit computed in the entity section above.
   if (state && state.scene !== 'cave1' && assets.orbSprite) {
     ctx.imageSmoothingEnabled = true;
+    // Top 75% of sprite — drawn after entities, always in front of player
     ctx.drawImage(assets.orbSprite,
       0, 0, 512, _orbSrcSplit,
-      ORB_DX * TILE - camX, _orbDY * TILE - camY,
-      ORB_DW * TILE, ORB_SPLIT * _orbDH * TILE);
+      ORB_DX * TILE - camX, Math.round(_orbDY * TILE - camY),
+      ORB_DW * TILE, Math.round(ORB_SPLIT * _orbDH * TILE));
   }
 
   // === Cave darkness overlay (radial light around player) ===
