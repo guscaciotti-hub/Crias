@@ -2,6 +2,9 @@
 
 > Documento de continuidade do projeto. Leia isto primeiro ao iniciar uma nova sessão.
 > Última atualização: 2026-05-29
+>
+> **Repositório dedicado**: https://github.com/guscaciotti-hub/atendeai (privado)
+> O código foi migrado do repositório antigo `express-js-on-vercel` para cá.
 
 ---
 
@@ -35,6 +38,11 @@ agências, imobiliárias). Dois modos de bot:
   Contém OPENAI_API_KEY, SMTP, DB_PATH, SESSIONS_DIR
 - **Site**: http://72.62.232.128:3001
 - **Admin**: guscaciotti@gmail.com
+
+### Repositório (novo — migrado em 2026-05-29)
+```
+https://github.com/guscaciotti-hub/atendeai
+```
 
 ### Comando de deploy (sempre)
 ```bash
