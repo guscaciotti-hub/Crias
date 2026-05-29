@@ -4643,6 +4643,7 @@ function updateCamera(playerWorldX, playerWorldY) {
 
 function render(now) {
   const cw = canvas.width, ch = canvas.height;
+  if (!cw || !ch) return; // skip frame if canvas was resized to 0 mid-rotation
   ctx.fillStyle = '#0a0e1a';
   ctx.fillRect(0, 0, cw, ch);
   if (!assets.map || !state) return;
@@ -5265,13 +5266,18 @@ function loop(t) {
   const dt = Math.min(50, t - _lastT);
   _lastT = t;
   if (state && assets.map) {
-    FX.update(t, dt);
-    update(t);
-    render(t);
-    renderHUD();
-    // Apply screen shake via CSS transform on canvas
-    const sh = FX.getShake();
-    canvas.style.transform = (sh.x || sh.y) ? `translate(${sh.x}px, ${sh.y}px)` : '';
+    try {
+      FX.update(t, dt);
+      update(t);
+      render(t);
+      renderHUD();
+      // Apply screen shake via CSS transform on canvas
+      const sh = FX.getShake();
+      canvas.style.transform = (sh.x || sh.y) ? `translate(${sh.x}px, ${sh.y}px)` : '';
+    } catch(e) {
+      // Swallow render errors (e.g. after canvas resize on iOS orientation change)
+      // so requestAnimationFrame always fires and the loop never dies.
+    }
   }
   requestAnimationFrame(loop);
 }
