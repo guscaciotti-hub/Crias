@@ -1504,7 +1504,6 @@
       <button data-action="skill1"><span class="skill-name">—</span><span class="skill-type">—</span></button>
       <button data-action="defend"><span class="skill-name">DEFENDER</span><span class="skill-type">+50% def</span></button>
       <button data-action="item"><span class="skill-name">ITEM</span><span class="skill-type">poção</span></button>
-      <button data-action="capture" id="btnCapture" style="display:none; grid-column:1/-1; background:linear-gradient(180deg,#1a2a4a,#0d1a30); border-color:#4dc3ff; color:#4dc3ff;"><span class="skill-name">🔵 CAPTURAR</span><span class="skill-type" id="captureOrbCount">orbe comum × 0</span></button>
     </div>
   </div>
 </div>
@@ -1749,12 +1748,13 @@ const ELEMENT_ADV = {
 // ============================================================================
 // CAPTURE ORBS
 // ============================================================================
-const CAPTURE_ORBS = {
-  orbeComum:    { name: 'Orbe Comum',    catchRate: 0.30, color: '#4dc3ff', emoji: '🔵', price: 80,  desc: 'Captura criaturas comuns. 30% de chance.' },
-  orbeAvancado: { name: 'Orbe Avançado', catchRate: 0.50, color: '#b47fff', emoji: '🟣', price: 200, desc: 'Captura criaturas incomuns. 50% de chance.' },
-  orbeElite:    { name: 'Orbe Elite',    catchRate: 0.70, color: '#ffd700', emoji: '🟡', price: 500, desc: 'Captura criaturas raras. 70% de chance.' },
-  orbeMitico:   { name: 'Orbe Mítico',   catchRate: 0.95, color: '#ff6b6b', emoji: '🔴', price: 0,   desc: 'Orbe supremo. Apenas em bosses e eventos.' },
-};
+// ── ORB FRAGMENTS — nova economia ──────────────────────────────────────────
+// Monstros do mundo/caverna NÃO são capturáveis. Ao vencer, dropam fragmentos
+// de orbe. Ao juntar FRAGMENTS_PER_ORB, o jogador pode chocar uma Cria nova
+// (aleatória do banco) no Core Orb. Chocar é difícil de propósito.
+const FRAGMENTS_PER_ORB = 30;        // fragmentos necessários pra chocar 1 cria
+const FRAGMENT_DROP = { wildMin: 1, wildMax: 3, trainer: 2, boss: 12 };
+
 const PARTY_MAX = 6; // 1 active + 5 standby
 
 // ============================================================================
@@ -1820,8 +1820,8 @@ const NPCS_TEMPLATE = [
   { id: 'guia', x: 16, y: 22, emoji: '🧙', name: 'Guia Solis', type: 'ludi',
     dialog: [
       'Salve, jovem domador! Bem-vindo ao Nexus — o coração do mundo das Crias.',
-      'As Crias são criaturas mágicas que habitam cada canto desta terra.',
-      'Domadores partem em jornada para batalhar, capturar e criar vínculos reais com elas.',
+      'As Crias são criaturas únicas, manifestadas a partir da energia do Core Orb.',
+      'Domadores partem em jornada para batalhar, coletar fragmentos e chocar novas Crias.',
       'Aquele cristal brilhante no centro desta praça é o Core Orb — fonte de toda manifestação.',
       'Para começar sua jornada, você precisa despertar sua primeira Cria.',
       'Tome este Orbe da Criação — vá até o Core Orb e use-o para manifestar sua parceira.',
@@ -1836,8 +1836,8 @@ const NPCS_TEMPLATE = [
     gift: { qty: 1, given: false } },
   { id: 'shop', x: 36, y: 20, emoji: '🧔', name: 'Vendedor Bartô', type: 'shop',
     shopItems: [
-      { key: 'orbeComum',    qty: 1, price: 80,  icon: '🔵', name: 'Orbe de Captura',  desc: 'Captura Crias selvagens na Caverna. 30% de chance base.' },
-      { key: 'orbeCriacao',  qty: 1, price: 500, icon: '🌟', name: 'Orbe da Criação',  desc: 'Use no Core Orb para manifestar uma Cria Única exclusiva.' },
+      { key: 'potions',      qty: 1, price: 40,  icon: '💊', name: 'Poção',             desc: 'Restaura 40% do HP da Cria em batalha.' },
+      { key: 'orbFragments', qty: 1, price: 60,  icon: '🔷', name: 'Fragmento de Orbe',  desc: 'Acelera a coleta para chocar uma nova Cria no Core Orb.' },
     ],
     gift: { qty: 0, given: true } },
   { id: 'rival1', x: 12, y: 22, emoji: '👧', name: 'Lulu', type: 'trainer',
@@ -2190,7 +2190,8 @@ function newGameState(playerName, monster) {
     player: { x: 24, y: 26, dir: 'down' },
     coins: 80,
     potions: 1,
-    items: { orbeComum: 3, orbeAvancado: 0, orbeElite: 0, orbeMitico: 0, orbeCriacao: 0 }, // orbeCriacao given by Guia Solis
+    orbFragments: 0, // fragmentos de orbe — juntar FRAGMENTS_PER_ORB pra chocar uma cria
+    items: { orbeCriacao: 0 }, // orbeCriacao é o presente do tutorial (Guia Solis) p/ a 1ª cria
     npcs: JSON.parse(JSON.stringify(NPCS_TEMPLATE)),
     enteredCave: false,
     encountersDefeated: 0,
@@ -2785,8 +2786,13 @@ function openShop(npc) {
   function refresh() {
     coinsEl.textContent = (state.coins || 0) + ' 💰';
     list.innerHTML = '';
+    const ownedOf = (key) => {
+      if (key === 'potions') return state.potions || 0;
+      if (key === 'orbFragments') return state.orbFragments || 0;
+      return (state.items && state.items[key]) || 0;
+    };
     (npc.shopItems || []).forEach(item => {
-      const owned   = (state.items && state.items[item.key]) || 0;
+      const owned   = ownedOf(item.key);
       const canBuy  = (state.coins || 0) >= item.price;
       const el      = document.createElement('div');
       el.className  = 'shop-item';
@@ -2806,8 +2812,14 @@ function openShop(npc) {
       el.querySelector('.si-buy').addEventListener('click', () => {
         if ((state.coins || 0) < item.price) { showToast('Moedas insuficientes!'); return; }
         state.coins -= item.price;
-        if (!state.items) state.items = {};
-        state.items[item.key] = (state.items[item.key] || 0) + item.qty;
+        if (item.key === 'potions') {
+          state.potions = (state.potions || 0) + item.qty;
+        } else if (item.key === 'orbFragments') {
+          state.orbFragments = (state.orbFragments || 0) + item.qty;
+        } else {
+          if (!state.items) state.items = {};
+          state.items[item.key] = (state.items[item.key] || 0) + item.qty;
+        }
         showToast(`${item.icon} ${item.name} comprado! -${item.price} 💰`);
         saveGame();
         refresh();
@@ -2897,13 +2909,15 @@ function interactWithCoreOrb() {
     return;
   }
 
-  // ── Returning player: unique creature ────────────────────────────────
-  if (!hasOrbe) {
+  // ── Returning player: choca cria nova com FRAGMENTOS ─────────────────
+  const frags = state.orbFragments || 0;
+  if (frags < FRAGMENTS_PER_ORB) {
+    const falta = FRAGMENTS_PER_ORB - frags;
     showDialog('✨ Core Orb', [
       'O Orb pulsa com energia ancestral...',
-      'Você sente que algo dorme aqui, esperando ser despertado.',
-      'Para manifestar uma Cria Única, você precisa de um Orbe da Criação.',
-      'Derrote domadores poderosos ou adquira um na loja.'
+      `Você reuniu ${frags} de ${FRAGMENTS_PER_ORB} fragmentos de orbe.`,
+      `Faltam ${falta} fragmentos para formar um Orbe e chocar uma nova Cria.`,
+      'Derrote criaturas no mundo e na Caverna para coletar mais fragmentos.'
     ]);
     return;
   }
@@ -2912,12 +2926,59 @@ function interactWithCoreOrb() {
   if (available.length === 0) {
     showDialog('✨ Core Orb', [
       'O Orb pulsa suavemente...',
-      'Você já manifestou todas as Crias Únicas disponíveis!',
-      'Aguarde novas Crias chegarem ao Nexus.'
+      'Você já manifestou todas as Crias disponíveis no Nexus!',
+      'Seus fragmentos estão guardados — aguarde novas Crias chegarem.'
     ]);
     return;
   }
   startCoreOrbManifestation(available);
+}
+
+// ── Choca uma cria nova (aleatória) consumindo fragmentos ───────────────────
+async function startCoreOrbManifestation(available) {
+  if ((state.orbFragments || 0) < FRAGMENTS_PER_ORB) return;
+  state.orbFragments -= FRAGMENTS_PER_ORB;
+
+  const species = pick(available);
+  const monster = generateMonster(species, Math.max(1, (state.cria ? state.cria.level : 1) - 2));
+  saveGame();
+
+  // Cinemática completa: orb pulsa → rachaduras → explosão → painel de revelação
+  await playCoreOrbCinematic(monster);
+  await new Promise(resolve => {
+    window.__firstManifestationResolver = () => {
+      window.__firstManifestationResolver = null;
+      resolve();
+    };
+  });
+
+  // Adiciona à reserva (ou ativa se não tiver cria por algum motivo)
+  if (!state.cria) {
+    state.cria = monster;
+  } else {
+    if (!state.party) state.party = [];
+    if (state.party.length < PARTY_MAX - 1) {
+      state.party.push(monster);
+    } else {
+      showToast('Reserva cheia! Liberte uma Cria antes de chocar outra.');
+      state.orbFragments += FRAGMENTS_PER_ORB; // devolve os fragmentos
+      saveGame();
+      return;
+    }
+  }
+  if (!state.coredex) state.coredex = { seen: {}, caught: {} };
+  state.coredex.seen[species] = true;
+  state.coredex.caught[species] = true;
+
+  // Quest q5 — chocar nova cria
+  if (state.quests) {
+    const q5 = state.quests.find(q => q.id === 'q5');
+    if (q5 && !q5.done) { q5.progress = 1; q5.done = true; setTimeout(() => showToast('✅ Missão completa: Nova Cria chocada!'), 2000); }
+  }
+
+  saveGame();
+  renderHUD();
+  showToast('✨ ' + MONSTERS[species].name + ' foi chocado do Core Orb e juntou-se a você!');
 }
 
 async function startFirstCreatureManifestation() {
@@ -3336,75 +3397,7 @@ async function doPlayerAction(action) {
   setActionsDisabled(true);
   battleState.playerDefending = false;
 
-  if (action === 'capture') {
-    const orbKey = 'orbeComum'; // For now always use common orb
-    if (!state.items[orbKey] || state.items[orbKey] <= 0) {
-      setBattleLog('Sem Orbes! Compre na loja da vila.');
-      battleState.locked = false;
-      setActionsDisabled(false);
-      updateCaptureButton();
-      return;
-    }
-    state.items[orbKey]--;
-    updateCaptureButton();
-
-    // Show orb animation at enemy position
-    const enemyEl = document.getElementById('battleEnemy');
-    const rect = enemyEl.getBoundingClientRect();
-    const orbEl = document.createElement('div');
-    orbEl.className = 'capture-orb-anim';
-    orbEl.textContent = CAPTURE_ORBS[orbKey].emoji;
-    orbEl.style.left = (rect.left + rect.width/2 - 30) + 'px';
-    orbEl.style.top = (rect.top + rect.height/2 - 30) + 'px';
-    document.body.appendChild(orbEl);
-
-    setBattleLog(`Lançou um ${CAPTURE_ORBS[orbKey].name}!`);
-    await wait(600);
-
-    // Calculate catch chance — better odds when enemy HP is low
-    const hpRatio = battleState.enemy.hp / battleState.enemy.maxHp;
-    const baseRate = CAPTURE_ORBS[orbKey].catchRate;
-    const hpBonus = (1 - hpRatio) * 0.3; // up to +30% at 0 HP
-    const catchChance = Math.min(0.95, baseRate + hpBonus);
-    const caught = Math.random() < catchChance;
-
-    await wait(700);
-    orbEl.remove();
-
-    if (caught) {
-      // Capture success!
-      document.getElementById('battleEnemy').classList.add('creature-faint');
-      setBattleLog(`${MONSTERS[battleState.enemy.species].name} foi capturado! ✨`);
-      await wait(1000);
-      // Add to party or active
-      const captured = { ...battleState.enemy };
-      captured.hp = Math.max(1, Math.floor(captured.hp)); // keep current hp
-      if (!state.party) state.party = [];
-      if (state.party.length < PARTY_MAX - 1) {
-        state.party.push(captured);
-        showToast(`${captured.name || MONSTERS[captured.species].name} adicionado à equipe!`);
-      } else {
-        showToast(`Equipe cheia! ${captured.name || MONSTERS[captured.species].name} liberado.`);
-      }
-      endBattle('win', true); // win without XP gain (capture)
-      return;
-    } else {
-      setBattleLog(`${MONSTERS[battleState.enemy.species].name} escapou do Orbe!`);
-      await wait(800);
-      await enemyTurn();
-      if (state.cria.hp <= 0) {
-        document.getElementById('battlePlayer').classList.add('creature-faint');
-        await wait(1300);
-        await handlePlayerFaint();
-        return;
-      }
-      battleState.turn++;
-      battleState.enemyDefending = false;
-      battleState.locked = false;
-      setActionsDisabled(false);
-      return;
-    }
-  } else if (action === 'skill0' || action === 'skill1') {
+  if (action === 'skill0' || action === 'skill1') {
     const skill = state.cria.skills[action === 'skill0' ? 0 : 1];
     const result = computeDamage(state.cria, battleState.enemy, skill.special, battleState.enemyDefending);
     attackerLunge('player');
@@ -3612,7 +3605,16 @@ function endBattle(result, isCapture) {
     } else {
       state.encountersDefeated++;
     }
-    showToast(`Vitória! +${xpGain} XP, +${coinGain} 💰`);
+    // ── Drop de fragmentos de orbe ──────────────────────────────────────
+    let fragGain = 0;
+    if (battleState.options.boss) fragGain = FRAGMENT_DROP.boss;
+    else if (battleState.options.trainer) fragGain = FRAGMENT_DROP.trainer;
+    else fragGain = randInt(FRAGMENT_DROP.wildMin, FRAGMENT_DROP.wildMax);
+    if (typeof state.orbFragments !== 'number') state.orbFragments = 0;
+    state.orbFragments += fragGain;
+    const orbReady = state.orbFragments >= FRAGMENTS_PER_ORB;
+    showToast(`Vitória! +${xpGain} XP, +${coinGain} 💰, +${fragGain} 🔷`);
+    if (orbReady) setTimeout(() => showToast('🔮 Fragmentos suficientes! Vá ao Core Orb chocar uma nova Cria.'), 1600);
     while (state.cria.xp >= state.cria.xpToNext) {
       state.cria.xp -= state.cria.xpToNext;
       levelUp();
@@ -3788,13 +3790,10 @@ window.swapPartySlot = function swapPartySlot(idx) {
 // ── Inventory Tab ─────────────────────────────────────────────────────────────
 const INV_CATEGORIES = {
   orbes: {
-    label: '⚡ Orbes',
+    label: '🔷 Fragmentos',
     items: [
-      { key:'orbeComum',    icon:'🔵', name:'Orbe Comum',    desc:'30% captura' },
-      { key:'orbeAvancado', icon:'🟣', name:'Orbe Avançado', desc:'50% captura' },
-      { key:'orbeElite',    icon:'🟡', name:'Orbe Elite',    desc:'70% captura' },
-      { key:'orbeMitico',   icon:'🔴', name:'Orbe Mítico',   desc:'95% captura' },
-      { key:'orbeCriacao',  icon:'🌟', name:'Orbe Criação',  desc:'Manifesta Cria' },
+      { key:'orbFragments', icon:'🔷', name:'Fragmento de Orbe', desc:'Junte para chocar uma Cria', fromState: true, always: true },
+      { key:'orbeCriacao',  icon:'🌟', name:'Orbe da Criação',   desc:'Manifesta a 1ª Cria' },
     ]
   },
   consumiveis: {
@@ -3815,7 +3814,7 @@ function populateInvTab() {
   const cat = INV_CATEGORIES[_invCat];
   const itemsHtml = cat.items.map(it => {
     const qty = it.fromState ? (state[it.key] || 0) : (state.items ? (state.items[it.key] || 0) : 0);
-    if (qty === 0 && it.key !== 'orbeComum') return '';
+    if (qty === 0 && !it.always) return '';
     return `<div class="inv-item-card">
       <div class="inv-item-icon">${it.icon}</div>
       <div class="inv-item-name">${it.name}</div>
@@ -3877,7 +3876,7 @@ const DEFAULT_QUESTS = [
   { id:'q2', type:'main', title:'Primeiras Batalhas', desc:'Derrote 3 treinadores na cidade inicial.', progress:0, total:3, done: false },
   { id:'q3', type:'main', title:'Rumo à Caverna', desc:'Fortaleça sua Cria até o nível 5 para desbloquear a Caverna Sombria.', progress:0, total:5, done: false },
   { id:'q4', type:'side', title:'Conversar com NPCs', desc:'Converse com todos os habitantes da cidade inicial.', progress:0, total:5, done: false },
-  { id:'q5', type:'side', title:'Primeira Captura', desc:'Use um Orbe de Captura para sincronizar uma Cria selvagem.', progress:0, total:1, done: false },
+  { id:'q5', type:'side', title:'Chocar uma Nova Cria', desc:'Junte fragmentos de orbe derrotando criaturas e choque uma nova Cria no Core Orb.', progress:0, total:1, done: false },
 ];
 
 // Quest navigation targets — tile positions to navigate to
@@ -5269,6 +5268,9 @@ function renderHUD() {
   const hpPct = (c.hp / c.maxHp) * 100;
   const xpPct = (c.xp / c.xpToNext) * 100;
   const _cave_hud = state.scene === 'cave1' ? '<div style="font-size:10px;color:#8b5cf6;margin-top:2px;">🕳️ CAVERNA SOMBRIA</div>' : '';
+  const frags = state.orbFragments || 0;
+  const fragPct = Math.min(100, (frags / FRAGMENTS_PER_ORB) * 100);
+  const fragReady = frags >= FRAGMENTS_PER_ORB;
   document.getElementById('hud').innerHTML = `
     <div class="hud-card">
       <div class="hud-mini-sprite" style="background-image:url(${sprite ? sprite.src : ''}); filter: drop-shadow(0 0 6px ${def.aura});"></div>
@@ -5278,6 +5280,14 @@ function renderHUD() {
         <div class="hp-bar" style="width: 100px;"><div class="hp-bar-fill" style="width: ${hpPct}%;"></div></div>
         <div class="xp-bar" style="margin-top:3px;"><div class="xp-bar-fill" style="width: ${xpPct}%;"></div></div>
         ${_cave_hud}
+      </div>
+    </div>
+    <div class="hud-card" style="margin-top:6px;${fragReady ? 'border-color:#8b5cf6;box-shadow:0 0 14px rgba(139,92,246,0.6);' : ''}">
+      <div style="font-size:18px;">🔷</div>
+      <div class="hud-info" style="min-width:100px;">
+        <div class="small" style="color:${fragReady ? '#c4b5fd' : '#8ab0dd'};">Fragmentos ${frags}/${FRAGMENTS_PER_ORB}${fragReady ? ' ✨' : ''}</div>
+        <div class="xp-bar" style="margin-top:3px;"><div class="xp-bar-fill" style="width:${fragPct}%;background:linear-gradient(90deg,#8b5cf6,#c4b5fd);"></div></div>
+        ${fragReady ? '<div class="small" style="color:#c4b5fd;margin-top:2px;">Vá ao Core Orb!</div>' : ''}
       </div>
     </div>
   `;
@@ -5318,8 +5328,9 @@ document.getElementById('btnEnter').addEventListener('click', () => {
     if (!state.scene) state.scene = 'world';
     if (!state.cave1) state.cave1 = { npcs: JSON.parse(JSON.stringify(CAVE1_NPCS_TEMPLATE)), bossDefeated: false, treasureFound: false };
     if (!state.cavePlayer) state.cavePlayer = { x: 8, y: 18, dir: 'up' };
-    if (!state.items) state.items = { orbeComum: 3, orbeAvancado: 0, orbeElite: 0, orbeMitico: 0, orbeCriacao: 0 };
-  if (state.items.orbeCriacao === undefined) state.items.orbeCriacao = 0;
+    if (!state.items) state.items = { orbeCriacao: 0 };
+    if (state.items.orbeCriacao === undefined) state.items.orbeCriacao = 0;
+    if (typeof state.orbFragments !== 'number') state.orbFragments = 0;
     if (!state.party) state.party = [];
     document.getElementById('login').classList.remove('active');
     startGame();
