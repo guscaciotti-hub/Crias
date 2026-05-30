@@ -3104,8 +3104,10 @@ function getInteractable() {
     return null;
   }
   for (const npc of state.npcs) if (npc.x === t.x && npc.y === t.y) return { npc };
-  // Core Orb interaction — player facing toward orb center (tile 11,11 / 12,11)
-  if ((t.x === 21 || t.x === 22 || t.x === 23 || t.x === 24 || t.x === 25 || t.x === 26) && (t.y === 21 || t.y === 22 || t.y === 23 || t.y === 24 || t.y === 25)) return { coreOrb: true };
+  // Core Orb interaction — player facing toward orb center
+  if ((t.x >= 21 && t.x <= 26) && (t.y >= 21 && t.y <= 25)) return { coreOrb: true };
+  // Cúpula PvP — building walls at x=18-26, y=9-14; player approaches from south/sides
+  if ((t.x >= 18 && t.x <= 26) && (t.y >= 9 && t.y <= 14)) return { cupula: true };
   return null;
 }
 function updateActionButton() {
@@ -3124,6 +3126,7 @@ function tryInteract() {
   }
   if (i.cave) { interactWithCaveNPC(i.npc); return; }
   if (i.coreOrb) { interactWithCoreOrb(); return; }
+  if (i.cupula) { openArenaDome({}); return; }
   if (i.npc) {
     if (i.npc.type === 'cave_portal') {
       // TEMP: unlocked for testing
