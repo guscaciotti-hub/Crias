@@ -1542,6 +1542,51 @@
   </div>
 </div>
 
+<!-- PVP LOBBY -->
+<div id="pvpLobby" class="overlay" style="z-index:15;">
+  <div class="panel" style="max-width:480px;width:92vw;padding:0;overflow:hidden;">
+    <div style="background:linear-gradient(180deg,#0d0f2a,#0a0b1e);padding:14px 16px;border-bottom:2px solid #c850ff;display:flex;align-items:center;justify-content:space-between;">
+      <div>
+        <div style="font-size:15px;font-weight:800;color:#c850ff;">⚔️ Arena PvP</div>
+        <div style="font-size:11px;color:#9c80dd;margin-top:2px;">Salas de batalha em tempo real</div>
+      </div>
+      <button onclick="window.closePvpLobby&&window.closePvpLobby()" style="background:none;border:none;color:#9c80dd;font-size:20px;cursor:pointer;line-height:1;">✕</button>
+    </div>
+    <!-- Tabs -->
+    <div style="display:flex;border-bottom:1px solid #1a1040;background:#08091a;">
+      <button class="pvp-tab active" data-pvptab="salas" style="flex:1;padding:9px 0;font-size:12px;font-weight:700;background:none;border:none;color:#c850ff;cursor:pointer;border-bottom:2px solid #c850ff;">Salas</button>
+      <button class="pvp-tab" data-pvptab="torneio" style="flex:1;padding:9px 0;font-size:12px;font-weight:700;background:none;border:none;color:#5a6080;cursor:pointer;border-bottom:2px solid transparent;">Torneio</button>
+      <button class="pvp-tab" data-pvptab="ranking" style="flex:1;padding:9px 0;font-size:12px;font-weight:700;background:none;border:none;color:#5a6080;cursor:pointer;border-bottom:2px solid transparent;">Ranking</button>
+    </div>
+    <!-- Tab content -->
+    <div id="pvpTabSalas" style="padding:12px;display:flex;flex-direction:column;gap:10px;">
+      <!-- Quick actions -->
+      <div style="display:flex;gap:8px;">
+        <button id="pvpBtnQuick" class="btn" style="flex:1;font-size:12px;padding:9px 6px;background:linear-gradient(180deg,#6a10c8,#4a0090);border-color:#c850ff;">⚡ Batalha Rápida</button>
+        <button id="pvpBtnCreate" class="btn" style="flex:1;font-size:12px;padding:9px 6px;background:linear-gradient(180deg,#1a2a4a,#0d1a3a);border-color:#4dc3ff;">➕ Criar Sala</button>
+      </div>
+      <!-- Join by code -->
+      <div style="display:flex;gap:6px;">
+        <input id="pvpCodeInput" type="text" maxlength="6" placeholder="Código da sala..." style="flex:1;background:#0d1020;border:1px solid #2a2050;border-radius:6px;color:#fff;padding:7px 10px;font-size:12px;font-family:inherit;">
+        <button id="pvpBtnJoin" class="btn" style="font-size:12px;padding:7px 14px;background:linear-gradient(180deg,#1a3a2a,#0d2018);border-color:#50c878;">Entrar</button>
+      </div>
+      <!-- Room list -->
+      <div style="font-size:11px;color:#5a6080;font-weight:700;letter-spacing:0.05em;text-transform:uppercase;">Salas ativas</div>
+      <div id="pvpRoomList" style="display:flex;flex-direction:column;gap:6px;max-height:220px;overflow-y:auto;"></div>
+    </div>
+    <div id="pvpTabTorneio" style="padding:20px;display:none;text-align:center;">
+      <div style="font-size:40px;margin-bottom:10px;">🏆</div>
+      <div style="font-size:14px;color:#c850ff;font-weight:700;margin-bottom:6px;">Torneio Oficial</div>
+      <div style="font-size:12px;color:#8ab0dd;line-height:1.6;">64 vagas · Entrada R$10 · Prêmio em PIX<br><span style="color:#5a6080;">Em breve — aguarde a temporada 1.</span></div>
+    </div>
+    <div id="pvpTabRanking" style="padding:20px;display:none;text-align:center;">
+      <div style="font-size:40px;margin-bottom:10px;">📊</div>
+      <div style="font-size:14px;color:#c850ff;font-weight:700;margin-bottom:6px;">Ranking Global</div>
+      <div style="font-size:12px;color:#5a6080;">Disponível ao fim da primeira temporada.</div>
+    </div>
+  </div>
+</div>
+
 <!-- MENU -->
 
 <!-- MAIN MENU — MMORPG Tabbed Interface -->
@@ -2702,6 +2747,8 @@ function getInteractable() {
   for (const npc of state.npcs) if (npc.x === t.x && npc.y === t.y) return { npc };
   // Core Orb interaction — player facing toward orb center (tile 11,11 / 12,11)
   if ((t.x === 21 || t.x === 22 || t.x === 23 || t.x === 24 || t.x === 25 || t.x === 26) && (t.y === 21 || t.y === 22 || t.y === 23 || t.y === 24 || t.y === 25)) return { coreOrb: true };
+  // Arena PvP door — south wall of arena building (y=11, cols 20-27)
+  if (t.y === 11 && t.x >= 20 && t.x <= 27) return { pvpDoor: true };
   return null;
 }
 function updateActionButton() {
@@ -2720,6 +2767,7 @@ function tryInteract() {
   }
   if (i.cave) { interactWithCaveNPC(i.npc); return; }
   if (i.coreOrb) { interactWithCoreOrb(); return; }
+  if (i.pvpDoor) { openPvpLobby(); return; }
   if (i.npc) {
     if (i.npc.type === 'cave_portal') {
       // TEMP: unlocked for testing
@@ -3833,6 +3881,124 @@ window.setInvCat = setInvCat;
 // Shop close (inline onclick can't access IIFE-scoped vars)
 window.closeShop = function closeShop() {
   document.getElementById('shop').classList.remove('active');
+  inMenu = false;
+};
+
+// ── PvP Lobby ─────────────────────────────────────────────────────────────────
+function openPvpLobby() {
+  if (!state.cria) {
+    showDialog('Arena PvP', ['Você precisa ter uma Cria antes de entrar na Arena!', 'Fale com o Guia Solis para obtê-la.']);
+    return;
+  }
+  inMenu = true;
+  const overlay = document.getElementById('pvpLobby');
+  overlay.classList.add('active');
+
+  // Tab switching
+  overlay.querySelectorAll('.pvp-tab').forEach(btn => {
+    btn.onclick = () => {
+      overlay.querySelectorAll('.pvp-tab').forEach(b => {
+        b.style.color = '#5a6080'; b.style.borderBottom = '2px solid transparent';
+      });
+      btn.style.color = '#c850ff'; btn.style.borderBottom = '2px solid #c850ff';
+      ['salas','torneio','ranking'].forEach(t => {
+        document.getElementById('pvpTab' + t.charAt(0).toUpperCase() + t.slice(1)).style.display = btn.dataset.pvptab === t ? (t === 'salas' ? 'flex' : 'block') : 'none';
+      });
+    };
+  });
+
+  // Room list
+  refreshPvpRooms();
+
+  // Batalha Rápida — battle vs generated opponent same level as player cria
+  document.getElementById('pvpBtnQuick').onclick = () => {
+    window.closePvpLobby();
+    const lvl = state.cria ? state.cria.level : 1;
+    const fakeNpc = {
+      name: 'Oponente PvP',
+      trainer: { level: lvl, defeated: false, reward: lvl * 20 },
+      dialog: ['Pronto para batalhar?']
+    };
+    const pool = Object.keys(MONSTERS).filter(k => k !== 'shadowyn' && k !== state.cria.species);
+    const enemy = generateMonster(pick(pool.length ? pool : Object.keys(MONSTERS)), lvl);
+    startBattle(enemy, { trainer: fakeNpc, reward: fakeNpc.trainer.reward });
+  };
+
+  // Criar Sala
+  document.getElementById('pvpBtnCreate').onclick = () => {
+    const code = Math.random().toString(36).substring(2, 8).toUpperCase();
+    if (!state.pvpRooms) state.pvpRooms = [];
+    const room = {
+      code,
+      host: state.playerName,
+      hostLv: state.cria ? state.cria.level : 1,
+      hostSpecies: state.cria ? state.cria.species : '?',
+      ts: Date.now()
+    };
+    state.pvpRooms.unshift(room);
+    if (state.pvpRooms.length > 20) state.pvpRooms.pop();
+    saveGame();
+    showToast('🏠 Sala criada! Código: ' + code);
+    refreshPvpRooms();
+  };
+
+  // Entrar com código
+  document.getElementById('pvpBtnJoin').onclick = () => {
+    const code = (document.getElementById('pvpCodeInput').value || '').trim().toUpperCase();
+    if (!code) { showToast('Digite o código da sala!'); return; }
+    const rooms = state.pvpRooms || [];
+    const room = rooms.find(r => r.code === code);
+    if (!room) { showToast('Sala não encontrada: ' + code); return; }
+    window.closePvpLobby();
+    const lvl = Math.max(1, room.hostLv || 1);
+    const fakeNpc = {
+      name: room.host + ' (Sala ' + code + ')',
+      trainer: { level: lvl, defeated: false, reward: lvl * 20 },
+      dialog: ['Batalha iniciada!']
+    };
+    const pool = Object.keys(MONSTERS).filter(k => k !== 'shadowyn');
+    const enemy = generateMonster(pick(pool), lvl);
+    startBattle(enemy, { trainer: fakeNpc, reward: fakeNpc.trainer.reward });
+  };
+}
+
+function refreshPvpRooms() {
+  const list = document.getElementById('pvpRoomList');
+  if (!list) return;
+  const rooms = (state && state.pvpRooms) || [];
+  if (!rooms.length) {
+    list.innerHTML = '<div style="color:#3a4060;font-size:12px;text-align:center;padding:16px 0;">Nenhuma sala ativa no momento</div>';
+    return;
+  }
+  list.innerHTML = '';
+  rooms.slice(0, 10).forEach(room => {
+    const def = MONSTERS[room.hostSpecies];
+    const el = document.createElement('div');
+    el.style.cssText = 'display:flex;align-items:center;justify-content:space-between;background:#0d0f20;border:1px solid #2a1850;border-radius:6px;padding:8px 10px;';
+    el.innerHTML = `
+      <div>
+        <div style="font-size:12px;font-weight:700;color:#e0d0ff;">${room.host}</div>
+        <div style="font-size:10px;color:#7060a0;margin-top:2px;">${def ? def.name : room.hostSpecies} · Lv ${room.hostLv} · <span style="color:#c850ff;font-family:monospace;">${room.code}</span></div>
+      </div>
+      <button class="btn" style="font-size:11px;padding:5px 12px;background:linear-gradient(180deg,#3a1060,#20083a);border-color:#c850ff;">Entrar</button>`;
+    el.querySelector('button').onclick = () => {
+      window.closePvpLobby();
+      const lvl = Math.max(1, room.hostLv || 1);
+      const fakeNpc = {
+        name: room.host + ' (Sala ' + room.code + ')',
+        trainer: { level: lvl, defeated: false, reward: lvl * 20 },
+        dialog: ['Batalha iniciada!']
+      };
+      const pool = Object.keys(MONSTERS).filter(k => k !== 'shadowyn');
+      const enemy = generateMonster(pick(pool), lvl);
+      startBattle(enemy, { trainer: fakeNpc, reward: fakeNpc.trainer.reward });
+    };
+    list.appendChild(el);
+  });
+}
+
+window.closePvpLobby = function closePvpLobby() {
+  document.getElementById('pvpLobby').classList.remove('active');
   inMenu = false;
 };
 
