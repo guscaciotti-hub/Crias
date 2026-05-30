@@ -1604,19 +1604,39 @@
 </head>
 <body>
 <script>
-// Failsafe: se o JS principal demorar ou travar, esconde loading em 3s
+// Failsafe loading: mantém a tela de loading visível enquanto o JS parseia
+// (arquivo grande ~13MB — pode demorar no desktop)
 (function(){
+  var el = null;
+  var dots = 0;
+  // Atualiza o texto de loading a cada 400ms para mostrar que está vivo
+  var ticker = setInterval(function(){
+    if (!el) el = document.getElementById('loadingMsg');
+    if (!el) return;
+    dots = (dots + 1) % 4;
+    el.textContent = 'Carregando o mundo' + '.'.repeat(dots + 1);
+  }, 400);
+
+  // Failsafe: se o JS principal travar por mais de 25s, mostra erro
   var t = setTimeout(function(){
-    var el = document.getElementById('loading');
-    if (el) el.style.display = 'none';
-  }, 3000);
-  window.clearLoadingTimeout = function(){ clearTimeout(t); };
+    clearInterval(ticker);
+    var screen = document.getElementById('loading');
+    if (screen) {
+      screen.innerHTML = '<p style="color:#ff6b6b;padding:20px;font-size:13px;max-width:300px;margin:auto;text-align:center">Tempo limite excedido.<br>Tente recarregar a página.</p>';
+    }
+  }, 25000);
+
+  window.clearLoadingTimeout = function(){
+    clearTimeout(t);
+    clearInterval(ticker);
+  };
   window.onerror = function(msg,_,line){
     clearTimeout(t);
-    var el = document.getElementById('loading');
-    if (el) {
-      el.style.display = '';
-      el.innerHTML = '<p style="color:#ff6b6b;padding:20px;font-size:13px;max-width:300px;margin:auto;text-align:center">Erro JS linha '+line+':<br>'+msg+'</p>';
+    clearInterval(ticker);
+    var screen = document.getElementById('loading');
+    if (screen) {
+      screen.style.display = 'flex';
+      screen.innerHTML = '<p style="color:#ff6b6b;padding:20px;font-size:13px;max-width:300px;margin:auto;text-align:center">Erro JS linha '+line+':<br>'+msg+'</p>';
     }
   };
 })();
@@ -1630,7 +1650,8 @@
 
 <div id="loading">
   <div class="spinner"></div>
-  <div>Carregando o mundo...</div>
+  <div id="loadingMsg">Carregando o mundo...</div>
+  <div style="font-size:11px;color:#4a6a8a;margin-top:8px;text-align:center;">Arquivo grande — pode demorar alguns segundos</div>
 </div>
 
 <div id="hud"></div>
