@@ -1,16 +1,21 @@
 {
-  "name": "express",
+  "name": "crias-game",
   "version": "1.0.0",
-  "description": "",
+  "description": "CRIAS — Monster Tamer Online",
   "type": "module",
-  "keywords": [],
-  "author": "",
-  "license": "ISC",
+  "scripts": {
+    "start": "node --loader ts-node/esm --experimental-specifier-resolution=node src/index.ts",
+    "dev": "nodemon --exec 'node --loader ts-node/esm --experimental-specifier-resolution=node' --watch src src/index.ts",
+    "serve": "node server.js"
+  },
   "dependencies": {
     "@types/express": "^5.0.0",
     "express": "^4.18.2"
   },
   "devDependencies": {
-    "@types/node": "^22.0.0"
+    "@types/node": "^22.0.0",
+    "nodemon": "^3.0.0",
+    "ts-node": "^10.9.2",
+    "typescript": "^5.0.0"
   }
 }

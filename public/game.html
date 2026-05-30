@@ -1,0 +1,123 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>CRIAS</title>
+
+  <!-- Press Start 2P — pixel art font (from original Cursor project) -->
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap" rel="stylesheet" />
+
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    html, body {
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+      background: #050810;
+    }
+
+    /* Game canvas container */
+    #game-container {
+      position: fixed;
+      inset: 0;
+      width: 100vw;
+      height: 100vh;
+      overflow: hidden;
+      background: #050810;
+    }
+
+    #game-container canvas {
+      display: block;
+      margin: 0 auto;
+      image-rendering: pixelated;
+      image-rendering: crisp-edges;
+    }
+
+    /* ── Loading screen ── */
+    #loading {
+      position: fixed;
+      inset: 0;
+      background: #050810;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      z-index: 9999;
+      color: #00d4ff;
+      font-family: 'Press Start 2P', monospace;
+    }
+
+    #loading h1 {
+      font-size: 2.8rem;
+      letter-spacing: 0.6rem;
+      color: #00d4ff;
+      text-shadow: 0 0 20px #00d4ff, 0 0 50px #00d4ff88;
+      animation: pulse 1.5s ease-in-out infinite;
+      margin-bottom: 1rem;
+    }
+
+    #loading p {
+      margin-top: 0.5rem;
+      color: #4ecdc4;
+      font-size: 7px;
+      letter-spacing: 0.25rem;
+    }
+
+    #loading-bar-wrap {
+      margin-top: 2rem;
+      width: 220px;
+      height: 6px;
+      background: #0d1528;
+      border: 1px solid #00d4ff44;
+    }
+
+    #loading-bar {
+      height: 100%;
+      background: linear-gradient(90deg, #00d4ff, #4ecdc4);
+      width: 0%;
+      transition: width 0.25s;
+      box-shadow: 0 0 10px #00d4ff;
+    }
+
+    @keyframes pulse {
+      0%, 100% { opacity: 1; }
+      50%       { opacity: 0.45; }
+    }
+  </style>
+</head>
+<body>
+  <!-- Loading overlay — removed by BootScene when ready -->
+  <div id="loading">
+    <h1>CRIAS</h1>
+    <p>INICIALIZANDO CORE ORB...</p>
+    <div id="loading-bar-wrap">
+      <div id="loading-bar"></div>
+    </div>
+  </div>
+
+  <div id="game-container"></div>
+
+  <!-- Phaser 3 (pinned version for stability) -->
+  <script src="https://cdn.jsdelivr.net/npm/phaser@3.60.0/dist/phaser.min.js"></script>
+
+  <!-- ── Game Systems ── -->
+  <script src="/js/game/systems/GameAPI.js"></script>
+  <script src="/js/game/systems/MonsterRenderer.js"></script>
+  <script src="/js/game/systems/BattleLogic.js"></script>
+
+  <!-- ── Game Scenes (order matters — BootScene first) ── -->
+  <script src="/js/game/scenes/BootScene.js"></script>
+  <script src="/js/game/scenes/LoginScene.js"></script>
+  <script src="/js/game/scenes/CoreOrbScene.js"></script>
+  <script src="/js/game/scenes/NexusScene.js"></script>
+  <script src="/js/game/scenes/CaveScene.js"></script>
+  <script src="/js/game/scenes/BattleScene.js"></script>
+
+  <!-- ── Entry point ── -->
+  <script src="/js/game/main.js"></script>
+</body>
+</html>
