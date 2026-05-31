@@ -3804,8 +3804,8 @@ function pvpFitArena() {
   if (!col || !w) return;
   const cw = col.clientWidth, ch = col.clientHeight;
   if (!cw || !ch) return;
-  // COVER: fill the mobile landscape screen completely with the arena (no bars).
-  const scale = Math.max(cw / ARENA_IMG.w, ch / ARENA_IMG.h);
+  // CONTAIN: always show the FULL arena image, never crop it.
+  const scale = Math.min(cw / ARENA_IMG.w, ch / ARENA_IMG.h);
   w.style.width  = (ARENA_IMG.w * scale) + 'px';
   w.style.height = (ARENA_IMG.h * scale) + 'px';
 }
@@ -3874,16 +3874,16 @@ async function pvpStartBattle(match) {
   });
 
   // FASE A — câmera distante, desce suave revelando estádio inteiro
-  pvpCam(0, 0, 2.2, true);
+  pvpCam(0, 0, 1.35, true);
   await step(120);
-  pvpCam(0, 0, 1.8, false);
+  pvpCam(0, 0, 1.22, false);
   FX.sfx.gateOpen && FX.sfx.gateOpen();
   await step(1300);
 
   // FASE B — estádio acorda: luzes + público
   col.classList.add('lit');
   pvpRoar();
-  pvpCam(0, 0, 1.5, false);
+  pvpCam(0, 0, 1.15, false);
   await step(1200);
 
   // FASE C — apresentação dos nomes (telão)
@@ -3896,7 +3896,7 @@ async function pvpStartBattle(match) {
   }
 
   // FASE D — ativação dos orbes
-  pvpCam(0, 0, 1.3, false);
+  pvpCam(0, 0, 1.1, false);
   FX.sfx.orbActivate && FX.sfx.orbActivate();
   await step(700);
 
@@ -3904,7 +3904,7 @@ async function pvpStartBattle(match) {
   pvpSummon('player');
   await step(260);
   pvpSummon('enemy');
-  pvpCam(0, 0, 1.55, false);   // punch-in dramático
+  pvpCam(0, 0, 1.18, false);   // punch-in dramático leve
   FX.sfx.summon && FX.sfx.summon();
   pvpRoar();
   await step(780);
@@ -4307,7 +4307,7 @@ async function pvpEnd(result) {
   // hide HUD so the moment breathes, push camera onto the winner
   document.querySelector('.pvp-hud').classList.add('cine-hide');
   document.getElementById('pvpTimingWrap').classList.remove('show');
-  pvpCam(result === 'win' ? -120 : 120, 20, 1.35, false);
+  pvpCam(result === 'win' ? -70 : 70, 12, 1.12, false);
   await wait(1100);
 
   // record + payout
