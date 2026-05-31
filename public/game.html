@@ -1382,22 +1382,24 @@
   }
   .pvp-arena-wrapper {
     position: relative;
-    width: 100%; height: 100%;
+    aspect-ratio: 1672 / 732;
+    width: 100%; max-height: 100%;
+    margin: auto;
     flex-shrink: 0;
     background-image: url('arena.webp');
     background-size: 100% 100%;
     background-position: center;
-    overflow: hidden;
+    overflow: visible;
   }
   .pvp-stars { display: none; }
   /* All CSS-generated arena decorations are hidden — image provides the scene */
   .pvp-crowd,.pvp-arena-floor,.pvp-floor,.pvp-scoreboard,.pvp-v-banner,
   .pvp-cc,.pvp-crystal,.pvp-platform-left,.pvp-platform-right { display: none; }
   .pvp-score-bar,.pvp-banner-strip,.pvp-banner-pill { display: none; }
-  /* Player station — name label floats over the platform label areas in the image */
+  /* Player station — name label sits over the platform name plate in the image */
   .pvp-station { position: absolute; display: flex; flex-direction: column; align-items: center; z-index: 6; }
-  .pvp-station-l { left: 19%; top: 95%; transform: translate(-50%,-50%); width: 22%; }
-  .pvp-station-r { left: 81%; top: 95%; transform: translate(-50%,-50%); width: 22%; }
+  .pvp-station-l { left: 10%; top: 61%; transform: translate(-50%,-50%); width: 16%; }
+  .pvp-station-r { left: 90%; top: 61%; transform: translate(-50%,-50%); width: 16%; }
   .pvp-station-name {
     font-size: clamp(9px,2vw,13px); font-weight: 900; color: #fff;
     background: rgba(0,0,0,0.78); padding: 3px 10px; border-radius: 4px;
@@ -1406,10 +1408,10 @@
   }
   .pvp-station-l .pvp-station-name { border-color: rgba(77,195,255,0.6); color: #c8efff; }
   .pvp-station-r .pvp-station-name { border-color: rgba(255,68,68,0.6); color: #ffc8c8; }
-  /* Creature fighters — pixel-calibrated to the 2000x1125 arena image */
-  .pvp-fighter { position: absolute; display: flex; flex-direction: column; align-items: center; z-index: 7; width: 12%; }
-  .pvp-fighter.pvp-player-f { left: 31%; top: 43%; transform: translate(-50%, -50%); }
-  .pvp-fighter.pvp-enemy-f  { left: 63%; top: 38%; transform: translate(-50%, -50%); }
+  /* Creature fighters — pixel-calibrated to the 1672x732 coliseum crop */
+  .pvp-fighter { position: absolute; display: flex; flex-direction: column; align-items: center; z-index: 7; width: 11%; }
+  .pvp-fighter.pvp-player-f { left: 39%; top: 63%; transform: translate(-50%, -50%); }
+  .pvp-fighter.pvp-enemy-f  { left: 61%; top: 62%; transform: translate(-50%, -50%); }
   .pvp-fighter-sprite {
     width: 100%; aspect-ratio: 1;
     background-repeat: no-repeat; background-position: center bottom; background-size: contain;
@@ -1418,10 +1420,10 @@
   .pvp-fighter.pvp-player-f .pvp-fighter-sprite { filter: drop-shadow(0 4px 16px rgba(77,195,255,0.85)); }
   .pvp-fighter.pvp-enemy-f  .pvp-fighter-sprite { filter: drop-shadow(0 4px 16px rgba(255,68,68,0.85)); }
   .pvp-fighter-lbl { font-size: 8px; font-weight: 800; color: #fff; text-shadow: 1px 1px 0 #000; margin-top: 2px; background: rgba(0,0,0,0.65); padding: 1px 5px; border-radius: 3px; max-width: 80px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; text-align: center; }
-  /* Orb pips positioned just above each player's name area */
-  .pvp-orbes { position: absolute; display: flex; gap: 3px; z-index: 6; transform: translateX(-50%); }
-  .pvp-orbes-left  { left: 19%; top: 86%; }
-  .pvp-orbes-right { left: 81%; top: 86%; }
+  /* Orb pips sit over the pip row under each name plate in the image */
+  .pvp-orbes { position: absolute; display: flex; gap: 4px; z-index: 6; transform: translateX(-50%); }
+  .pvp-orbes-left  { left: 10%; top: 71%; }
+  .pvp-orbes-right { left: 90%; top: 71%; }
   .pvp-orb-pip { width: 10px; height: 10px; border-radius: 50%; border: 1px solid rgba(255,255,255,0.2); transition: all 0.3s; }
   .pvp-orb-pip.ob  { background: #4dc3ff; box-shadow: 0 0 5px #4dc3ff; }
   .pvp-orb-pip.or  { background: #ff4444; box-shadow: 0 0 5px #ff4444; }
