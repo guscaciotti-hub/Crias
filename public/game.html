@@ -1623,6 +1623,61 @@
     flex-direction: column; align-items: center; justify-content: center; gap: 18px;
   }
   #pvpSearch.active { display: flex; }
+
+  /* ── Positioning phase ── */
+  #pvpPositioning {
+    position: fixed; inset: 0; z-index: 62; display: none;
+    background:
+      radial-gradient(ellipse at 50% 35%, rgba(30,50,120,0.55), transparent 60%),
+      rgba(2,3,12,0.94);
+    -webkit-backdrop-filter: blur(4px); backdrop-filter: blur(4px);
+    align-items: center; justify-content: center;
+  }
+  #pvpPositioning.active { display: flex; }
+  .pp-box {
+    width: min(560px, 94vw); padding: 20px 18px 16px;
+    background: linear-gradient(180deg,#0e1830,#0a1020);
+    border: 2px solid #2a4a7a; border-radius: 14px;
+    box-shadow: 0 0 40px rgba(60,120,255,0.25);
+    display: flex; flex-direction: column; align-items: center; gap: 10px;
+  }
+  .pp-title { font-size: clamp(16px,4vw,22px); font-weight: 900; color: #ffd24a; letter-spacing: 0.05em; }
+  .pp-hint  { font-size: 12px; color: #9fc0e8; text-align: center; line-height: 1.4; }
+  .pp-timer-wrap { width: 100%; height: 6px; background: #1a2540; border-radius: 3px; overflow: hidden; }
+  .pp-timer-bar  { height: 100%; width: 100%; background: linear-gradient(90deg,#50c878,#ffd24a,#f44336); transition: width 0.25s linear; }
+  .pp-timer-num  { font-size: 13px; font-weight: 800; color: #ffd24a; }
+  .pp-team { display: flex; gap: 10px; flex-wrap: wrap; justify-content: center; margin: 4px 0; }
+  .pp-cria-card {
+    position: relative; width: 96px; padding: 8px 6px;
+    background: #122036; border: 2px solid #2a4060; border-radius: 10px;
+    display: flex; flex-direction: column; align-items: center; gap: 4px;
+    cursor: pointer; transition: all 0.12s; user-select: none;
+  }
+  .pp-cria-card:active { transform: scale(0.96); }
+  .pp-cria-card.ordered { border-color: #ffd24a; box-shadow: 0 0 14px rgba(255,210,74,0.4); }
+  .pp-cria-sprite { width: 64px; height: 64px; background-size: contain; background-repeat: no-repeat; background-position: center; image-rendering: pixelated; }
+  .pp-cria-name { font-size: 10px; font-weight: 700; color: #cfe3ff; text-align: center; }
+  .pp-cria-el   { font-size: 9px; color: #8ab0dd; text-transform: uppercase; }
+  .pp-order-badge {
+    position: absolute; top: -8px; left: -8px; width: 24px; height: 24px;
+    background: #ffd24a; color: #1a1000; border-radius: 50%;
+    font-size: 13px; font-weight: 900; display: none;
+    align-items: center; justify-content: center; box-shadow: 0 2px 6px rgba(0,0,0,0.5);
+  }
+  .pp-cria-card.ordered .pp-order-badge { display: flex; }
+  .pp-status { width: 100%; display: flex; flex-direction: column; gap: 4px; margin: 2px 0; }
+  .pp-status-row { display: flex; align-items: center; gap: 8px; font-size: 12px; color: #b8d0ee; }
+  .pp-dot { width: 10px; height: 10px; border-radius: 50%; background: #555; transition: background 0.2s; }
+  .pp-dot.ready { background: #50c878; box-shadow: 0 0 8px #50c878; }
+  .pp-confirm {
+    width: 100%; padding: 11px; margin-top: 4px;
+    background: linear-gradient(180deg,#2e7d32,#1b5e20); color: #fff;
+    border: none; border-radius: 8px; font-size: 15px; font-weight: 900;
+    letter-spacing: 0.06em; cursor: pointer; transition: all 0.12s;
+  }
+  .pp-confirm:disabled { opacity: 0.4; cursor: default; }
+  .pp-confirm.done { background: linear-gradient(180deg,#444,#333); }
+  .pp-reset { font-size: 11px; color: #88a8d0; cursor: pointer; text-decoration: underline; }
   .ps-orbit { position: relative; width: 150px; height: 150px; }
   .ps-orbit .ring {
     position: absolute; inset: 0; border-radius: 50%;
@@ -2196,6 +2251,23 @@
   <div class="ps-sub" id="pvpSearchSub">buscando alguém à sua altura…</div>
   <div class="ps-onlinebar"><i></i></div>
   <div class="ps-cancel" id="pvpSearchCancel">cancelar</div>
+</div>
+
+<!-- POSITIONING PHASE -->
+<div id="pvpPositioning">
+  <div class="pp-box">
+    <div class="pp-title">⚔️ POSICIONE SEU TIME</div>
+    <div class="pp-hint">Toque nas Crias na ordem em que devem lutar. A 1ª entra primeiro.</div>
+    <div class="pp-timer-wrap"><div class="pp-timer-bar" id="pvpPosTimerBar"></div></div>
+    <div class="pp-timer-num" id="pvpPosTimerNum">30</div>
+    <div class="pp-team" id="pvpPosTeam"></div>
+    <div class="pp-status">
+      <div class="pp-status-row"><span class="pp-dot you" id="pvpPosYouDot"></span><span id="pvpPosYouLbl">Você: escolhendo…</span></div>
+      <div class="pp-status-row"><span class="pp-dot opp" id="pvpPosOppDot"></span><span id="pvpPosOppLbl">Oponente: preparando…</span></div>
+    </div>
+    <button class="pp-confirm" id="pvpPosConfirm">CONFIRMAR</button>
+    <div class="pp-reset" id="pvpPosReset">↺ refazer ordem</div>
+  </div>
 </div>
 
 <!-- VERSUS SCREEN -->
@@ -3359,10 +3431,17 @@ function update(t) {
       }
     } else if (state._autoWalkPath) {
       const shouldInteract = state._autoWalkInteract;
+      const face = state._autoWalkFace || 'down';
       state._autoWalkPath = null;
       state._autoWalkIdx = 0;
       state._autoWalkInteract = false;
-      if (shouldInteract) setTimeout(() => { lastFacing = 'down'; tryInteract(); }, 80);
+      state._autoWalkFace = null;
+      if (shouldInteract) setTimeout(() => {
+        lastFacing = face;
+        const cur2 = state.scene === 'cave1' ? state.cavePlayer : state.player;
+        if (cur2) cur2.dir = face;
+        tryInteract();
+      }, 80);
     } else if (keys.up) tryMove('up');
     else if (keys.down) tryMove('down');
     else if (keys.left) tryMove('left');
@@ -3706,17 +3785,20 @@ function closePvPMatchmaking() {
 }
 
 /* ── Normalize a Cria to PVP_LVL for fair arena play ─────────── */
+// HP_BOOST makes each Cria a real bruiser — battles last longer (≈6-8 hits to KO).
+const PVP_HP_BOOST = 2.4;
 function pvpNormalize(criaSrc) {
   const def  = MONSTERS[criaSrc.species];
   const base = def.baseStats;
   const m    = 1 + (PVP_LVL - 1) * 0.10;
+  const hp   = Math.round(base.hp * m * PVP_HP_BOOST);
   return {
     species:      criaSrc.species,
     element:      def.element,
     elementLabel: def.elementLabel,
     skills:       def.skills.slice(),
-    hp:    Math.round(base.hp  * m),
-    maxHp: Math.round(base.hp  * m),
+    hp,
+    maxHp: hp,
     atk:   Math.round(base.atk * m),
     def:   Math.round(base.def * m),
     spd:   Math.round(base.spd * m),
@@ -3743,13 +3825,34 @@ function pvpRank(wins) { return PVP_RANKS[Math.min(PVP_RANKS.length - 1, Math.fl
 const PVP_AI_RANKS = ['BRONZE II','PRATA II','OURO II','PLATINA','DIAMANTE'];
 
 /* Build a fresh match object (used by first entry AND rematch) */
+const PVP_TEAM_MAX = 3;
 function pvpBuildMatch(room) {
-  const pCria  = pvpNormalize(state.cria);
-  const aiPool = PVP_AI_POOL.filter(s => s !== state.cria.species);
-  const aiCria = pvpNormalize({ species: pick(aiPool.length ? aiPool : PVP_AI_POOL) });
+  // ── Player team: active Cria + reserva, normalizados, até 3 ──
+  const pSrc  = [state.cria, ...((state.party) || [])].filter(Boolean).slice(0, PVP_TEAM_MAX);
+  const pTeam = pSrc.map(pvpNormalize);
+
+  // ── AI team: 3 espécies distintas, evitando repetir a do jogador quando possível ──
+  const usedSpecies = new Set(pTeam.map(c => c.species));
+  let aiPool = PVP_AI_POOL.filter(s => !usedSpecies.has(s));
+  if (aiPool.length < PVP_TEAM_MAX) aiPool = PVP_AI_POOL.slice();
+  const aiSpecies = [];
+  const poolCopy = aiPool.slice();
+  while (aiSpecies.length < PVP_TEAM_MAX && poolCopy.length) {
+    const idx = Math.floor(Math.random() * poolCopy.length);
+    aiSpecies.push(poolCopy.splice(idx, 1)[0]);
+  }
+  while (aiSpecies.length < PVP_TEAM_MAX) aiSpecies.push(pick(PVP_AI_POOL));
+  const aiTeam = aiSpecies.map(sp => pvpNormalize({ species: sp }));
+
   const aiName = pick(PVP_AI_NAMES);
   return {
-    pCria, aiCria, room,
+    // active references (kept for compatibility with the whole battle code)
+    pCria:  pTeam[0],
+    aiCria: aiTeam[0],
+    // full teams + active indices
+    pTeam,  pActive:  0,
+    aiTeam, aiActive: 0,
+    room,
     pName:       state.playerName || 'Você',
     aiName,
     aiRank:      pick(PVP_AI_RANKS),
@@ -3757,11 +3860,64 @@ function pvpBuildMatch(room) {
     aiDefending: false,
     turn:        0,
     locked:      true,
-    pOrbes:      3,
-    aiOrbes:     3,
+    pOrbes:      pTeam.length,   // dots = crias vivas restantes
+    aiOrbes:     aiTeam.length,
     crits:       0,           // pra MVP
     bigHit:      0,           // maior golpe (MVP)
   };
+}
+
+/* ── Troca para a próxima Cria viva do time. Retorna false se time todo caiu. ── */
+async function pvpSummonNext(side) {
+  const ps = pvpState;
+  const team   = side === 'player' ? ps.pTeam : ps.aiTeam;
+  let   active = side === 'player' ? ps.pActive : ps.aiActive;
+
+  // procura próxima viva
+  let next = -1;
+  for (let i = active + 1; i < team.length; i++) {
+    if (team[i].hp > 0) { next = i; break; }
+  }
+  if (next === -1) return false; // time derrotado
+
+  // faint da atual
+  const figId = side === 'player' ? 'pvpPlayerFighter' : 'pvpEnemyFighter';
+  const fig   = document.getElementById(figId);
+  fig.classList.add('faint');
+  await wait(700);
+
+  // atualiza ativo
+  if (side === 'player') { ps.pActive = next; ps.pCria = team[next]; ps.pOrbes  = team.filter(c => c.hp > 0).length; }
+  else                   { ps.aiActive = next; ps.aiCria = team[next]; ps.aiOrbes = team.filter(c => c.hp > 0).length; }
+
+  // re-sprite + nome + skills (jogador)
+  fig.classList.remove('faint');
+  fig.classList.add('pre-summon');
+  const cria = side === 'player' ? ps.pCria : ps.aiCria;
+  const def  = MONSTERS[cria.species];
+  const sprId = side === 'player' ? 'pvpPlayerSprite' : 'pvpEnemySprite';
+  const img   = monsterSprite(cria, 'idle_0');
+  document.getElementById(sprId).style.backgroundImage = img ? `url(${img.src})` : '';
+  document.getElementById(side === 'player' ? 'pvpPName' : 'pvpEName').textContent = def.name + ' Lv' + PVP_LVL;
+
+  if (side === 'player') {
+    const sk = cria.skills;
+    const s0 = document.getElementById('pvpSkill0');
+    const s1 = document.getElementById('pvpSkill1');
+    s0.querySelector('.pva-n').textContent = sk[0].name;
+    s0.querySelector('.pva-t').textContent = def.elementLabel.toUpperCase();
+    s1.querySelector('.pva-n').textContent = sk[1].name;
+    s1.querySelector('.pva-t').textContent = 'ESPECIAL';
+  }
+
+  pvpLog(`${side === 'player' ? '' : '(IA) '}${def.name} entra na arena!`);
+  FX.sfx.summon && FX.sfx.summon();
+  pvpSummon(side);
+  pvpUpdateHP();
+  pvpRenderOrbes();
+  pvpCrowdCheer(0.7);
+  await wait(900);
+  return true;
 }
 
 /* Describe the elemental matchup for narrative tension */
@@ -3785,7 +3941,135 @@ async function pvpEnterRoom(room) {
 
   await pvpMatchmakingSearch(match);   // CENA 1
   await pvpShowVersus(match);          // CENA 2
+  await pvpPositioningPhase(match);    // CENA 2.5 — posicionamento (30s)
   await pvpStartBattle(match);         // CINEMÁTICA + BATALHA
+}
+
+/* ── CENA 2.5: fase de posicionamento (30s, ambos confirmam) ──────
+   Reordena match.pTeam conforme escolha. AI confirma sozinha. Backend-ready:
+   o "oponente pronto" é onde um sinal de rede entraria no multiplayer real. */
+const PVP_POS_SECONDS = 30;
+function pvpPositioningPhase(match) {
+  return new Promise(resolve => {
+    const ov      = document.getElementById('pvpPositioning');
+    const teamEl  = document.getElementById('pvpPosTeam');
+    const timerBar= document.getElementById('pvpPosTimerBar');
+    const timerNum= document.getElementById('pvpPosTimerNum');
+    const confirm = document.getElementById('pvpPosConfirm');
+    const resetEl = document.getElementById('pvpPosReset');
+    const youDot  = document.getElementById('pvpPosYouDot');
+    const youLbl  = document.getElementById('pvpPosYouLbl');
+    const oppDot  = document.getElementById('pvpPosOppDot');
+    const oppLbl  = document.getElementById('pvpPosOppLbl');
+
+    const team = match.pTeam;
+    let order = [];           // índices escolhidos (ordem de luta)
+    let youReady = false;
+    let oppReady = false;
+    let finished = false;
+
+    // Single Cria → ordem trivial, mas ainda mostra a fase rapidamente
+    function render() {
+      teamEl.innerHTML = '';
+      team.forEach((cria, idx) => {
+        const def = MONSTERS[cria.species];
+        const card = document.createElement('div');
+        card.className = 'pp-cria-card' + (order.includes(idx) ? ' ordered' : '');
+        const ordPos = order.indexOf(idx);
+        const img = monsterSprite(cria, 'idle_0');
+        card.innerHTML = `
+          <div class="pp-order-badge">${ordPos >= 0 ? ordPos + 1 : ''}</div>
+          <div class="pp-cria-sprite" style="background-image:${img ? `url(${img.src})` : 'none'}"></div>
+          <div class="pp-cria-name">${def.name}</div>
+          <div class="pp-cria-el">${def.elementLabel} · Lv${PVP_LVL}</div>`;
+        card.onclick = () => {
+          if (youReady) return;
+          const at = order.indexOf(idx);
+          if (at >= 0) order.splice(at, 1); else order.push(idx);
+          render();
+        };
+        teamEl.appendChild(card);
+      });
+      // Confirm habilita quando toda a ordem foi definida (ou só 1 cria)
+      confirm.disabled = youReady || order.length !== team.length;
+    }
+
+    function applyOrder() {
+      if (order.length === team.length) {
+        match.pTeam = order.map(i => team[i]);
+      } // senão mantém ordem natural
+      match.pCria   = match.pTeam[0];
+      match.pActive = 0;
+      match.pOrbes  = match.pTeam.length;
+    }
+
+    function setYouReady() {
+      if (youReady) return;
+      youReady = true;
+      // auto-preenche ordem restante se faltou
+      if (order.length !== team.length) {
+        for (let i = 0; i < team.length; i++) if (!order.includes(i)) order.push(i);
+        render();
+      }
+      youDot.classList.add('ready');
+      youLbl.textContent = 'Você: PRONTO ✓';
+      confirm.disabled = true;
+      confirm.classList.add('done');
+      confirm.textContent = 'AGUARDANDO…';
+      checkBoth();
+    }
+
+    function setOppReady() {
+      if (oppReady) return;
+      oppReady = true;
+      oppDot.classList.add('ready');
+      oppLbl.textContent = `${match.aiName}: PRONTO ✓`;
+      checkBoth();
+    }
+
+    function checkBoth() {
+      if (youReady && oppReady) finish();
+    }
+
+    // AI confirma sozinha entre 3-7s (no multiplayer real seria evento de rede)
+    const oppTimer = setTimeout(setOppReady, 3000 + Math.random() * 4000);
+
+    // countdown 30s
+    let remaining = PVP_POS_SECONDS;
+    timerNum.textContent = remaining;
+    timerBar.style.width = '100%';
+    const tick = setInterval(() => {
+      remaining--;
+      timerNum.textContent = Math.max(0, remaining);
+      timerBar.style.width = Math.max(0, (remaining / PVP_POS_SECONDS) * 100) + '%';
+      if (remaining <= 0) { setYouReady(); setOppReady(); }
+    }, 1000);
+
+    function finish() {
+      if (finished) return;
+      finished = true;
+      clearInterval(tick);
+      clearTimeout(oppTimer);
+      applyOrder();
+      ov.classList.remove('active');
+      confirm.onclick = null; resetEl.onclick = null;
+      FX.sfx.hudIn && FX.sfx.hudIn();
+      setTimeout(resolve, 250);
+    }
+
+    confirm.onclick = setYouReady;
+    resetEl.onclick = () => { if (!youReady) { order = []; render(); } };
+
+    // reset UI state
+    youReady = false; oppReady = false; finished = false; order = [];
+    youDot.classList.remove('ready'); oppDot.classList.remove('ready');
+    youLbl.textContent = 'Você: escolhendo…';
+    oppLbl.textContent = `${match.aiName}: preparando…`;
+    confirm.classList.remove('done');
+    confirm.textContent = 'CONFIRMAR';
+    render();
+    ov.classList.add('active');
+  });
 }
 
 /* ── CENA 1: matchmaking dramatizado ──────────────────────────── */
@@ -4270,7 +4554,7 @@ async function pvpPlayerAct(action) {
     const defStat  = special ? ps.aiCria.mind : ps.aiCria.def;
     const typeBonus = (ELEMENT_ADV[ps.pCria.element] || {})[ps.aiCria.element] || 1.0;
     const dmg = Math.max(1, Math.round(
-      (atkStat / defStat) * (special ? 14 : 12) * typeBonus * quality
+      (atkStat / defStat) * (special ? 9 : 7.5) * typeBonus * quality
     ));
 
     ps.aiCria.hp = Math.max(0, ps.aiCria.hp - dmg);
@@ -4292,7 +4576,13 @@ async function pvpPlayerAct(action) {
     pvpUpdateHP();
     await wait(900);
 
-    if (ps.aiCria.hp <= 0) { await pvpEnd('win');  return; }
+    if (ps.aiCria.hp <= 0) {
+      const aDef = MONSTERS[ps.aiCria.species];
+      pvpLog(`${aDef.name} (IA) foi derrotada!`);
+      await wait(600);
+      const more = await pvpSummonNext('enemy');
+      if (!more) { await pvpEnd('win'); return; }
+    }
   }
 
   await pvpAITurn();
@@ -4322,7 +4612,7 @@ async function pvpAITurn() {
     const defStat  = special ? ps.pCria.mind   : ps.pCria.def;
     const typeBonus = (ELEMENT_ADV[ps.aiCria.element] || {})[ps.pCria.element] || 1.0;
     const dmg = Math.max(1, Math.round(
-      (atkStat / defStat) * (special ? 14 : 12) * typeBonus * q * defB
+      (atkStat / defStat) * (special ? 9 : 7.5) * typeBonus * q * defB
     ));
 
     ps.pCria.hp = Math.max(0, ps.pCria.hp - dmg);
@@ -4341,7 +4631,13 @@ async function pvpAITurn() {
     pvpUpdateHP();
     await wait(900);
 
-    if (ps.pCria.hp <= 0) { await pvpEnd('lose'); return; }
+    if (ps.pCria.hp <= 0) {
+      const pDefKO = MONSTERS[ps.pCria.species];
+      pvpLog(`${pDefKO.name} foi derrotada!`);
+      await wait(600);
+      const more = await pvpSummonNext('player');
+      if (!more) { await pvpEnd('lose'); return; }
+    }
   }
 
   ps.turn++;
@@ -5558,13 +5854,15 @@ const DEFAULT_QUESTS = [
   { id:'q5', type:'side', title:'Chocar uma Nova Cria', desc:'Junte fragmentos de orbe derrotando criaturas e choque uma nova Cria no Core Orb.', progress:0, total:1, done: false },
 ];
 
-// Quest navigation targets — tile positions to navigate to
+// Quest navigation targets — STAND tile + facing so the faced tile hits the target.
+// NPCs: guia(16,22) lulu(12,22) rocco(32,22) yuri(10,34) cave_guard(36,6)
+//       pvp_crias(23,17) shop(36,20). Core Orb region x21-26,y21-25. Spawn (24,26).
 const QUEST_NAV = {
-  q1: { x: 16, y: 21, label: 'Guia Solis', interact: true },  // tile in front of Guia Solis (x:16,y:22)
-  q2: { x: 6,  y: 11, label: 'Lulu (treinador)' },
-  q3: { x: 18, y: 3,  label: 'Caverna Sombria' },
-  q4: { x: 16, y: 21, label: 'NPCs da cidade' },
-  q5: { x: 18, y: 3,  label: 'Caverna Sombria' },
+  q1: { x: 16, y: 21, face: 'down', label: 'Guia Solis',       interact: true }, // faces (16,22)=Solis
+  q2: { x: 12, y: 21, face: 'down', label: 'Lulu (treinadora)', interact: true }, // faces (12,22)=Lulu
+  q3: { x: 36, y: 7,  face: 'up',   label: 'Caverna Sombria',   interact: true }, // faces (36,6)=Guarda Kalos
+  q4: { x: 16, y: 21, face: 'down', label: 'NPCs da cidade',    interact: true }, // faces (16,22)=Solis (hub)
+  q5: { x: 24, y: 26, face: 'up',   label: 'Core Orb',          interact: true }, // faces (24,25)=Core Orb
 };
 
 function navigateToQuest(questId) {
@@ -5576,23 +5874,21 @@ function navigateToQuest(questId) {
     return;
   }
 
-  // Determine smart target for q1
+  // Smart target for q1: if player already has the Orbe, send to Core Orb instead of Solis
   let nav = QUEST_NAV[questId];
   if (questId === 'q1') {
     const hasOrb = state.items && (state.items.orbeCriacao || 0) > 0;
-    if (hasOrb) {
-      nav = { x: 20, y: 23, label: 'Core Orb', interact: true };
-    } else {
-      nav = { x: 16, y: 21, label: 'Guia Solis', interact: true };
-    }
+    nav = hasOrb
+      ? { x: 24, y: 26, face: 'up',   label: 'Core Orb',  interact: true }
+      : { x: 16, y: 21, face: 'down', label: 'Guia Solis', interact: true };
   }
   if (!nav) return;
 
   showToast(`📍 Indo até: ${nav.label}`);
-  walkPlayerToward(nav.x, nav.y, nav.interact);
+  walkPlayerToward(nav.x, nav.y, nav.interact, nav.face);
 }
 
-function walkPlayerToward(tx, ty, autoInteract) {
+function walkPlayerToward(tx, ty, autoInteract, face) {
   if (!state || state.scene === 'cave1') return;
   const cur = state.player;
   if (!cur) return;
@@ -5611,6 +5907,7 @@ function walkPlayerToward(tx, ty, autoInteract) {
     state._autoWalkPath = steps;
     state._autoWalkIdx = 0;
     state._autoWalkInteract = !!autoInteract;
+    state._autoWalkFace = face || 'down';
   }
 }
 
