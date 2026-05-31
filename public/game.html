@@ -3309,8 +3309,11 @@ function update(t) {
         state._autoWalkIdx = 0;
       }
     } else if (state._autoWalkPath) {
+      const shouldInteract = state._autoWalkInteract;
       state._autoWalkPath = null;
       state._autoWalkIdx = 0;
+      state._autoWalkInteract = false;
+      if (shouldInteract) setTimeout(() => { lastFacing = 'down'; tryInteract(); }, 80);
     } else if (keys.up) tryMove('up');
     else if (keys.down) tryMove('down');
     else if (keys.left) tryMove('left');
@@ -5474,10 +5477,10 @@ const DEFAULT_QUESTS = [
 
 // Quest navigation targets — tile positions to navigate to
 const QUEST_NAV = {
-  q1: { x: 8, y: 11, label: 'Guia Solis' },    // Guia Solis position
-  q2: { x: 6, y: 11, label: 'Lulu (treinador)' },
+  q1: { x: 16, y: 21, label: 'Guia Solis', interact: true },  // tile in front of Guia Solis (x:16,y:22)
+  q2: { x: 6,  y: 11, label: 'Lulu (treinador)' },
   q3: { x: 18, y: 3,  label: 'Caverna Sombria' },
-  q4: { x: 8, y: 11,  label: 'NPCs da cidade' },
+  q4: { x: 16, y: 21, label: 'NPCs da cidade' },
   q5: { x: 18, y: 3,  label: 'Caverna Sombria' },
 };
 
@@ -5495,28 +5498,26 @@ function navigateToQuest(questId) {
   if (questId === 'q1') {
     const hasOrb = state.items && (state.items.orbeCriacao || 0) > 0;
     if (hasOrb) {
-      nav = { x: 23, y: 23, label: 'Core Orb' };
+      nav = { x: 20, y: 23, label: 'Core Orb', interact: true };
     } else {
-      nav = { x: 8, y: 11, label: 'Guia Solis' };
+      nav = { x: 16, y: 21, label: 'Guia Solis', interact: true };
     }
   }
   if (!nav) return;
 
   showToast(`📍 Indo até: ${nav.label}`);
-  walkPlayerToward(nav.x, nav.y);
+  walkPlayerToward(nav.x, nav.y, nav.interact);
 }
 
-function walkPlayerToward(tx, ty) {
+function walkPlayerToward(tx, ty, autoInteract) {
   if (!state || state.scene === 'cave1') return;
   const cur = state.player;
   if (!cur) return;
-  // Build a simple rectilinear path from current position to target
   const steps = [];
   let cx = Math.round(cur.x);
   let cy = Math.round(cur.y);
   const maxSteps = 60;
   while ((cx !== tx || cy !== ty) && steps.length < maxSteps) {
-    // Move horizontally first, then vertically
     if (cx < tx) cx++;
     else if (cx > tx) cx--;
     else if (cy < ty) cy++;
@@ -5526,6 +5527,7 @@ function walkPlayerToward(tx, ty) {
   if (steps.length > 0) {
     state._autoWalkPath = steps;
     state._autoWalkIdx = 0;
+    state._autoWalkInteract = !!autoInteract;
   }
 }
 
