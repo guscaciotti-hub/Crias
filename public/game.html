@@ -1368,29 +1368,75 @@
   .pvp-room-bet .bet-win { font-size: 11px; color: #50c878; margin-top: 2px; }
   .pvp-match-close { padding: 10px 16px; border-top: 1px solid #1a2a3a; text-align: center; }
   /* PvP Battle full-screen */
-  /* ===== PVP BATTLE — CRIAS COLISEUM ===== */
+  /* ===== PVP BATTLE — CRIAS COLISEUM (cinematic stage) ===== */
   #pvpBattle {
     position: fixed; inset: 0;
-    display: none; flex-direction: column;
+    display: none;
     z-index: 60;
+    overflow: hidden;
+    background:
+      radial-gradient(ellipse at 50% 0%, #0a0628 0%, transparent 60%),
+      #02000a;
   }
-  #pvpBattle.active { display: flex; }
+  #pvpBattle.active { display: block; }
+  /* The coliseum fills the whole screen — the arena is the star. */
   .pvp-coliseum {
-    flex: 1; position: relative; overflow: hidden; min-height: 0;
-    background: #020010;
-    display: flex; align-items: center; justify-content: center;
+    position: absolute; inset: 0; overflow: hidden;
+    background:
+      radial-gradient(ellipse at 18% 30%, rgba(0,60,160,0.30) 0%, transparent 55%),
+      radial-gradient(ellipse at 82% 30%, rgba(160,0,30,0.28) 0%, transparent 55%),
+      radial-gradient(ellipse at 50% 110%, rgba(40,20,90,0.5) 0%, transparent 60%),
+      #02000a;
   }
+  /* Wrapper is sized by JS (pvpFitArena) to COVER the screen.
+     The camera (--cam-*) pans/zooms it for the cinematic. */
   .pvp-arena-wrapper {
-    position: relative;
-    aspect-ratio: 1672 / 732;
-    width: 100%; max-height: 100%;
-    margin: auto;
-    flex-shrink: 0;
+    position: absolute; left: 50%; top: 50%;
+    transform-origin: center center;
+    transform:
+      translate(-50%, -50%)
+      translate(var(--cam-x, 0px), var(--cam-y, 0px))
+      scale(var(--cam-z, 1));
     background-image: url('arena.webp');
     background-size: 100% 100%;
     background-position: center;
     overflow: visible;
+    transition: transform 1.2s cubic-bezier(.42,0,.18,1);
+    will-change: transform;
   }
+  .pvp-arena-wrapper.cam-instant { transition: none; }
+  /* Ambient stadium atmosphere overlays (live the whole battle) */
+  .pvp-amb {
+    position: absolute; inset: 0; pointer-events: none; z-index: 8; overflow: hidden;
+  }
+  .pvp-light-beam {
+    position: absolute; top: -20%; width: 60%; height: 90%;
+    background: linear-gradient(180deg, rgba(170,210,255,0.16), transparent 70%);
+    filter: blur(8px); mix-blend-mode: screen;
+    transform-origin: top center; opacity: 0.0;
+    transition: opacity 1.2s;
+  }
+  .pvp-light-beam.lb1 { left: 8%;  transform: rotate(14deg);  animation: pvpBeamSway 6s ease-in-out infinite; }
+  .pvp-light-beam.lb2 { right: 8%; transform: rotate(-14deg); background: linear-gradient(180deg, rgba(255,180,180,0.15), transparent 70%); animation: pvpBeamSway 7s ease-in-out infinite reverse; }
+  .pvp-coliseum.lit .pvp-light-beam { opacity: 1; }
+  @keyframes pvpBeamSway { 0%,100%{filter:blur(8px) brightness(0.9);} 50%{filter:blur(10px) brightness(1.25);} }
+  /* drifting dust/embers */
+  .pvp-dust { position:absolute; inset:0; pointer-events:none; z-index:9;
+    background-image:
+      radial-gradient(1.5px 1.5px at 20% 80%, rgba(255,220,150,0.5), transparent),
+      radial-gradient(1px 1px at 60% 60%, rgba(180,220,255,0.5), transparent),
+      radial-gradient(1.5px 1.5px at 80% 75%, rgba(255,200,120,0.4), transparent),
+      radial-gradient(1px 1px at 40% 90%, rgba(200,230,255,0.4), transparent);
+    background-size: 100% 100%;
+    animation: pvpDustRise 9s linear infinite; opacity:0.7;
+  }
+  @keyframes pvpDustRise { 0%{background-position:0 0,0 0,0 0,0 0;} 100%{background-position:0 -120px,0 -180px,0 -140px,0 -200px;} }
+  /* crowd-roar flash (triggered) */
+  .pvp-roar-flash { position:absolute; inset:0; pointer-events:none; z-index:30;
+    background: radial-gradient(ellipse at 50% 35%, rgba(255,255,255,0.25), transparent 60%);
+    opacity:0; }
+  .pvp-roar-flash.go { animation: pvpRoar 0.7s ease-out; }
+  @keyframes pvpRoar { 0%{opacity:0;} 25%{opacity:1;} 100%{opacity:0;} }
   .pvp-stars { display: none; }
   /* All CSS-generated arena decorations are hidden — image provides the scene */
   .pvp-crowd,.pvp-arena-floor,.pvp-floor,.pvp-scoreboard,.pvp-v-banner,
@@ -1409,16 +1455,50 @@
   .pvp-station-l .pvp-station-name { border-color: rgba(77,195,255,0.6); color: #c8efff; }
   .pvp-station-r .pvp-station-name { border-color: rgba(255,68,68,0.6); color: #ffc8c8; }
   /* Creature fighters — pixel-calibrated to the 1672x732 coliseum crop */
-  .pvp-fighter { position: absolute; display: flex; flex-direction: column; align-items: center; z-index: 7; width: 11%; }
+  .pvp-fighter { position: absolute; display: flex; flex-direction: column; align-items: center; z-index: 12; width: 11%; }
   .pvp-fighter.pvp-player-f { left: 39%; top: 63%; transform: translate(-50%, -50%); }
   .pvp-fighter.pvp-enemy-f  { left: 61%; top: 62%; transform: translate(-50%, -50%); }
   .pvp-fighter-sprite {
     width: 100%; aspect-ratio: 1;
     background-repeat: no-repeat; background-position: center bottom; background-size: contain;
-    image-rendering: pixelated; transition: transform 0.25s, opacity 0.3s;
+    image-rendering: pixelated;
+    transition: transform 0.25s, opacity 0.3s;
+    animation: pvpIdleBreath 2.4s ease-in-out infinite;
   }
+  @keyframes pvpIdleBreath { 0%,100%{ transform: scale(1) translateY(0);} 50%{ transform: scale(1.03) translateY(-2%);} }
   .pvp-fighter.pvp-player-f .pvp-fighter-sprite { filter: drop-shadow(0 4px 16px rgba(77,195,255,0.85)); }
   .pvp-fighter.pvp-enemy-f  .pvp-fighter-sprite { filter: drop-shadow(0 4px 16px rgba(255,68,68,0.85)); }
+  /* hidden until summoned */
+  .pvp-fighter.pre-summon .pvp-fighter-sprite { opacity: 0; transform: scale(0.2) translateY(40%); animation: none; }
+  /* summon landing */
+  .pvp-fighter.summon-in .pvp-fighter-sprite { animation: pvpSummonLand 0.6s cubic-bezier(.2,1.4,.4,1) forwards; }
+  @keyframes pvpSummonLand {
+    0%   { opacity:0; transform: scale(0.1) translateY(-60%); }
+    55%  { opacity:1; transform: scale(1.2) translateY(8%); }
+    72%  { transform: scaleX(1.25) scaleY(0.8) translateY(0); }
+    100% { opacity:1; transform: scale(1) translateY(0); }
+  }
+  /* attack lunge */
+  .pvp-fighter.lunge-r .pvp-fighter-sprite { animation: pvpLungeR 0.4s ease-out; }
+  .pvp-fighter.lunge-l .pvp-fighter-sprite { animation: pvpLungeL 0.4s ease-out; }
+  @keyframes pvpLungeR { 0%,100%{transform:translateX(0);} 40%{transform:translateX(60%) scale(1.05);} }
+  @keyframes pvpLungeL { 0%,100%{transform:translateX(0);} 40%{transform:translateX(-60%) scale(1.05);} }
+  /* faint */
+  .pvp-fighter.faint .pvp-fighter-sprite { animation: pvpFaint 0.9s ease-in forwards; }
+  @keyframes pvpFaint { 0%{opacity:1;transform:rotate(0) translateY(0);filter:none;} 100%{opacity:0.15;transform:rotate(-25deg) translateY(30%);filter:grayscale(1) brightness(0.5);} }
+  /* summon beam pillar */
+  .pvp-summon-beam {
+    position:absolute; z-index:11; bottom:0; width:14%; height:0;
+    transform: translateX(-50%);
+    background: linear-gradient(180deg, transparent, rgba(255,255,255,0.9) 60%, #fff);
+    filter: blur(3px); opacity:0; pointer-events:none; border-radius:50% 50% 0 0;
+  }
+  .pvp-summon-beam.go { animation: pvpBeamStrike 0.6s ease-out forwards; }
+  @keyframes pvpBeamStrike {
+    0%{opacity:0;height:0;} 30%{opacity:1;height:80%;} 70%{opacity:1;height:80%;} 100%{opacity:0;height:90%;}
+  }
+  .pvp-summon-beam.bl { background: linear-gradient(180deg,transparent,rgba(120,200,255,0.95) 55%,#dff2ff); box-shadow:0 0 40px 14px rgba(80,170,255,0.7); }
+  .pvp-summon-beam.rd { background: linear-gradient(180deg,transparent,rgba(255,140,140,0.95) 55%,#ffe2e2); box-shadow:0 0 40px 14px rgba(255,90,90,0.7); }
   .pvp-fighter-lbl { font-size: 8px; font-weight: 800; color: #fff; text-shadow: 1px 1px 0 #000; margin-top: 2px; background: rgba(0,0,0,0.65); padding: 1px 5px; border-radius: 3px; max-width: 80px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; text-align: center; }
   /* Orb pips sit over the pip row under each name plate in the image */
   .pvp-orbes { position: absolute; display: flex; gap: 4px; z-index: 6; transform: translateX(-50%); }
@@ -1429,11 +1509,197 @@
   .pvp-orb-pip.or  { background: #ff4444; box-shadow: 0 0 5px #ff4444; }
   .pvp-orb-pip.off { background: rgba(255,255,255,0.08); }
   /* HUD */
-  .pvp-hud {
-    background: linear-gradient(180deg, #050810, #0a0e1a);
-    border-top: 2px solid rgba(77,195,255,0.25);
-    padding: 7px 12px 8px; flex-shrink: 0;
+  /* ===== CINEMATIC OVERLAY (intro director) ===== */
+  .pvp-cine { position: absolute; inset: 0; z-index: 50; pointer-events: none; overflow: hidden; }
+  .pvp-cine .bar {
+    position: absolute; left: 0; right: 0; height: 0;
+    background: #000; transition: height 0.6s ease;
   }
+  .pvp-cine .bar.top { top: 0; }
+  .pvp-cine .bar.bot { bottom: 0; }
+  .pvp-cine.letterbox .bar { height: 11%; }
+  .pvp-cine .flash {
+    position: absolute; inset: 0; background: #fff; opacity: 0;
+  }
+  .pvp-cine .flash.go { animation: pvpFlash 0.45s ease-out; }
+  @keyframes pvpFlash { 0%{opacity:0;} 12%{opacity:0.95;} 100%{opacity:0;} }
+  .pvp-cine-center {
+    position: absolute; left: 0; right: 0; top: 50%; transform: translateY(-50%);
+    text-align: center; padding: 0 18px;
+  }
+  .pvp-cine-line {
+    font-weight: 900; letter-spacing: 0.04em; color: #fff;
+    text-shadow: 0 3px 18px rgba(0,0,0,0.9), 0 0 22px rgba(120,180,255,0.5);
+    opacity: 0; transform: translateY(14px) scale(0.96);
+  }
+  .pvp-cine-line.show { animation: pvpLineIn 0.5s cubic-bezier(.2,.9,.3,1) forwards; }
+  .pvp-cine-line.out  { animation: pvpLineOut 0.4s ease-in forwards; }
+  @keyframes pvpLineIn  { to { opacity:1; transform: translateY(0) scale(1);} }
+  @keyframes pvpLineOut { to { opacity:0; transform: translateY(-12px) scale(0.98);} }
+  .pvp-cine-big   { font-size: clamp(30px,8vw,72px); }
+  .pvp-cine-mid   { font-size: clamp(18px,4.4vw,34px); }
+  .pvp-cine-small { font-size: clamp(12px,2.6vw,18px); color:#bcd6ff; letter-spacing:0.22em; }
+  .pvp-skip {
+    position: absolute; right: 12px; bottom: 13%; z-index: 52;
+    font-size: 11px; color: rgba(255,255,255,0.7); letter-spacing: 0.12em;
+    background: rgba(0,0,0,0.45); border: 1px solid rgba(255,255,255,0.25);
+    border-radius: 14px; padding: 5px 12px; pointer-events: auto; cursor: pointer;
+    opacity: 0; transition: opacity 0.4s;
+  }
+  .pvp-skip.show { opacity: 1; }
+
+  /* ===== VERSUS SCREEN ===== */
+  #pvpVersus {
+    position: fixed; inset: 0; z-index: 62; display: none;
+    background:
+      radial-gradient(ellipse at 22% 50%, rgba(0,70,180,0.5), transparent 55%),
+      radial-gradient(ellipse at 78% 50%, rgba(180,0,40,0.5), transparent 55%),
+      #04030c;
+    overflow: hidden;
+  }
+  #pvpVersus.active { display: block; }
+  .vs-side {
+    position: absolute; top: 0; bottom: 0; width: 50%;
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    padding: 4vh 4vw;
+  }
+  .vs-side.left  { left: 0;  transform: translateX(-110%); }
+  .vs-side.right { right: 0; transform: translateX(110%); align-items: center; }
+  #pvpVersus.go .vs-side.left  { animation: vsSlideL 0.7s cubic-bezier(.2,.9,.3,1) forwards; }
+  #pvpVersus.go .vs-side.right { animation: vsSlideR 0.7s cubic-bezier(.2,.9,.3,1) forwards; }
+  @keyframes vsSlideL { to { transform: translateX(0);} }
+  @keyframes vsSlideR { to { transform: translateX(0);} }
+  .vs-side.left  { background: linear-gradient(120deg, rgba(20,60,140,0.35), transparent); }
+  .vs-side.right { background: linear-gradient(-120deg, rgba(150,30,40,0.35), transparent); }
+  .vs-avatar {
+    width: clamp(90px,26vw,180px); height: clamp(90px,26vw,180px);
+    border-radius: 14px; background-size: contain; background-repeat: no-repeat; background-position: center bottom;
+    image-rendering: pixelated; margin-bottom: 12px;
+  }
+  .vs-side.left  .vs-avatar { filter: drop-shadow(0 6px 24px rgba(77,170,255,0.8)); }
+  .vs-side.right .vs-avatar { filter: drop-shadow(0 6px 24px rgba(255,80,80,0.8)); }
+  .vs-pname { font-size: clamp(20px,5.5vw,40px); font-weight: 900; color: #fff; text-shadow: 0 2px 10px rgba(0,0,0,0.8); text-align: center; }
+  .vs-cria  { font-size: clamp(13px,3vw,20px); font-weight: 800; margin-top: 4px; }
+  .vs-side.left  .vs-cria { color: #8cc8ff; }
+  .vs-side.right .vs-cria { color: #ff9a9a; }
+  .vs-elem  { font-size: clamp(11px,2.4vw,15px); color: #cfe2ff; margin-top: 2px; letter-spacing: 0.1em; }
+  .vs-rank  { font-size: 11px; color: #9fb4d8; margin-top: 6px; letter-spacing: 0.12em; }
+  .vs-badge {
+    position: absolute; left: 50%; top: 50%; transform: translate(-50%,-50%) scale(0);
+    z-index: 5; font-size: clamp(48px,14vw,120px); font-weight: 900; font-style: italic;
+    color: #ffd24a; text-shadow: 0 0 30px rgba(255,180,0,0.9), 0 6px 0 #6a3a00;
+    letter-spacing: -0.04em;
+  }
+  #pvpVersus.go .vs-badge { animation: vsBadge 0.6s cubic-bezier(.2,1.6,.4,1) 0.5s forwards; }
+  @keyframes vsBadge { to { transform: translate(-50%,-50%) scale(1);} }
+  .vs-bolt {
+    position: absolute; left: 0; right: 0; top: 50%; height: 4px; transform: translateY(-50%) scaleX(0);
+    background: linear-gradient(90deg, transparent, #8cc8ff, #fff, #ff9a9a, transparent);
+    box-shadow: 0 0 18px rgba(255,255,255,0.9); transform-origin: center;
+  }
+  #pvpVersus.go .vs-bolt { animation: vsBolt 0.4s ease-out 0.45s forwards; }
+  @keyframes vsBolt { to { transform: translateY(-50%) scaleX(1);} }
+  .vs-matchup {
+    position: absolute; left: 50%; bottom: 9%; transform: translateX(-50%);
+    z-index: 6; font-size: clamp(11px,2.6vw,15px); font-weight: 800; text-align: center;
+    padding: 7px 16px; border-radius: 18px; opacity: 0; white-space: nowrap;
+    background: rgba(0,0,0,0.55); border: 1px solid rgba(255,255,255,0.2); color: #ffd24a;
+  }
+  #pvpVersus.go .vs-matchup { animation: pvpLineIn 0.5s ease 0.9s forwards; }
+
+  /* ===== MATCHMAKING SEARCH (dramatized) ===== */
+  #pvpSearch {
+    position: fixed; inset: 0; z-index: 61; display: none;
+    background:
+      radial-gradient(ellipse at 50% 40%, rgba(20,40,110,0.6), transparent 60%),
+      rgba(2,2,10,0.92);
+    -webkit-backdrop-filter: blur(3px); backdrop-filter: blur(3px);
+    flex-direction: column; align-items: center; justify-content: center; gap: 18px;
+  }
+  #pvpSearch.active { display: flex; }
+  .ps-orbit { position: relative; width: 150px; height: 150px; }
+  .ps-orbit .ring {
+    position: absolute; inset: 0; border-radius: 50%;
+    border: 2px solid rgba(120,180,255,0.25); border-top-color: #6cc0ff;
+    animation: psSpin 1.2s linear infinite;
+  }
+  .ps-orbit .ring.r2 { inset: 18px; border-top-color: #ffd24a; animation-duration: 1.8s; animation-direction: reverse; }
+  @keyframes psSpin { to { transform: rotate(360deg);} }
+  .ps-cria {
+    position: absolute; inset: 34px; background-size: contain; background-repeat: no-repeat; background-position: center;
+    image-rendering: pixelated; filter: drop-shadow(0 0 14px rgba(120,180,255,0.8));
+    animation: psPulse 1.4s ease-in-out infinite;
+  }
+  @keyframes psPulse { 0%,100%{transform:scale(0.94);} 50%{transform:scale(1.06);} }
+  .ps-title { font-size: clamp(15px,4vw,24px); font-weight: 900; color: #fff; letter-spacing: 0.05em; text-align: center; }
+  .ps-sub { font-size: 12px; color: #9fb8e0; letter-spacing: 0.06em; text-align: center; min-height: 16px; }
+  .ps-onlinebar { width: min(280px,70vw); height: 6px; background: rgba(255,255,255,0.1); border-radius: 4px; overflow: hidden; }
+  .ps-onlinebar > i { display: block; height: 100%; width: 30%; border-radius: 4px;
+    background: linear-gradient(90deg,#4dc3ff,#ffd24a); animation: psBar 1.5s ease-in-out infinite; }
+  @keyframes psBar { 0%{margin-left:-30%;} 100%{margin-left:100%;} }
+  .ps-cancel { margin-top: 6px; font-size: 12px; color: #9fb4d8; background: rgba(0,0,0,0.4);
+    border: 1px solid rgba(255,255,255,0.2); border-radius: 16px; padding: 7px 18px; cursor: pointer; }
+
+  /* ===== RESULT SCREEN (victory / defeat) ===== */
+  #pvpResult {
+    position: fixed; inset: 0; z-index: 64; display: none;
+    flex-direction: column; align-items: center; justify-content: center; gap: 14px;
+    padding: 6vh 6vw; text-align: center; overflow: hidden;
+  }
+  #pvpResult.active { display: flex; }
+  #pvpResult.win  { background: radial-gradient(ellipse at 50% 30%, rgba(120,90,0,0.65), transparent 60%), rgba(4,3,12,0.96); }
+  #pvpResult.lose { background: radial-gradient(ellipse at 50% 40%, rgba(20,30,60,0.6), transparent 60%), rgba(2,2,8,0.97); }
+  .pr-title { font-size: clamp(34px,11vw,84px); font-weight: 900; font-style: italic; letter-spacing: -0.02em;
+    opacity: 0; transform: scale(0.6); }
+  #pvpResult.active .pr-title { animation: prTitle 0.6s cubic-bezier(.2,1.5,.4,1) forwards; }
+  @keyframes prTitle { to { opacity:1; transform: scale(1);} }
+  #pvpResult.win  .pr-title { color: #ffd24a; text-shadow: 0 0 40px rgba(255,190,0,0.9), 0 6px 0 #6a3a00; }
+  #pvpResult.lose .pr-title { color: #9fb4d8; text-shadow: 0 4px 20px rgba(0,0,0,0.8); }
+  .pr-sub { font-size: clamp(13px,3.2vw,18px); color: #cfe2ff; opacity: 0; }
+  #pvpResult.active .pr-sub { animation: pvpLineIn 0.5s ease 0.3s forwards; }
+  .pr-cria {
+    width: clamp(80px,22vw,150px); height: clamp(80px,22vw,150px);
+    background-size: contain; background-repeat: no-repeat; background-position: center bottom;
+    image-rendering: pixelated; opacity: 0;
+  }
+  #pvpResult.active .pr-cria { animation: pvpLineIn 0.5s ease 0.15s forwards; }
+  #pvpResult.win .pr-cria { animation: prWinPose 0.6s ease 0.15s forwards, pvpIdleBreath 2.4s ease-in-out 0.8s infinite; filter: drop-shadow(0 6px 26px rgba(255,200,80,0.9)); }
+  @keyframes prWinPose { 0%{opacity:0;transform:scale(0.4) translateY(20%);} 100%{opacity:1;transform:scale(1) translateY(0);} }
+  #pvpResult.lose .pr-cria { filter: grayscale(0.7) brightness(0.6); transform: rotate(-12deg); }
+  .pr-card {
+    background: rgba(0,0,0,0.5); border: 1px solid rgba(255,255,255,0.18); border-radius: 14px;
+    padding: 14px 20px; display: flex; flex-direction: column; gap: 8px; min-width: min(320px,84vw);
+    opacity: 0;
+  }
+  #pvpResult.active .pr-card { animation: pvpLineIn 0.5s ease 0.45s forwards; }
+  .pr-row { display: flex; justify-content: space-between; font-size: 14px; color: #e8f0ff; }
+  .pr-row b { color: #ffd24a; }
+  .pr-mvp { font-size: 12px; color: #8cc8ff; letter-spacing: 0.08em; }
+  .pr-actions { display: flex; gap: 10px; flex-wrap: wrap; justify-content: center; opacity: 0; }
+  #pvpResult.active .pr-actions { animation: pvpLineIn 0.5s ease 0.6s forwards; }
+  .pr-actions button {
+    font-size: 13px; font-weight: 800; padding: 11px 20px; border-radius: 10px; cursor: pointer;
+    border: 1px solid #2a4060; color: #fff; background: linear-gradient(180deg,#1a2a3a,#0d1528);
+    letter-spacing: 0.04em;
+  }
+  .pr-actions button.primary { background: linear-gradient(180deg,#1e6fc4,#0d3f7a); border-color: #4dc3ff; }
+  .pr-actions button.share   { background: linear-gradient(180deg,#caa01e,#7a5a0d); border-color: #ffd24a; color:#1a1206; }
+  /* confetti */
+  .pr-confetti { position: absolute; top: -12px; width: 9px; height: 14px; opacity: 0.95; pointer-events: none; }
+  @keyframes prConfetti { to { transform: translateY(110vh) rotate(720deg); opacity: 0.2; } }
+
+  .pvp-hud {
+    position: absolute; left: 0; right: 0; bottom: 0; z-index: 45;
+    background: linear-gradient(180deg, rgba(5,8,16,0) 0%, rgba(5,8,16,0.82) 26%, rgba(6,10,22,0.96) 100%);
+    -webkit-backdrop-filter: blur(2px); backdrop-filter: blur(2px);
+    border-top: 2px solid rgba(77,195,255,0.30);
+    padding: 14px 12px 12px;
+    transform: translateY(115%);
+    transition: transform 0.65s cubic-bezier(.2,.85,.25,1);
+  }
+  .pvp-hud.in { transform: translateY(0); }
+  /* HUD can hide for cinematic moments (crit slow-mo / finisher) */
+  .pvp-hud.cine-hide { transform: translateY(115%); }
   .pvp-hp-row {
     display: flex; align-items: center; gap: 5px; margin-bottom: 5px;
   }
@@ -1822,9 +2088,12 @@
 
 <!-- PVP BATTLE FULL-SCREEN -->
 <div id="pvpBattle">
-  <div class="pvp-coliseum">
-    <!-- Square wrapper carrying the reference arena image as background -->
-    <div class="pvp-arena-wrapper">
+  <div class="pvp-coliseum" id="pvpColiseum">
+    <!-- Arena image (sized by JS to cover) + camera rig -->
+    <div class="pvp-arena-wrapper" id="pvpArenaWrap">
+      <!-- summon beams -->
+      <div class="pvp-summon-beam bl" id="pvpBeamL" style="left:39%;"></div>
+      <div class="pvp-summon-beam rd" id="pvpBeamR" style="left:61%;"></div>
       <!-- Creature fighters positioned over the arena floor in the image -->
       <div class="pvp-fighter pvp-player-f" id="pvpPlayerFighter">
         <div class="pvp-fighter-sprite" id="pvpPlayerSprite"></div>
@@ -1849,6 +2118,21 @@
       <div style="display:none;" id="pvpBannerRight"></div>
       <div style="display:none;" id="pvpScoreBar"></div>
     </div>
+    <!-- ambient stadium atmosphere -->
+    <div class="pvp-amb">
+      <div class="pvp-light-beam lb1"></div>
+      <div class="pvp-light-beam lb2"></div>
+    </div>
+    <div class="pvp-dust"></div>
+    <div class="pvp-roar-flash" id="pvpRoarFlash"></div>
+    <!-- cinematic director overlay -->
+    <div class="pvp-cine" id="pvpCine">
+      <div class="bar top"></div>
+      <div class="bar bot"></div>
+      <div class="flash" id="pvpCineFlash"></div>
+      <div class="pvp-cine-center" id="pvpCineCenter"></div>
+    </div>
+    <div class="pvp-skip" id="pvpSkip">PULAR ▶▶</div>
   </div>
   <div class="pvp-hud">
     <div class="pvp-hp-row">
@@ -1878,6 +2162,58 @@
       <button id="pvpDefend"><span class="pva-n">DEFENDER</span><span class="pva-t">reduz dano</span></button>
       <button id="pvpFlee"><span class="pva-n">FUGIR</span><span class="pva-t">perde aposta</span></button>
     </div>
+  </div>
+</div>
+
+<!-- PVP MATCHMAKING SEARCH (dramatized) -->
+<div id="pvpSearch">
+  <div class="ps-orbit">
+    <div class="ring"></div>
+    <div class="ring r2"></div>
+    <div class="ps-cria" id="pvpSearchCria"></div>
+  </div>
+  <div class="ps-title">PROCURANDO OPONENTE</div>
+  <div class="ps-sub" id="pvpSearchSub">buscando alguém à sua altura…</div>
+  <div class="ps-onlinebar"><i></i></div>
+  <div class="ps-cancel" id="pvpSearchCancel">cancelar</div>
+</div>
+
+<!-- VERSUS SCREEN -->
+<div id="pvpVersus">
+  <div class="vs-side left" id="pvpVsLeft">
+    <div class="vs-avatar" id="pvpVsCriaL"></div>
+    <div class="vs-pname" id="pvpVsNameL">—</div>
+    <div class="vs-cria"  id="pvpVsSpeciesL">—</div>
+    <div class="vs-elem"  id="pvpVsElemL">—</div>
+    <div class="vs-rank"  id="pvpVsRankL">—</div>
+  </div>
+  <div class="vs-side right" id="pvpVsRight">
+    <div class="vs-avatar" id="pvpVsCriaR"></div>
+    <div class="vs-pname" id="pvpVsNameR">—</div>
+    <div class="vs-cria"  id="pvpVsSpeciesR">—</div>
+    <div class="vs-elem"  id="pvpVsElemR">—</div>
+    <div class="vs-rank"  id="pvpVsRankR">—</div>
+  </div>
+  <div class="vs-bolt"></div>
+  <div class="vs-badge">VS</div>
+  <div class="vs-matchup" id="pvpVsMatchup"></div>
+</div>
+
+<!-- RESULT SCREEN -->
+<div id="pvpResult">
+  <div class="pr-cria" id="pvpResultCria"></div>
+  <div class="pr-title" id="pvpResultTitle">VITÓRIA</div>
+  <div class="pr-sub" id="pvpResultSub">—</div>
+  <div class="pr-card">
+    <div class="pr-row"><span>Prêmio</span><b id="pvpResultPrize">+0 ◈</b></div>
+    <div class="pr-row"><span>Experiência</span><b id="pvpResultXp">+0 XP</b></div>
+    <div class="pr-row"><span>Saldo</span><b id="pvpResultCoins">0 ◈</b></div>
+    <div class="pr-mvp" id="pvpResultMvp"></div>
+  </div>
+  <div class="pr-actions">
+    <button class="share" id="pvpResultShare">COMPARTILHAR 📸</button>
+    <button class="primary" id="pvpResultRematch">REVANCHE</button>
+    <button id="pvpResultExit">SAIR</button>
   </div>
 </div>
 
@@ -3270,7 +3606,7 @@ function openArenaDome(npc) {
     el.classList.toggle('pvp-disabled', coins < room.bet);
     el.onclick = coins >= room.bet ? () => {
       closePvPMatchmaking();
-      setTimeout(() => startPvPBattle(room), 180);
+      setTimeout(() => pvpEnterRoom(room), 180);
     } : null;
   });
 
@@ -3304,38 +3640,284 @@ function pvpNormalize(criaSrc) {
 }
 
 /* ── Start PvP vs IA ──────────────────────────────────────────── */
-async function startPvPBattle(room) {
-  if (!state.cria) return;
-  inPvP    = true;
-  inBattle = true;
+/* ════════════════════════════════════════════════════════════════
+   PVP EXPERIENCE — máquina de estados cinematográfica
+   Gate ▶ Matchmaking ▶ Versus ▶ Cinemática (estádio→nomes→jogadores
+   →orbes→invocação→câmera→HUD) ▶ Batalha ▶ Resultado
+   A arena é a estrela. A HUD entra por último, sai sem dó.
+   ════════════════════════════════════════════════════════════════ */
 
-  // Deduct entry fee up-front
-  state.coins -= room.bet;
-  saveGame();
+let pvpSkipCine = false;          // jogador pulou a intro
+let pvpLastRoom = null;           // pra revanche
 
-  const pCria = pvpNormalize(state.cria);
+const PVP_RANKS = ['BRONZE III','BRONZE I','PRATA III','PRATA I','OURO II','OURO I','PLATINA','DIAMANTE','MESTRE'];
+function pvpRank(wins) { return PVP_RANKS[Math.min(PVP_RANKS.length - 1, Math.floor((wins || 0) / 2))]; }
+
+const PVP_AI_RANKS = ['BRONZE II','PRATA II','OURO II','PLATINA','DIAMANTE'];
+
+/* Build a fresh match object (used by first entry AND rematch) */
+function pvpBuildMatch(room) {
+  const pCria  = pvpNormalize(state.cria);
   const aiPool = PVP_AI_POOL.filter(s => s !== state.cria.species);
   const aiCria = pvpNormalize({ species: pick(aiPool.length ? aiPool : PVP_AI_POOL) });
   const aiName = pick(PVP_AI_NAMES);
-
-  pvpState = {
+  return {
     pCria, aiCria, room,
     pName:       state.playerName || 'Você',
     aiName,
+    aiRank:      pick(PVP_AI_RANKS),
     pDefending:  false,
     aiDefending: false,
     turn:        0,
-    locked:      false,
+    locked:      true,
     pOrbes:      3,
     aiOrbes:     3,
+    crits:       0,           // pra MVP
+    bigHit:      0,           // maior golpe (MVP)
   };
+}
 
-  pvpSetupUI();
+/* Describe the elemental matchup for narrative tension */
+function pvpMatchupText(pEl, aiEl) {
+  const adv = (ELEMENT_ADV[pEl] || {})[aiEl];
+  if (adv && adv > 1)  return '✦ VANTAGEM ELEMENTAL A SEU FAVOR ✦';
+  if (adv && adv < 1)  return '⚠ DESVANTAGEM ELEMENTAL — JOGUE COM CUIDADO ⚠';
+  return '◈ DUELO EQUILIBRADO — O TIMING DECIDE ◈';
+}
+
+/* ── ENTRADA: cobra a aposta e dispara o fluxo cinematográfico ── */
+async function pvpEnterRoom(room) {
+  if (!state.cria) return;
+  pvpLastRoom = room;
+  inPvP = true; inBattle = true;
+  state.coins -= room.bet;
+  saveGame();
+
+  if (FX.initAudio) FX.initAudio();
+  const match = pvpBuildMatch(room);
+
+  await pvpMatchmakingSearch(match);   // CENA 1
+  await pvpShowVersus(match);          // CENA 2
+  await pvpStartBattle(match);         // CINEMÁTICA + BATALHA
+}
+
+/* ── CENA 1: matchmaking dramatizado ──────────────────────────── */
+function pvpMatchmakingSearch(match) {
+  return new Promise(resolve => {
+    const ov  = document.getElementById('pvpSearch');
+    const sub = document.getElementById('pvpSearchSub');
+    const cria = document.getElementById('pvpSearchCria');
+    const pImg = monsterSprite(match.pCria, 'idle_0');
+    cria.style.backgroundImage = pImg ? `url(${pImg.src})` : '';
+    ov.classList.add('active');
+
+    const lines = [
+      `${22 + Math.floor(Math.random()*40)} treinadores online na ${match.room.name}`,
+      'buscando alguém à sua altura…',
+      'analisando histórico de batalhas…',
+      'oponente digno encontrado!',
+    ];
+    let i = 0;
+    sub.textContent = lines[0];
+    const iv = setInterval(() => { i++; if (lines[i]) sub.textContent = lines[i]; }, 700);
+
+    let cancelled = false;
+    const cancelBtn = document.getElementById('pvpSearchCancel');
+    const onCancel = () => { cancelled = true; cleanup(); ov.classList.remove('active'); pvpAbort(); };
+    cancelBtn.onclick = onCancel;
+
+    function cleanup() { clearInterval(iv); clearTimeout(to); cancelBtn.onclick = null; }
+    const to = setTimeout(() => {
+      if (cancelled) return;
+      cleanup();
+      FX.sfx.matchFound && FX.sfx.matchFound();
+      ov.classList.remove('active');
+      resolve();
+    }, 2600);
+  });
+}
+
+/* abort entire flow + refund nothing (fee already taken on flee rules) */
+function pvpAbort() {
+  // devolve a aposta se cancelou ANTES da batalha começar
+  if (pvpLastRoom) { state.coins += pvpLastRoom.bet; saveGame(); }
+  inPvP = false; inBattle = false; pvpState = null;
+  renderHUD();
+}
+
+/* ── CENA 2: VERSUS / tale of the tape ────────────────────────── */
+function pvpShowVersus(match) {
+  return new Promise(resolve => {
+    const ov = document.getElementById('pvpVersus');
+    const pDef = MONSTERS[match.pCria.species], aDef = MONSTERS[match.aiCria.species];
+    const pImg = monsterSprite(match.pCria, 'idle_0');
+    const aImg = monsterSprite(match.aiCria, 'idle_0');
+    const set = (id, v) => { const e = document.getElementById(id); if (e) e.textContent = v; };
+
+    document.getElementById('pvpVsCriaL').style.backgroundImage = pImg ? `url(${pImg.src})` : '';
+    document.getElementById('pvpVsCriaR').style.backgroundImage = aImg ? `url(${aImg.src})` : '';
+    set('pvpVsNameL', match.pName);   set('pvpVsNameR', match.aiName);
+    set('pvpVsSpeciesL', pDef.name);  set('pvpVsSpeciesR', aDef.name);
+    set('pvpVsElemL', pDef.elementLabel.toUpperCase());
+    set('pvpVsElemR', aDef.elementLabel.toUpperCase());
+    set('pvpVsRankL', pvpRank(state.pvpWins) ); set('pvpVsRankR', match.aiRank);
+    set('pvpVsMatchup', pvpMatchupText(pDef.element, aDef.element));
+
+    ov.classList.add('active');
+    void ov.offsetWidth;                 // reflow
+    requestAnimationFrame(() => ov.classList.add('go'));
+    FX.sfx.whoosh && FX.sfx.whoosh();
+    setTimeout(() => FX.sfx.matchFound && FX.sfx.matchFound(), 480);
+
+    setTimeout(() => {
+      ov.classList.remove('active', 'go');
+      resolve();
+    }, 2400);
+  });
+}
+
+/* ── arena camera helpers ─────────────────────────────────────── */
+const ARENA_IMG = { w: 1672, h: 732 };
+function pvpFitArena() {
+  const col = document.getElementById('pvpColiseum');
+  const w   = document.getElementById('pvpArenaWrap');
+  if (!col || !w) return;
+  const cw = col.clientWidth, ch = col.clientHeight;
+  if (!cw || !ch) return;
+  const scale = Math.max(cw / ARENA_IMG.w, ch / ARENA_IMG.h) * 1.02; // slight bleed
+  w.style.width  = (ARENA_IMG.w * scale) + 'px';
+  w.style.height = (ARENA_IMG.h * scale) + 'px';
+}
+function pvpCam(x, y, z, instant) {
+  const w = document.getElementById('pvpArenaWrap');
+  if (!w) return;
+  w.classList.toggle('cam-instant', !!instant);
+  w.style.setProperty('--cam-x', (x || 0) + 'px');
+  w.style.setProperty('--cam-y', (y || 0) + 'px');
+  w.style.setProperty('--cam-z', (z || 1));
+  if (instant) { void w.offsetWidth; w.classList.remove('cam-instant'); }
+}
+window.addEventListener('resize', () => { if (inPvP) pvpFitArena(); });
+
+/* cinematic helper: show a line of text in the center band */
+function pvpCineLine(html, cls, hold) {
+  const center = document.getElementById('pvpCineCenter');
+  const div = document.createElement('div');
+  div.className = 'pvp-cine-line ' + (cls || 'pvp-cine-mid');
+  div.innerHTML = html;
+  center.appendChild(div);
+  requestAnimationFrame(() => div.classList.add('show'));
+  if (hold) setTimeout(() => { div.classList.remove('show'); div.classList.add('out'); setTimeout(() => div.remove(), 400); }, hold);
+  return div;
+}
+function pvpCineClear() { document.getElementById('pvpCineCenter').innerHTML = ''; }
+function pvpRoar() {
+  const f = document.getElementById('pvpRoarFlash');
+  f.classList.remove('go'); void f.offsetWidth; f.classList.add('go');
+  FX.sfx.crowdRoar && FX.sfx.crowdRoar();
+  const wrap = document.getElementById('pvpArenaWrap');
+  wrap.style.filter = 'brightness(1.3)';
+  setTimeout(() => wrap.style.filter = '', 300);
+}
+
+/* ── CINEMÁTICA + BATALHA ─────────────────────────────────────── */
+async function pvpStartBattle(match) {
+  pvpState = match;
+  pvpSkipCine = false;
+
+  // mount stage
   document.getElementById('pvpBattle').classList.add('active');
-  pvpLog(`⚔️ ${pvpState.pName} vs ${aiName} — batalha na Cúpula!`);
-  await wait(900);
+  const hud   = document.querySelector('.pvp-hud');
+  const cine  = document.getElementById('pvpCine');
+  const col   = document.getElementById('pvpColiseum');
+  const pFig  = document.getElementById('pvpPlayerFighter');
+  const eFig  = document.getElementById('pvpEnemyFighter');
+  const skip  = document.getElementById('pvpSkip');
+
+  hud.classList.remove('in', 'cine-hide');
+  cine.classList.add('letterbox');
+  col.classList.remove('lit');
+  pFig.classList.add('pre-summon'); eFig.classList.add('pre-summon');
+  pvpSetupUI();
+  pvpFitArena();
+
+  // skip handler
+  pvpSkipCine = false;
+  skip.classList.add('show');
+  const doSkip = () => { pvpSkipCine = true; };
+  skip.onclick = doSkip;
+
+  const step = (ms) => new Promise(r => {
+    const t0 = Date.now();
+    (function chk(){ if (pvpSkipCine || Date.now()-t0 >= ms) return r(); requestAnimationFrame(chk); })();
+  });
+
+  // FASE A — revelação do estádio (câmera no alto, desce devagar)
+  pvpCam(0, 120, 1.55, true);
+  await step(120);
+  pvpCam(0, 60, 1.4, false);
+  FX.sfx.gateOpen && FX.sfx.gateOpen();
+  await step(1300);
+
+  // FASE B — estádio acorda: luzes + público
+  col.classList.add('lit');
+  pvpRoar();
+  pvpCam(0, -20, 1.18, false);
+  await step(1200);
+
+  // FASE C — apresentação dos nomes (telão)
+  if (!pvpSkipCine) {
+    pvpCineLine(`<span style="color:#8cc8ff">${match.pName}</span>`, 'pvp-cine-mid', 1500);
+    pvpCineLine(`<span style="color:#ffd24a">VS</span>`, 'pvp-cine-small', 1500);
+    pvpCineLine(`<span style="color:#ff9a9a">${match.aiName}</span>`, 'pvp-cine-mid', 1500);
+    await step(1300);
+    pvpCineClear();
+  }
+
+  // FASE D — ativação dos orbes (energia + câmera centraliza)
+  pvpCam(0, 10, 1.12, false);
+  FX.sfx.orbActivate && FX.sfx.orbActivate();
+  await step(700);
+
+  // FASE E — invocação dos CRIAS (feixe → sprite materializa)
+  pvpSummon('player');
+  await step(280);
+  pvpSummon('enemy');
+  FX.sfx.summon && FX.sfx.summon();
+  await step(750);
+
+  // FASE F — câmera aproxima do combate
+  pvpCam(0, 18, 1.22, false);
+  if (!pvpSkipCine) pvpCineLine('LUTAR!', 'pvp-cine-big', 1000);
+  await step(800);
+
+  // FASE G — só agora a HUD entra
+  cine.classList.remove('letterbox');
+  skip.classList.remove('show'); skip.onclick = null;
+  pvpCineClear();
+  hud.classList.add('in');
+  FX.sfx.hudIn && FX.sfx.hudIn();
+  pvpLog(`⚔️ ${match.pName} vs ${match.aiName} — que vença o melhor!`);
+
+  await wait(500);
+  pvpState.locked = false;
   pvpUnlock();
 }
+
+/* summon beam + sprite landing for one side */
+function pvpSummon(side) {
+  const fig  = document.getElementById(side === 'player' ? 'pvpPlayerFighter' : 'pvpEnemyFighter');
+  const beam = document.getElementById(side === 'player' ? 'pvpBeamL' : 'pvpBeamR');
+  beam.classList.remove('go'); void beam.offsetWidth; beam.classList.add('go');
+  setTimeout(() => {
+    fig.classList.remove('pre-summon');
+    fig.classList.add('summon-in');
+    setTimeout(() => fig.classList.remove('summon-in'), 650);
+  }, 200);
+}
+
+/* legacy entry kept for safety */
+async function startPvPBattle(room) { return pvpEnterRoom(room); }
 
 /* ── Wire up UI ────────────────────────────────────────────────── */
 function pvpSetupUI() {
@@ -3525,13 +4107,14 @@ async function pvpPlayerAct(action) {
 
     ps.aiCria.hp = Math.max(0, ps.aiCria.hp - dmg);
     const crit = quality >= 1.5;
+    if (crit) ps.crits++;
+    if (dmg > ps.bigHit) ps.bigHit = dmg;
 
-    // lunge animation
+    // lunge animation (player on left lunges right toward enemy)
     const pFig = document.getElementById('pvpPlayerFighter');
-    pFig.classList.add('pvp-atk-l');
-    setTimeout(() => pFig.classList.remove('pvp-atk-l'), 300);
-    document.getElementById('pvpEnemyFighter').style.animation = 'shake 0.3s';
-    setTimeout(() => { document.getElementById('pvpEnemyFighter').style.animation = ''; }, 320);
+    pFig.classList.remove('lunge-r'); void pFig.offsetWidth; pFig.classList.add('lunge-r');
+    setTimeout(() => pFig.classList.remove('lunge-r'), 420);
+    FX.sfx.lunge && FX.sfx.lunge();
 
     const effTxt = typeBonus > 1.1 ? ' Super efetivo!' : typeBonus < 0.9 ? ' Pouco efetivo.' : '';
     pvpLog(`${pDef.name} usou ${skill.name}!${crit ? ' CRÍTICO!' : ''}${effTxt} (−${dmg} HP)`);
@@ -3576,10 +4159,9 @@ async function pvpAITurn() {
     ps.pCria.hp = Math.max(0, ps.pCria.hp - dmg);
 
     const aFig = document.getElementById('pvpEnemyFighter');
-    aFig.classList.add('pvp-atk-r');
-    setTimeout(() => aFig.classList.remove('pvp-atk-r'), 300);
-    document.getElementById('pvpPlayerFighter').style.animation = 'shake 0.3s';
-    setTimeout(() => { document.getElementById('pvpPlayerFighter').style.animation = ''; }, 320);
+    aFig.classList.remove('lunge-l'); void aFig.offsetWidth; aFig.classList.add('lunge-l');
+    setTimeout(() => aFig.classList.remove('lunge-l'), 420);
+    FX.sfx.lunge && FX.sfx.lunge();
 
     const effTxt  = typeBonus > 1.1 ? ' Super efetivo!' : typeBonus < 0.9 ? ' Pouco efetivo.' : '';
     const defTxt  = ps.pDefending ? ' (bloqueado!)' : '';
@@ -3615,29 +4197,124 @@ async function pvpDoFlee() {
 async function pvpEnd(result) {
   pvpState.locked = true;
   pvpLock();
+  const ps = pvpState;
+
+  // faint animation on the loser
+  const loserFig = document.getElementById(result === 'win' ? 'pvpEnemyFighter' : 'pvpPlayerFighter');
+  loserFig.classList.add('faint');
+
+  // hide HUD so the moment breathes, push camera onto the winner
+  document.querySelector('.pvp-hud').classList.add('cine-hide');
+  document.getElementById('pvpTimingWrap').classList.remove('show');
+  pvpCam(result === 'win' ? -120 : 120, 20, 1.35, false);
+  await wait(1100);
+
+  // record + payout
+  let prize = 0, xp = 0;
   if (result === 'win') {
-    const prize = pvpState.room.prize;
-    state.coins += prize;
-    FX.sfx.victory();
-    pvpLog(`🏆 ${pvpState.pName} venceu! +${prize} 💰 (taxa CRIAS 10% já descontada)`);
-    await wait(2000);
-    showToast(`🏆 Vitória na Cúpula! +${prize} 💰`);
+    prize = ps.room.prize;
+    xp    = 60 + Math.round(ps.room.bet / 10);
+    state.coins  += prize;
+    state.pvpWins = (state.pvpWins || 0) + 1;
   } else {
-    FX.sfx.defeat();
-    pvpLog(`💀 ${pvpState.aiName} venceu. −${pvpState.room.bet} 💰`);
-    await wait(2000);
-    showToast(`Derrota na Cúpula. −${pvpState.room.bet} 💰`);
+    state.pvpLosses = (state.pvpLosses || 0) + 1;
   }
   saveGame();
-  await wait(400);
-  pvpClose();
+  pvpShowResult(result === 'win', { prize, xp });
+}
+
+/* ── CENA 5: tela de resultado ────────────────────────────────── */
+function pvpShowResult(win, data) {
+  const ps = pvpState;
+  const ov = document.getElementById('pvpResult');
+  const winnerCria = win ? ps.pCria : ps.aiCria;
+  const cImg = monsterSprite(winnerCria, 'idle_0');
+  document.getElementById('pvpResultCria').style.backgroundImage = cImg ? `url(${cImg.src})` : '';
+
+  document.getElementById('pvpResultTitle').textContent = win ? 'VITÓRIA' : 'DERROTA';
+  document.getElementById('pvpResultSub').textContent = win
+    ? `${ps.pName} é a lenda da ${ps.room.name}!`
+    : 'Faltou pouco. A revanche te espera.';
+  document.getElementById('pvpResultPrize').textContent = win ? `+${data.prize} ◈` : `−${ps.room.bet} ◈`;
+  document.getElementById('pvpResultXp').textContent    = win ? `+${data.xp} XP` : '+0 XP';
+  document.getElementById('pvpResultCoins').textContent = `${state.coins} ◈`;
+
+  const mvpEl = document.getElementById('pvpResultMvp');
+  if (win) {
+    const pDef = MONSTERS[ps.pCria.species];
+    mvpEl.textContent = `★ MVP: ${pDef.name} · ${ps.crits} crítico(s) · maior golpe ${ps.bigHit}`;
+  } else {
+    const aDef = MONSTERS[ps.aiCria.species];
+    const tip = pvpMatchupText(MONSTERS[ps.pCria.species].element, aDef.element).includes('DESVANTAGEM')
+      ? 'Dica: o elemento dele te supera — segure os especiais para o timing perfeito.'
+      : 'Dica: acerte a zona dourada do timing para dobrar o dano.';
+    mvpEl.textContent = tip;
+  }
+
+  ov.classList.remove('win', 'lose');
+  ov.classList.add(win ? 'win' : 'lose', 'active');
+
+  if (win) { FX.sfx.fanfare && FX.sfx.fanfare(); pvpConfetti(ov); pvpRoar(); }
+  else     { FX.sfx.defeat && FX.sfx.defeat(); }
+
+  // wire buttons
+  document.getElementById('pvpResultExit').onclick    = () => { ov.classList.remove('active'); pvpClose(); };
+  document.getElementById('pvpResultRematch').onclick = () => {
+    ov.classList.remove('active');
+    const room = ps.room;
+    pvpCloseStageOnly();
+    if (state.coins < room.bet) { showToast('Saldo insuficiente para revanche.'); pvpClose(); return; }
+    state.coins -= room.bet; saveGame();
+    const m = pvpBuildMatch(room);
+    pvpShowVersus(m).then(() => pvpStartBattle(m));
+  };
+  document.getElementById('pvpResultShare').onclick   = () => pvpShareCard(win, data);
+}
+
+/* confetti burst for victory */
+function pvpConfetti(host) {
+  const colors = ['#ffd24a','#4dc3ff','#ff6b6b','#8cff9a','#ffffff'];
+  for (let i = 0; i < 60; i++) {
+    const c = document.createElement('div');
+    c.className = 'pr-confetti';
+    c.style.left = Math.random() * 100 + '%';
+    c.style.background = colors[i % colors.length];
+    c.style.transform = `rotate(${Math.random()*360}deg)`;
+    c.style.animation = `prConfetti ${1.6 + Math.random()*1.6}s linear ${Math.random()*0.5}s forwards`;
+    host.appendChild(c);
+    setTimeout(() => c.remove(), 3600);
+  }
+}
+
+/* share card — render a snapshot the player wants to post */
+function pvpShareCard(win, data) {
+  const ps = pvpState;
+  showToast(`📸 ${ps.pName} ${win ? 'venceu' : 'lutou contra'} ${ps.aiName} na ${ps.room.name}!`);
+  try {
+    const txt = `🏟️ CRIAS ARENA — ${ps.room.name}\n${ps.pName} vs ${ps.aiName}\nResultado: ${win ? 'VITÓRIA 🏆' : 'Derrota'}\n${win ? `Prêmio +${data.prize} ◈` : ''}`;
+    if (navigator.share) navigator.share({ title: 'CRIAS Arena', text: txt }).catch(()=>{});
+    else if (navigator.clipboard) navigator.clipboard.writeText(txt).then(()=>showToast('Resultado copiado!')).catch(()=>{});
+  } catch(e) {}
+}
+
+/* close just the battle stage (keep flow for rematch) */
+function pvpCloseStageOnly() {
+  cancelAnimationFrame(pvpTimingAnim);
+  document.querySelector('.pvp-hud').classList.remove('in');
+  document.getElementById('pvpPlayerFighter').classList.remove('faint','pre-summon','summon-in');
+  document.getElementById('pvpEnemyFighter').classList.remove('faint','pre-summon','summon-in');
 }
 
 /* ── Close PvP and restore world state ─────────────────────────── */
 function pvpClose() {
   cancelAnimationFrame(pvpTimingAnim);
   document.getElementById('pvpBattle').classList.remove('active');
+  document.getElementById('pvpResult').classList.remove('active');
   document.getElementById('pvpTimingWrap').classList.remove('show');
+  document.querySelector('.pvp-hud').classList.remove('in','cine-hide');
+  document.getElementById('pvpPlayerFighter').classList.remove('faint','pre-summon','summon-in');
+  document.getElementById('pvpEnemyFighter').classList.remove('faint','pre-summon','summon-in');
+  pvpCam(0, 0, 1, true);
   inBattle = false;
   inPvP    = false;
   pvpState = null;
@@ -5146,9 +5823,39 @@ const FX = (function() {
       [523, 659, 784, 1047, 1319].forEach((f, i) => setTimeout(() => beep(f, 0.12, 'triangle', 0.09), i * 60));
     },
     orbPulse: () => { beep(80, 0.4, 'sine', 0.04, 0.5); },
-    orbBirth: () => { 
+    orbBirth: () => {
       [200, 300, 500, 800].forEach((f, i) => setTimeout(() => beep(f, 0.3, 'sine', 0.08), i * 80));
       setTimeout(() => noise(0.5, 0.08, 2000), 400);
+    },
+    // === PvP cinematic SFX ===
+    matchFound: () => {            // boom + sino
+      noise(0.4, 0.12, 180);
+      [880, 1320].forEach((f,i)=>setTimeout(()=>beep(f,0.5,'sine',0.07),i*60));
+      setTimeout(()=>beep(220,0.45,'triangle',0.09),20);
+    },
+    whoosh: () => { noise(0.3, 0.06, 1200); setTimeout(()=>noise(0.2,0.04,600),60); },
+    gateOpen: () => {             // rangido grave de pedra
+      noise(0.9, 0.10, 90);
+      beep(70, 0.9, 'sawtooth', 0.05, 0.4);
+    },
+    crowdRoar: () => {            // rugido crescente
+      noise(1.2, 0.05, 500);
+      let v=0.02; for(let i=0;i<6;i++){ setTimeout(()=>noise(0.5, v, 700+i*60), i*70); v+=0.012; }
+    },
+    orbActivate: () => {          // energia subindo
+      beep(120, 0.8, 'sine', 0.05, 1.2);
+      setTimeout(()=>noise(0.4,0.05,2400),300);
+    },
+    summon: () => {               // feixe + impacto + grito
+      beep(300, 0.18, 'sawtooth', 0.06, 1.5);
+      setTimeout(()=>{ noise(0.35,0.13,300); beep(90,0.4,'sine',0.08); }, 180);
+      setTimeout(()=>beep(660,0.25,'square',0.05,-0.4), 240);
+    },
+    hudIn: () => { [523,659].forEach((f,i)=>setTimeout(()=>beep(f,0.05,'triangle',0.05),i*45)); },
+    lunge: () => { noise(0.08, 0.05, 1400); },
+    fanfare: () => {              // vitória épica
+      [523,659,784,1047,1319].forEach((f,i)=>setTimeout(()=>beep(f,0.18,'triangle',0.09),i*90));
+      setTimeout(()=>noise(0.5,0.1,200),100);
     },
   };
 
