@@ -3784,7 +3784,10 @@ function pvpFitArena() {
   if (!col || !w) return;
   const cw = col.clientWidth, ch = col.clientHeight;
   if (!cw || !ch) return;
-  const scale = Math.max(cw / ARENA_IMG.w, ch / ARENA_IMG.h) * 1.02; // slight bleed
+  // CONTAIN: show the WHOLE stadium (stands, platforms, names) — never crop it.
+  // On wide screens it fills; on tall screens the ambient atmosphere frames it.
+  // The cinematic camera zooms IN for drama and settles back to full view.
+  const scale = Math.min(cw / ARENA_IMG.w, ch / ARENA_IMG.h);
   w.style.width  = (ARENA_IMG.w * scale) + 'px';
   w.style.height = (ARENA_IMG.h * scale) + 'px';
 }
@@ -3875,23 +3878,25 @@ async function pvpStartBattle(match) {
   }
 
   // FASE D — ativação dos orbes (energia + câmera centraliza)
-  pvpCam(0, 10, 1.12, false);
+  pvpCam(0, 6, 1.15, false);
   FX.sfx.orbActivate && FX.sfx.orbActivate();
   await step(700);
 
-  // FASE E — invocação dos CRIAS (feixe → sprite materializa)
+  // FASE E — invocação dos CRIAS (câmera "soca" pra perto no impacto)
   pvpSummon('player');
-  await step(280);
+  await step(260);
   pvpSummon('enemy');
+  pvpCam(0, 14, 1.32, false);   // punch-in dramático
   FX.sfx.summon && FX.sfx.summon();
+  pvpRoar();
+  await step(780);
+
+  // FASE F — grito de batalha
+  if (!pvpSkipCine) pvpCineLine('LUTAR!', 'pvp-cine-big', 1000);
   await step(750);
 
-  // FASE F — câmera aproxima do combate
-  pvpCam(0, 18, 1.22, false);
-  if (!pvpSkipCine) pvpCineLine('LUTAR!', 'pvp-cine-big', 1000);
-  await step(800);
-
-  // FASE G — só agora a HUD entra
+  // FASE G — câmera revela TODA a arena + HUD entra por último
+  pvpCam(0, 0, 1.0, false);      // pull-back: estádio inteiro visível pra jogar
   cine.classList.remove('letterbox');
   skip.classList.remove('show'); skip.onclick = null;
   pvpCineClear();
