@@ -52,3 +52,22 @@
   left: auto !important;
   width: min(210px, 38vw) !important;
 }
+
+/* ─── BATTLE: compact layout for mobile portrait ─── */
+@media (max-width: 600px) {
+  .battle-arena {
+    height: clamp(120px, 26vh, 160px) !important;
+    padding: 8px !important;
+  }
+  .battle-creature .sprite {
+    width: clamp(60px, 12vh, 85px) !important;
+    height: clamp(60px, 12vh, 85px) !important;
+  }
+  .battle-creature .info { min-width: 100px !important; font-size: 10px !important; padding: 4px 6px !important; }
+  .battle-creature .info .name { font-size: 11px !important; }
+  .battle-log { min-height: 36px !important; padding: 7px 10px !important; font-size: 12px !important; }
+  .battle-actions { gap: 3px !important; padding: 5px !important; }
+  .battle-actions button { padding: 7px 6px !important; min-height: 36px !important; font-size: 11px !important; }
+  .battle-actions button .skill-name { font-size: 11px !important; }
+  .battle-actions button .skill-type { font-size: 9px !important; }
+}

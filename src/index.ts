@@ -6,11 +6,36 @@ const app = express()
 
 const publicDir = path.join(process.cwd(), 'public')
 
-// Pre-load game.html with mobile CSS injected (read once at startup)
+const MOBILE_INJECT = `<link rel="stylesheet" href="/game-mobile.css">
+<script>
+(function(){
+  // Hide chat panel whenever any overlay (battle, dialog, menu, etc.) is active
+  function syncChat() {
+    var chat = document.getElementById('chatPanel');
+    if (!chat) return;
+    var anyActive = !!document.querySelector('.overlay.active');
+    chat.style.display = anyActive ? 'none' : '';
+  }
+  var mo = new MutationObserver(syncChat);
+  function watchOverlays() {
+    document.querySelectorAll('.overlay').forEach(function(o) {
+      mo.observe(o, { attributes: true, attributeFilter: ['class','style'] });
+    });
+    syncChat();
+  }
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', watchOverlays);
+  } else {
+    watchOverlays();
+  }
+})();
+<\/script>`
+
+// Pre-load game.html with mobile CSS+script injected (read once at startup)
 let gameHtml = ''
 try {
   gameHtml = fs.readFileSync(path.join(publicDir, 'game.html'), 'utf8')
-    .replace('</head>', '<link rel="stylesheet" href="/game-mobile.css"></head>')
+    .replace('</head>', MOBILE_INJECT + '</head>')
 } catch { /* served via static fallback */ }
 
 // Serve static files from public/
