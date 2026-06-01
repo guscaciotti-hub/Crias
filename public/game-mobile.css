@@ -116,15 +116,27 @@ canvas#game {
   .pvp-actions button .pva-t { font-size: 8px !important; margin-top: 0 !important; }
 }
 
-/* ─── NPC DIALOG: portrait image smaller, avatar emoji compact ─── */
+/* ─── NPC DIALOG: compact 3x4 photo beside name/text ─── */
 @media (max-width: 900px) {
   #dialogPortrait {
-    height: clamp(90px, 26vw, 140px) !important;
-    margin: -8px -8px 8px -8px !important;
+    width: 60px !important;
+    height: 80px !important;
+    object-fit: cover !important;
+    object-position: center 10% !important;
+    border-radius: 6px !important;
+    border: 1.5px solid #a78bfa !important;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.45) !important;
+    margin: 0 10px 8px 0 !important;
+    float: left !important;
+  }
+  #dialog .panel::after {
+    content: '' !important;
+    display: table !important;
+    clear: both !important;
   }
   #dialogAvatar {
-    font-size: 22px !important;
-    min-width: 28px !important;
+    font-size: 18px !important;
+    min-width: 22px !important;
   }
 }
 
