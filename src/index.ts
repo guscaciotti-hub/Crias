@@ -17,8 +17,8 @@ const MOBILE_INJECT = `<link rel="stylesheet" href="/game-mobile.css">
   };
 })();
 (function(){
-  // Align new map's Core Orb visual with the game sprite (24 world px offset = 16 image px)
-  var MAP_H = 1254, Y_SHIFT = 16;
+  // Align new map's Core Orb visual with the game sprite
+  var MAP_H = 1254, Y_SHIFT = 48;
   var _di = CanvasRenderingContext2D.prototype.drawImage;
   CanvasRenderingContext2D.prototype.drawImage = function() {
     var a = Array.prototype.slice.call(arguments);
