@@ -9,11 +9,14 @@ const publicDir = path.join(process.cwd(), 'public')
 const MOBILE_INJECT = `<link rel="stylesheet" href="/game-mobile.css">
 <script>
 (function(){
-  // Hide chat panel whenever any overlay (battle, dialog, menu, etc.) is active
   function syncChat() {
     var chat = document.getElementById('chatPanel');
     if (!chat) return;
-    var anyActive = !!document.querySelector('.overlay.active');
+    var pvp = document.getElementById('pvpBattle');
+    var anyActive = !!(
+      document.querySelector('.overlay.active') ||
+      (pvp && pvp.classList.contains('active'))
+    );
     chat.style.display = anyActive ? 'none' : '';
   }
   var mo = new MutationObserver(syncChat);
@@ -21,6 +24,8 @@ const MOBILE_INJECT = `<link rel="stylesheet" href="/game-mobile.css">
     document.querySelectorAll('.overlay').forEach(function(o) {
       mo.observe(o, { attributes: true, attributeFilter: ['class','style'] });
     });
+    var pvp = document.getElementById('pvpBattle');
+    if (pvp) mo.observe(pvp, { attributes: true, attributeFilter: ['class'] });
     syncChat();
   }
   if (document.readyState === 'loading') {
