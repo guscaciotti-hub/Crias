@@ -17,6 +17,10 @@ canvas#game {
   /* dvh/dvw respects dynamic browser chrome changes on mobile */
   width: 100dvw !important;
   height: 100dvh !important;
+  /* Nearest-neighbor scaling — keeps pixel art crisp on high-DPI screens */
+  image-rendering: pixelated !important;
+  image-rendering: -moz-crisp-edges !important;
+  image-rendering: crisp-edges !important;
 }
 
 /* ─── HUD: horizontal single-row layout ─── */

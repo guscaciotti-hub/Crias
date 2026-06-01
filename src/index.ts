@@ -9,6 +9,15 @@ const publicDir = path.join(process.cwd(), 'public')
 const MOBILE_INJECT = `<link rel="stylesheet" href="/game-mobile.css">
 <script>
 (function(){
+  // Force nearest-neighbor on every canvas 2D context (crisp pixel art on HiDPI)
+  var _orig = HTMLCanvasElement.prototype.getContext;
+  HTMLCanvasElement.prototype.getContext = function(type, attrs) {
+    var ctx = _orig.call(this, type, attrs);
+    if (ctx && type === '2d') { ctx.imageSmoothingEnabled = false; }
+    return ctx;
+  };
+})();
+(function(){
   function syncChat() {
     var chat = document.getElementById('chatPanel');
     if (!chat) return;
