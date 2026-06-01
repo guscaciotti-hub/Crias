@@ -1,12 +1,10 @@
-/* ─── TOP BAR: unified dark strip ─── */
+/* ─── TOP BAR: gradient fade (map shows through) ─── */
 body::before {
   content: '';
   position: fixed;
   top: 0; left: 0; right: 0;
-  height: max(58px, calc(46px + env(safe-area-inset-top, 12px)));
-  background: rgba(4, 7, 18, 0.92);
-  border-bottom: 1px solid rgba(77, 195, 255, 0.18);
-  backdrop-filter: blur(14px);
+  height: max(52px, calc(42px + env(safe-area-inset-top, 10px)));
+  background: linear-gradient(180deg, rgba(4,7,18,0.96) 55%, rgba(4,7,18,0) 100%);
   z-index: 4;
   pointer-events: none;
 }
@@ -26,8 +24,10 @@ body::before {
   border: none !important;
   border-radius: 0 !important;
   box-shadow: none !important;
-  padding: 4px 10px 4px 0 !important;
+  padding: 2px 8px 2px 0 !important;
 }
+
+.hud-mini-sprite { width: 26px !important; height: 26px !important; }
 
 /* Second card (fragments) — divider + reset inline margin-top */
 .hud-card + .hud-card {
