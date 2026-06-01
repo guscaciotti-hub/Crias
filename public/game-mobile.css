@@ -1,3 +1,24 @@
+/* ─── FULLSCREEN: canvas covers entire screen including safe areas ─── */
+html, body {
+  width: 100% !important;
+  height: 100% !important;
+}
+#app {
+  position: fixed !important;
+  inset: 0 !important;
+  width: 100% !important;
+  height: 100% !important;
+}
+canvas#game {
+  position: fixed !important;
+  inset: 0 !important;
+  width: 100vw !important;
+  height: 100vh !important;
+  /* dvh/dvw respects dynamic browser chrome changes on mobile */
+  width: 100dvw !important;
+  height: 100dvh !important;
+}
+
 /* ─── HUD: horizontal single-row layout ─── */
 #hud {
   top: max(9px, env(safe-area-inset-top, 9px)) !important;

@@ -40,6 +40,11 @@ const MOBILE_INJECT = `<link rel="stylesheet" href="/game-mobile.css">
 let gameHtml = ''
 try {
   gameHtml = fs.readFileSync(path.join(publicDir, 'game.html'), 'utf8')
+    // Add viewport-fit=cover so iOS extends canvas to screen edges
+    .replace(
+      'content="width=device-width, initial-scale=1.0, user-scalable=no"',
+      'content="width=device-width, initial-scale=1.0, user-scalable=no, viewport-fit=cover"'
+    )
     .replace('</head>', MOBILE_INJECT + '</head>')
 } catch { /* served via static fallback */ }
 
