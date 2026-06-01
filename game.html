@@ -2817,9 +2817,20 @@ const CAVE1_CRATES = [{x:17,y:2},{x:17,y:10}];
 
 const CAVE1_NPCS_TEMPLATE = [
   { id:'spirit', x:9, y:3, emoji:'🕯️', name:'Espírito Ancã', type:'wisdom',
-    dialog:['Esta caverna guarda segredos da Primeira Era...','Oito zonas de batalha existem aqui. Sobreviva a todas.','Cuidado: nas profundezas mora o Espectro Korax.'] },
+    dialog:[
+      'Esta caverna guarda segredos da Primeira Era...',
+      'Há séculos, o Core Orb era perfeito — fonte de toda vida no Nexus.',
+      'Então veio a Ruptura: alguém corrompeu o Orbe, partindo-o em cinco fragmentos.',
+      'Cada fragmento foi espalhado por uma região — Caverna, Floresta, Pântano, Montanha, Abismo.',
+      'O Espectro Korax guarda o Fragmento Sombrio aqui. Derrote-o para recuperá-lo.',
+      'O Core Orb te escolheu, jovem domador. Você não veio aqui por acaso.'
+    ] },
   { id:'korax', x:8, y:9, emoji:'💀', name:'Espectro Korax', type:'trainer',
-    dialog:['INTRUSO... você ousa adentrar as profundezas?','Sua Cria vai virar pó aqui! PREPARE-SE!'],
+    dialog:[
+      'INTRUSO... você ousa adentrar as profundezas?',
+      'Eu guardo o Fragmento Sombrio há cinco séculos — ninguém passa!',
+      'Sua Cria vai virar pó aqui! PREPARE-SE!'
+    ],
     trainer: { level:7, defeated:false, reward:250 } },
   { id:'chest', x:17, y:10, emoji:'📦', name:'Caixa Ancestral', type:'treasure',
     dialog:['Uma caixa coberta de cristais antigos... um tesouro das profundezas!'],
@@ -3077,6 +3088,8 @@ function newGameState(playerName, monster) {
     enteredCave: false,
     encountersDefeated: 0,
     trainerWins: 0,
+    caveWins: 0,
+    questFlags: {},
     scene: 'world',
     cavePlayer: { x: 8, y: 18, dir: 'up' },
     coredex: { seen: {}, caught: {} },
@@ -3637,7 +3650,20 @@ function tryInteract() {
   const i = getInteractable();
   if (!i) return;
   if (i.portal === 'cave_exit') {
-    showDialog('Escada de Saída', ['A escada sobe para o Nível 2... mas por agora só existe o Nível 1.','Retornando à entrada da caverna.'], () => exitCave1());
+    const bossDefeated = state.cave1 && state.cave1.bossDefeated;
+    if (bossDefeated) {
+      showDialog('Escada Ancestral', [
+        'A escadaria pulsa com a energia do Fragmento Sombrio recuperado...',
+        'Uma voz ecoa das pedras: "Portador do Orbe — o Nível 2 aguarda quando você estiver pronto."',
+        'O Nexus ainda não mapeou essas profundezas. Continue sua jornada na superfície.'
+      ], () => exitCave1());
+    } else {
+      showDialog('Escada de Saída', [
+        'A escada sobe para o Nível 2...',
+        'Mas uma energia sombria bloqueia a passagem.',
+        'Derrote o Espectro Korax nas profundezas para liberá-la.'
+      ]);
+    }
     return;
   }
   if (i.cave) { interactWithCaveNPC(i.npc); return; }
@@ -3795,7 +3821,35 @@ function interactWithNPC(npc) {
         showToast('✨ Orbe da Criação recebido! Use no Core Orb no centro da praça.');
       });
     } else {
-      showDialog(npc.name, npc.dialogAfter || ['Fortaleça sua Cria e explore o mundo!']);
+      const bossDefeated = state.cave1 && state.cave1.bossDefeated;
+      const solisReturn = state.questFlags && state.questFlags.solisReturn;
+      if (bossDefeated && !solisReturn) {
+        if (!state.questFlags) state.questFlags = {};
+        state.questFlags.solisReturn = true;
+        checkQuestCompletion();
+        showDialog(npc.name, [
+          'Você derrotou Korax... extraordinário. Sinto o Fragmento Sombrio pulsando no Core Orb.',
+          'Há muito que preciso te contar: o Core Orb foi partido em cinco fragmentos séculos atrás — chamamos isso de A Ruptura.',
+          'Alguém corrompeu o Orbe intencionalmente. Cada fragmento foi espalhado por uma região do mundo.',
+          'Fragmento Sombrio — Caverna. Fragmento Verdejante — Floresta Velada. Fragmento do Pântano, da Montanha, do Abismo...',
+          'Você não é apenas um domador. O Core Orb te escolheu como Portador — o único capaz de reunir os fragmentos.',
+          'O destino do Nexus está em suas mãos. Fortaleça suas Crias e prepare-se para a Floresta Velada.',
+          '🌟 Título desbloqueado: PORTADOR DO ORBE'
+        ], () => {
+          state.coins += 300;
+          showToast('🎉 Revelação! +300 💰 — Você é o Portador do Orbe!');
+          checkQuestCompletion();
+          saveGame();
+        });
+      } else if (solisReturn) {
+        showDialog(npc.name, [
+          'O Core Orb pulsa com mais força graças a você, Portador.',
+          'Quatro fragmentos ainda aguardam: Floresta Velada, Pântano das Sombras, Montanha do Trovão e o Abismo Eterno.',
+          'Fortaleça suas Crias. O próximo fragmento não será fácil de recuperar.'
+        ]);
+      } else {
+        showDialog(npc.name, npc.dialogAfter || ['Fortaleça sua Cria e explore o mundo!']);
+      }
     }
     return;
   }
@@ -5837,8 +5891,20 @@ function endBattle(result, isCapture) {
         state.items.orbeCriacao = (state.items.orbeCriacao || 0) + 1;
         showToast('🌟 Mestre Yuri te deu um Orbe da Criação!');
       }
+      // Korax defeated — recover Shadow Fragment
+      if (battleState.options.trainer.id === 'korax') {
+        if (!state.cave1) state.cave1 = {};
+        state.cave1.bossDefeated = true;
+        setTimeout(() => showToast('💜 Fragmento Sombrio recuperado! Volte ao Guia Solis.'), 600);
+        checkQuestCompletion();
+      }
     } else {
       state.encountersDefeated++;
+      if (state.scene === 'cave1' && battleState.options.wild) {
+        if (typeof state.caveWins !== 'number') state.caveWins = 0;
+        state.caveWins++;
+        checkQuestCompletion();
+      }
     }
     // ── Drop de fragmentos de orbe ──────────────────────────────────────
     let fragGain = 0;
@@ -5873,6 +5939,32 @@ function endBattle(result, isCapture) {
     battleState = null;
     saveGame();
   }, 1400);
+}
+
+function checkQuestCompletion() {
+  if (!state || !state.quests || !state.quests.length) return;
+  const REWARDS = { q6: 200, q7: 150, q9: 100 };
+  for (const q of state.quests) {
+    if (q.done) continue;
+    let prog = q.progress;
+    if (q.id === 'q1' && state.cria) prog = 1;
+    if (q.id === 'q2') prog = Math.min(state.trainerWins || 0, q.total);
+    if (q.id === 'q3' && state.cria) prog = Math.min(state.cria.level, q.total);
+    if (q.id === 'q6') prog = (state.cave1 && state.cave1.bossDefeated) ? 1 : 0;
+    if (q.id === 'q7') prog = Math.min(state.caveWins || 0, q.total);
+    if (q.id === 'q8') prog = (state.questFlags && state.questFlags.solisReturn) ? 1 : 0;
+    if (q.id === 'q9') prog = (state.cave1 && state.cave1.treasureFound) ? 1 : 0;
+    q.progress = prog;
+    if (prog >= q.total) {
+      q.done = true;
+      const reward = REWARDS[q.id] || 0;
+      if (reward > 0) {
+        state.coins += reward;
+        setTimeout(() => showToast(`✅ Missão: "${q.title}" concluída! +${reward} 💰`), 800);
+      }
+    }
+  }
+  saveGame();
 }
 
 function levelUp() {
@@ -6107,22 +6199,30 @@ function populateDexTab() {
 
 // ── Quests Tab ────────────────────────────────────────────────────────────────
 const DEFAULT_QUESTS = [
-  { id:'q1', type:'main', title:'Sua Primeira Cria', desc:'Fale com o Guia Solis e manifeste sua primeira Cria no Core Orb.', progress:0, total:1, done: false },
-  { id:'q2', type:'main', title:'Primeiras Batalhas', desc:'Derrote 3 treinadores na cidade inicial.', progress:0, total:3, done: false },
-  { id:'q3', type:'main', title:'Rumo à Caverna', desc:'Fortaleça sua Cria até o nível 5 para desbloquear a Caverna Sombria.', progress:0, total:5, done: false },
-  { id:'q4', type:'side', title:'Conversar com NPCs', desc:'Converse com todos os habitantes da cidade inicial.', progress:0, total:5, done: false },
-  { id:'q5', type:'side', title:'Chocar uma Nova Cria', desc:'Junte fragmentos de orbe derrotando criaturas e choque uma nova Cria no Core Orb.', progress:0, total:1, done: false },
+  { id:'q1', type:'main', title:'Sua Primeira Cria',        desc:'Fale com o Guia Solis e manifeste sua primeira Cria no Core Orb.',                          progress:0, total:1, done:false },
+  { id:'q2', type:'main', title:'Primeiras Batalhas',       desc:'Derrote 3 treinadores na cidade inicial.',                                                    progress:0, total:3, done:false },
+  { id:'q3', type:'main', title:'Rumo à Caverna',           desc:'Fortaleça sua Cria até o nível 5 para desbloquear a Caverna Sombria.',                         progress:0, total:5, done:false },
+  { id:'q6', type:'main', title:'O Espectro das Sombras',   desc:'Derrote o Espectro Korax nas profundezas e recupere o Fragmento Sombrio.',                     progress:0, total:1, done:false },
+  { id:'q7', type:'main', title:'Sobrevivente das Trevas',  desc:'Derrote 8 Cragmites na Caverna Sombria para provar seu valor.',                                progress:0, total:8, done:false },
+  { id:'q8', type:'main', title:'O Retorno do Portador',    desc:'Volte ao Guia Solis com os segredos descobertos na Caverna Sombria.',                           progress:0, total:1, done:false },
+  { id:'q4', type:'side', title:'Conversar com NPCs',       desc:'Converse com todos os habitantes da cidade inicial.',                                            progress:0, total:5, done:false },
+  { id:'q5', type:'side', title:'Chocar uma Nova Cria',     desc:'Junte fragmentos de orbe derrotando criaturas e choque uma nova Cria no Core Orb.',             progress:0, total:1, done:false },
+  { id:'q9', type:'side', title:'Tesouro Ancestral',        desc:'Encontre e abra a Caixa Ancestral escondida nas profundezas da Caverna Sombria.',               progress:0, total:1, done:false },
 ];
 
 // Quest navigation targets — STAND tile + facing so the faced tile hits the target.
 // NPCs: guia(16,22) lulu(12,22) rocco(32,22) yuri(10,34) cave_guard(36,6)
 //       pvp_crias(23,17) shop(36,20). Core Orb region x21-26,y21-25. Spawn (24,26).
 const QUEST_NAV = {
-  q1: { x: 16, y: 21, face: 'down', label: 'Guia Solis',       interact: true }, // faces (16,22)=Solis
-  q2: { x: 12, y: 21, face: 'down', label: 'Lulu (treinadora)', interact: true }, // faces (12,22)=Lulu
-  q3: { x: 36, y: 7,  face: 'up',   label: 'Caverna Sombria',   interact: true }, // faces (36,6)=Guarda Kalos
-  q4: { x: 16, y: 21, face: 'down', label: 'NPCs da cidade',    interact: true }, // faces (16,22)=Solis (hub)
-  q5: { x: 24, y: 26, face: 'up',   label: 'Core Orb',          interact: true }, // faces (24,25)=Core Orb
+  q1: { x: 16, y: 21, face: 'down', label: 'Guia Solis',        interact: true },
+  q2: { x: 12, y: 21, face: 'down', label: 'Lulu (treinadora)', interact: true },
+  q3: { x: 36, y: 7,  face: 'up',   label: 'Caverna Sombria',   interact: true },
+  q4: { x: 16, y: 21, face: 'down', label: 'NPCs da cidade',    interact: true },
+  q5: { x: 24, y: 26, face: 'up',   label: 'Core Orb',          interact: true },
+  q6: { x: 36, y: 7,  face: 'up',   label: 'Caverna Sombria',   interact: true },
+  q7: { x: 36, y: 7,  face: 'up',   label: 'Caverna Sombria',   interact: true },
+  q8: { x: 16, y: 21, face: 'down', label: 'Guia Solis',        interact: true },
+  q9: { x: 36, y: 7,  face: 'up',   label: 'Caverna Sombria',   interact: true },
 };
 
 function navigateToQuest(questId) {
@@ -6180,8 +6280,12 @@ function populateQuestTab() {
     // Auto-update progress based on game state
     let prog = q.progress;
     if (q.id === 'q1' && state.cria) prog = 1;
-    if (q.id === 'q3' && state.cria) prog = Math.min(state.cria.level, q.total);
     if (q.id === 'q2') prog = Math.min(state.trainerWins || 0, q.total);
+    if (q.id === 'q3' && state.cria) prog = Math.min(state.cria.level, q.total);
+    if (q.id === 'q6') prog = (state.cave1 && state.cave1.bossDefeated) ? 1 : 0;
+    if (q.id === 'q7') prog = Math.min(state.caveWins || 0, q.total);
+    if (q.id === 'q8') prog = (state.questFlags && state.questFlags.solisReturn) ? 1 : 0;
+    if (q.id === 'q9') prog = (state.cave1 && state.cave1.treasureFound) ? 1 : 0;
     const pct = Math.round((prog/q.total)*100);
     const done = prog >= q.total;
     const nav = QUEST_NAV[q.id];
@@ -7742,12 +7846,24 @@ function exitCave1() {
 function interactWithCaveNPC(npc) {
   if (FX.sfx.ui) FX.sfx.ui();
   if (npc.type === 'wisdom') {
-    showDialog(npc.name, npc.dialog || ['...']);
+    const bossDefeated = state.cave1 && state.cave1.bossDefeated;
+    const lines = bossDefeated
+      ? [
+          'O Espectro Korax foi selado... sinto a energia estabilizando.',
+          'O Fragmento Sombrio voltou ao Core Orb. Você cumpriu sua parte aqui.',
+          'Procure o Guia Solis na cidade. Ele sabe sobre os outros fragmentos.',
+          'O destino do Nexus depende do Portador do Orbe. Não falhe.'
+        ]
+      : (npc.dialog || ['...']);
+    showDialog(npc.name, lines);
     return;
   }
   if (npc.type === 'trainer') {
     if (npc.trainer.defeated) {
-      showDialog(npc.name, ['Você me derrotou... as sombras se curvam à sua força.']);
+      showDialog(npc.name, [
+        'Você me derrotou... o Fragmento Sombrio é seu agora.',
+        'Eu guardei por cinco séculos... mas o Portador sempre prevalece.'
+      ]);
       return;
     }
     showDialog(npc.name, npc.dialog, () => startTrainerBattle(npc));
@@ -7758,10 +7874,17 @@ function interactWithCaveNPC(npc) {
       npc.loot.given = true;
       state.potions += npc.loot.potions || 0;
       state.coins += npc.loot.coins || 0;
-      showDialog(npc.name, ['Você abriu a Caixa Ancestral! +' + (npc.loot.potions||0) + ' poções e +' + (npc.loot.coins||0) + ' moedas!']);
+      if (!state.cave1) state.cave1 = {};
+      state.cave1.treasureFound = true;
+      checkQuestCompletion();
+      showDialog(npc.name, [
+        'Você abriu a Caixa Ancestral!',
+        '+' + (npc.loot.potions||0) + ' Poções e +' + (npc.loot.coins||0) + ' 💰 encontrados!',
+        'Dentro havia também uma nota antiga: "Para o Portador — que a luz do Orbe te guie."'
+      ]);
       saveGame();
     } else {
-      showDialog(npc.name, ['A caixa está vazia. Você já coletou o tesouro.']);
+      showDialog(npc.name, ['A caixa está vazia. Você já coletou o tesouro ancestral.']);
     }
     return;
   }
