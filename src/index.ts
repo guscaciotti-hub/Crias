@@ -7,6 +7,14 @@ const __dirname = path.dirname(__filename)
 
 const app = express()
 
+// Serve static files from public/
+app.use(express.static(path.join(__dirname, '..', 'public')))
+
+// /game → game.html
+app.get('/game', (req, res) => {
+  res.sendFile(path.join(__dirname, '..', 'public', 'game.html'))
+})
+
 // Home route - HTML
 app.get('/', (req, res) => {
   res.type('html').send(`
