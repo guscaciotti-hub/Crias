@@ -1,18 +1,89 @@
 import express from 'express'
 import path from 'path'
-import { fileURLToPath } from 'url'
-
-const __filename = fileURLToPath(import.meta.url)
-const __dirname = path.dirname(__filename)
+import fs from 'fs'
 
 const app = express()
 
-// Serve static files from public/
-app.use(express.static(path.join(__dirname, '..', 'public')))
+const publicDir = path.join(process.cwd(), 'public')
 
-// /game → game.html
+const MOBILE_INJECT = `<link rel="stylesheet" href="/game-mobile.css">
+<script>
+(function(){
+  // Swap embedded base64 map for high-res external file
+  var _g = document.getElementById.bind(document);
+  document.getElementById = function(id) {
+    if (id === 'd-map') { document.getElementById = _g; return { textContent: '/map-hd.jpg.png' }; }
+    return _g(id);
+  };
+})();
+(function(){
+  // Align new map's Core Orb visual with the game sprite (24 world px offset = 16 image px)
+  var MAP_H = 1254, Y_SHIFT = 16;
+  var _di = CanvasRenderingContext2D.prototype.drawImage;
+  CanvasRenderingContext2D.prototype.drawImage = function() {
+    var a = Array.prototype.slice.call(arguments);
+    if (a.length === 9 && a[0] && a[0].naturalHeight === MAP_H) {
+      a[2] = Math.min(a[2] + Y_SHIFT, MAP_H - a[4]);
+    }
+    return _di.apply(this, a);
+  };
+})();
+(function(){
+  // Force nearest-neighbor on every canvas 2D context (crisp pixel art on HiDPI)
+  var _orig = HTMLCanvasElement.prototype.getContext;
+  HTMLCanvasElement.prototype.getContext = function(type, attrs) {
+    var ctx = _orig.call(this, type, attrs);
+    if (ctx && type === '2d') { ctx.imageSmoothingEnabled = false; }
+    return ctx;
+  };
+})();
+(function(){
+  function syncChat() {
+    var chat = document.getElementById('chatPanel');
+    if (!chat) return;
+    var pvp = document.getElementById('pvpBattle');
+    var anyActive = !!(
+      document.querySelector('.overlay.active') ||
+      (pvp && pvp.classList.contains('active'))
+    );
+    chat.style.display = anyActive ? 'none' : '';
+  }
+  var mo = new MutationObserver(syncChat);
+  function watchOverlays() {
+    document.querySelectorAll('.overlay').forEach(function(o) {
+      mo.observe(o, { attributes: true, attributeFilter: ['class','style'] });
+    });
+    var pvp = document.getElementById('pvpBattle');
+    if (pvp) mo.observe(pvp, { attributes: true, attributeFilter: ['class'] });
+    syncChat();
+  }
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', watchOverlays);
+  } else {
+    watchOverlays();
+  }
+})();
+<\/script>`
+
+// Pre-load game.html with mobile CSS+script injected (read once at startup)
+let gameHtml = ''
+try {
+  gameHtml = fs.readFileSync(path.join(publicDir, 'game.html'), 'utf8')
+    // Add viewport-fit=cover so iOS extends canvas to screen edges
+    .replace(
+      'content="width=device-width, initial-scale=1.0, user-scalable=no"',
+      'content="width=device-width, initial-scale=1.0, user-scalable=no, viewport-fit=cover"'
+    )
+    .replace('</head>', MOBILE_INJECT + '</head>')
+} catch { /* served via static fallback */ }
+
+// Serve static files from public/
+app.use(express.static(publicDir))
+
+// /game → game.html with mobile CSS injection
 app.get('/game', (req, res) => {
-  res.sendFile(path.join(__dirname, '..', 'public', 'game.html'))
+  if (gameHtml) return void res.type('html').send(gameHtml)
+  res.sendFile(path.join(publicDir, 'game.html'))
 })
 
 // Home route - HTML
@@ -32,7 +103,7 @@ app.get('/', (req, res) => {
           <a href="/api-data">API Data</a>
           <a href="/healthz">Health</a>
         </nav>
-        <h1>Welcome to Express on Vercel 🚀</h1>
+        <h1>Welcome to Express on Vercel &#x1F680;</h1>
         <p>This is a minimal example without a database or forms.</p>
         <img src="/logo.png" alt="Logo" width="120" />
       </body>
@@ -41,7 +112,7 @@ app.get('/', (req, res) => {
 })
 
 app.get('/about', function (req, res) {
-  res.sendFile(path.join(__dirname, '..', 'components', 'about.htm'))
+  res.sendFile(path.join(process.cwd(), 'components', 'about.htm'))
 })
 
 // Example API endpoint - JSON
