@@ -1,18 +1,16 @@
 import express from 'express'
 import path from 'path'
-import { fileURLToPath } from 'url'
-
-const __filename = fileURLToPath(import.meta.url)
-const __dirname = path.dirname(__filename)
 
 const app = express()
 
+const publicDir = path.join(process.cwd(), 'public')
+
 // Serve static files from public/
-app.use(express.static(path.join(__dirname, '..', 'public')))
+app.use(express.static(publicDir))
 
 // /game → game.html
 app.get('/game', (req, res) => {
-  res.sendFile(path.join(__dirname, '..', 'public', 'game.html'))
+  res.sendFile(path.join(publicDir, 'game.html'))
 })
 
 // Home route - HTML
@@ -41,7 +39,7 @@ app.get('/', (req, res) => {
 })
 
 app.get('/about', function (req, res) {
-  res.sendFile(path.join(__dirname, '..', 'components', 'about.htm'))
+  res.sendFile(path.join(process.cwd(), 'components', 'about.htm'))
 })
 
 // Example API endpoint - JSON
