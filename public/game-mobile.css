@@ -108,6 +108,64 @@ canvas#game {
   .pvp-actions button .pva-t { font-size: 8px !important; margin-top: 0 !important; }
 }
 
+/* ─── NPC DIALOG: portrait image smaller, avatar emoji compact ─── */
+@media (max-width: 900px) {
+  #dialogPortrait {
+    height: clamp(90px, 26vw, 140px) !important;
+    margin: -8px -8px 8px -8px !important;
+  }
+  #dialogAvatar {
+    font-size: 22px !important;
+    min-width: 28px !important;
+  }
+}
+
+/* ─── ONBOARDING: all steps fit without scrolling ─── */
+@media (max-width: 900px) {
+  /* createAcc step */
+  #createAcc h2 { font-size: 17px !important; margin-bottom: 4px !important; }
+  #createAcc p  { font-size: 12px !important; margin-bottom: 12px !important; }
+
+  /* character-select step */
+  #onboard .panel {
+    padding: 10px 12px !important;
+    max-height: 93dvh !important;
+  }
+  #onboard h2  { font-size: 14px !important; margin-bottom: 2px !important; }
+  #onboard .sub { font-size: 10px !important; margin-bottom: 6px !important; }
+
+  .char-section-header { font-size: 10px !important; padding: 2px 0 !important; }
+  .char-grid { gap: 4px !important; margin-bottom: 6px !important; }
+  .char-row  { gap: 4px !important; }
+  .char-card { padding: 4px 3px !important; min-height: 80px !important; }
+  .char-preview-img { width: 46px !important; height: 58px !important; }
+  .char-card-name   { font-size: 9px !important; }
+  .char-card-label  { font-size: 8px !important; margin-top: 1px !important; }
+
+  .ob-name-row { margin-top: 4px !important; }
+  #obName2 { padding: 7px 10px !important; font-size: 12px !important; }
+  #onboard .ob-actions { margin-top: 6px !important; }
+  #onboard .ob-actions .btn { padding: 10px 16px !important; font-size: 13px !important; }
+
+  /* monster reveal step */
+  .reveal-art {
+    flex: 0 0 26vh !important;
+    height: 26vh !important;
+  }
+  #reveal .panel {
+    padding: 6px 16px 12px !important;
+    overflow-y: auto !important;
+  }
+  #reveal .monster-sprite {
+    width: 80px !important; height: 80px !important;
+    margin-bottom: 4px !important;
+  }
+  #reveal h2  { font-size: clamp(18px, 5vw, 26px) !important; margin-top: 4px !important; }
+  #reveal .lore { font-size: 11px !important; margin-top: 6px !important; }
+  .stat-grid  { margin-top: 8px !important; gap: 4px !important; }
+  #btnAcceptMonster { margin-top: 10px !important; padding: 10px 24px !important; font-size: 13px !important; }
+}
+
 /* ─── REGULAR BATTLE: full-screen on mobile, arena fills available space ─── */
 @media (max-width: 900px) {
   #battle.active {
