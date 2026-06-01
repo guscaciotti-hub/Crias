@@ -17,6 +17,18 @@ const MOBILE_INJECT = `<link rel="stylesheet" href="/game-mobile.css">
   };
 })();
 (function(){
+  // Align new map's Core Orb visual with the game sprite (24 world px offset = 16 image px)
+  var MAP_H = 1254, Y_SHIFT = 16;
+  var _di = CanvasRenderingContext2D.prototype.drawImage;
+  CanvasRenderingContext2D.prototype.drawImage = function() {
+    var a = Array.prototype.slice.call(arguments);
+    if (a.length === 9 && a[0] && a[0].naturalHeight === MAP_H) {
+      a[2] = Math.min(a[2] + Y_SHIFT, MAP_H - a[4]);
+    }
+    return _di.apply(this, a);
+  };
+})();
+(function(){
   // Force nearest-neighbor on every canvas 2D context (crisp pixel art on HiDPI)
   var _orig = HTMLCanvasElement.prototype.getContext;
   HTMLCanvasElement.prototype.getContext = function(type, attrs) {
@@ -91,7 +103,7 @@ app.get('/', (req, res) => {
           <a href="/api-data">API Data</a>
           <a href="/healthz">Health</a>
         </nav>
-        <h1>Welcome to Express on Vercel 🚀</h1>
+        <h1>Welcome to Express on Vercel &#x1F680;</h1>
         <p>This is a minimal example without a database or forms.</p>
         <img src="/logo.png" alt="Logo" width="120" />
       </body>
