@@ -97,6 +97,9 @@ canvas#game {
 .overlay.active ~ #chatPanel,
 #pvpBattle.active ~ #chatPanel { display: none !important; }
 
+/* ─── PVP TRAINERS: 20% bigger (7% → 8.4%), no distortion ─── */
+.pvp-trainer { width: 8.4% !important; image-rendering: pixelated !important; }
+
 /* ─── PVP HUD: compact — characters visible from mid-up, no media query ─── */
 .pvp-hud {
   padding: 4px 8px 4px !important;
