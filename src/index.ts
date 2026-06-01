@@ -9,6 +9,14 @@ const publicDir = path.join(process.cwd(), 'public')
 const MOBILE_INJECT = `<link rel="stylesheet" href="/game-mobile.css">
 <script>
 (function(){
+  // Swap embedded base64 map for high-res external file
+  var _g = document.getElementById.bind(document);
+  document.getElementById = function(id) {
+    if (id === 'd-map') { document.getElementById = _g; return { textContent: '/map-hd.jpg.png' }; }
+    return _g(id);
+  };
+})();
+(function(){
   // Force nearest-neighbor on every canvas 2D context (crisp pixel art on HiDPI)
   var _orig = HTMLCanvasElement.prototype.getContext;
   HTMLCanvasElement.prototype.getContext = function(type, attrs) {
