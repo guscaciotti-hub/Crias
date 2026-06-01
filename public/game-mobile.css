@@ -1,0 +1,242 @@
+/* ─── FULLSCREEN: canvas covers entire screen including safe areas ─── */
+html, body {
+  width: 100% !important;
+  height: 100% !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  overflow: hidden !important;
+  background: #000 !important;
+  position: fixed !important;
+  top: 0 !important;
+  left: 0 !important;
+}
+#app {
+  position: fixed !important;
+  top: 0 !important;
+  left: 0 !important;
+  right: 0 !important;
+  bottom: 0 !important;
+  width: 100% !important;
+  height: 100% !important;
+}
+canvas#game {
+  position: fixed !important;
+  top: 0 !important;
+  left: 0 !important;
+  right: 0 !important;
+  bottom: 0 !important;
+  width: 100vw !important;
+  height: 100vh !important;
+  /* dvh/dvw respects dynamic browser chrome changes on mobile */
+  width: 100dvw !important;
+  height: 100dvh !important;
+  /* Nearest-neighbor scaling — keeps pixel art crisp on high-DPI screens */
+  image-rendering: pixelated !important;
+  image-rendering: -moz-crisp-edges !important;
+  image-rendering: crisp-edges !important;
+}
+/* Never show the rotate prompt — game runs in any orientation */
+#rotatePrompt { display: none !important; }
+
+/* ─── HUD: horizontal single-row layout ─── */
+#hud {
+  top: max(9px, env(safe-area-inset-top, 9px)) !important;
+  left: max(10px, env(safe-area-inset-left, 10px)) !important;
+  display: flex !important;
+  flex-direction: row !important;
+  align-items: center !important;
+  gap: 0 !important;
+}
+
+.hud-card {
+  background: transparent !important;
+  border: none !important;
+  border-radius: 0 !important;
+  box-shadow: none !important;
+  backdrop-filter: none !important;
+  padding: 2px 6px !important;
+  filter: drop-shadow(0 1px 3px rgba(0,0,0,0.95)) !important;
+}
+
+.hud-mini-sprite { width: 26px !important; height: 26px !important; }
+
+/* Second card (fragments) — reset inline margin-top */
+.hud-card + .hud-card {
+  margin-top: 0 !important;
+  padding-left: 10px !important;
+  border-left: none !important;
+  margin-left: 4px !important;
+}
+
+/* Compact bars */
+.xp-bar { width: 70px !important; }
+.hp-bar { width: 80px !important; }
+
+/* ─── QUEST BUTTON ─── */
+#questQuickBtn {
+  background: transparent !important;
+  box-shadow: 0 0 14px rgba(255, 215, 0, 0.45) !important;
+}
+
+/* ─── MENU BUTTON ─── */
+#menuBtn {
+  background: transparent !important;
+  border: 1.5px solid rgba(77, 195, 255, 0.45) !important;
+  width: 38px !important;
+  height: 38px !important;
+}
+
+/* ─── CHAT: RIGHT side + hidden during any battle/overlay ─── */
+#chatPanel {
+  bottom: max(105px, calc(105px + env(safe-area-inset-bottom))) !important;
+  right: max(10px, env(safe-area-inset-right, 10px)) !important;
+  left: auto !important;
+  width: min(210px, 38vw) !important;
+}
+/* CSS fallback: hide chat when overlay or pvpBattle is active */
+.overlay.active ~ #chatPanel,
+#pvpBattle.active ~ #chatPanel { display: none !important; }
+
+/* ─── PVP HUD: compact — characters visible from mid-up, no media query ─── */
+.pvp-hud {
+  padding: 4px 8px 4px !important;
+}
+.pvp-hp-row { margin-bottom: 2px !important; }
+.pvp-hp-name { font-size: 8px !important; width: 52px !important; }
+.pvp-hp-bar { height: 4px !important; }
+.pvp-log {
+  font-size: 10px !important;
+  min-height: 14px !important;
+  margin-bottom: 2px !important;
+  line-height: 1.2 !important;
+}
+.pvp-timing-wrap { margin-bottom: 2px !important; }
+.pvp-timing-outer { height: 14px !important; }
+.pvp-timing-lbl { font-size: 8px !important; margin-bottom: 1px !important; }
+.pvp-timing-result { font-size: 9px !important; height: 10px !important; margin-top: 1px !important; }
+.pvp-actions {
+  gap: 3px !important;
+  margin-top: 2px !important;
+}
+.pvp-actions button {
+  min-height: 32px !important;
+  padding: 3px 5px !important;
+  font-size: 9px !important;
+}
+.pvp-actions button .pva-n { font-size: 9px !important; }
+.pvp-actions button .pva-t { font-size: 7px !important; margin-top: 0 !important; }
+
+/* ─── NPC DIALOG: compact 3x4 photo beside name/text ─── */
+@media (max-width: 900px) {
+  #dialogPortrait {
+    width: 60px !important;
+    height: 80px !important;
+    object-fit: cover !important;
+    object-position: center 10% !important;
+    border-radius: 6px !important;
+    border: 1.5px solid #a78bfa !important;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.45) !important;
+    margin: 0 10px 8px 0 !important;
+    float: left !important;
+  }
+  #dialog .panel::after {
+    content: '' !important;
+    display: table !important;
+    clear: both !important;
+  }
+  #dialogAvatar {
+    font-size: 18px !important;
+    min-width: 22px !important;
+  }
+}
+
+/* ─── ONBOARDING: all steps fit without scrolling ─── */
+@media (max-width: 900px) {
+  /* createAcc step */
+  #createAcc h2 { font-size: 17px !important; margin-bottom: 4px !important; }
+  #createAcc p  { font-size: 12px !important; margin-bottom: 12px !important; }
+
+  /* character-select step */
+  #onboard .panel {
+    padding: 10px 12px !important;
+    max-height: 93dvh !important;
+  }
+  #onboard h2  { font-size: 14px !important; margin-bottom: 2px !important; }
+  #onboard .sub { font-size: 10px !important; margin-bottom: 6px !important; }
+
+  .char-section-header { font-size: 10px !important; padding: 2px 0 !important; }
+  .char-grid { gap: 4px !important; margin-bottom: 6px !important; }
+  .char-row  { gap: 4px !important; }
+  .char-card { padding: 4px 3px !important; min-height: 80px !important; }
+  .char-preview-img { width: 46px !important; height: 58px !important; }
+  .char-card-name   { font-size: 9px !important; }
+  .char-card-label  { font-size: 8px !important; margin-top: 1px !important; }
+
+  .ob-name-row { margin-top: 4px !important; }
+  #obName2 { padding: 7px 10px !important; font-size: 12px !important; }
+  #onboard .ob-actions { margin-top: 6px !important; }
+  #onboard .ob-actions .btn { padding: 10px 16px !important; font-size: 13px !important; }
+
+  /* monster reveal step */
+  .reveal-art {
+    flex: 0 0 26vh !important;
+    height: 26vh !important;
+  }
+  #reveal .panel {
+    padding: 6px 16px 12px !important;
+    overflow-y: auto !important;
+  }
+  #reveal .monster-sprite {
+    width: 80px !important; height: 80px !important;
+    margin-bottom: 4px !important;
+  }
+  #reveal h2  { font-size: clamp(18px, 5vw, 26px) !important; margin-top: 4px !important; }
+  #reveal .lore { font-size: 11px !important; margin-top: 6px !important; }
+  .stat-grid  { margin-top: 8px !important; gap: 4px !important; }
+  #btnAcceptMonster { margin-top: 10px !important; padding: 10px 24px !important; font-size: 13px !important; }
+}
+
+/* ─── REGULAR BATTLE: full-screen on mobile, arena fills available space ─── */
+@media (max-width: 900px) {
+  #battle.active {
+    align-items: stretch !important;
+    justify-content: stretch !important;
+    padding: 0 !important;
+  }
+  #battle .panel {
+    width: 100% !important;
+    max-width: none !important;
+    height: 100% !important;
+    border-radius: 0 !important;
+    display: flex !important;
+    flex-direction: column !important;
+  }
+  .battle-arena {
+    flex: 1 1 0 !important;
+    height: auto !important;
+    min-height: 0 !important;
+    max-height: none !important;
+    padding: 12px !important;
+  }
+  .battle-creature .sprite {
+    width: clamp(90px, 18vw, 140px) !important;
+    height: clamp(90px, 18vw, 140px) !important;
+  }
+  .battle-log {
+    flex-shrink: 0 !important;
+    min-height: 38px !important;
+    max-height: 56px !important;
+    padding: 8px 12px !important;
+    font-size: 13px !important;
+  }
+  .battle-actions {
+    flex-shrink: 0 !important;
+    padding: 6px !important;
+    gap: 4px !important;
+  }
+  .battle-actions button {
+    min-height: 44px !important;
+    padding: 8px 8px !important;
+    font-size: 12px !important;
+  }
+}

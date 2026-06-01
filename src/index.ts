@@ -12,13 +12,13 @@ const MOBILE_INJECT = `<link rel="stylesheet" href="/game-mobile.css">
   // Swap embedded base64 map for high-res external file
   var _g = document.getElementById.bind(document);
   document.getElementById = function(id) {
-    if (id === 'd-map') { document.getElementById = _g; return { textContent: '/map-hd.jpg.png' }; }
+    if (id === 'd-map') { document.getElementById = _g; return { textContent: '/map-hd.jpg.png.png' }; }
     return _g(id);
   };
 })();
 (function(){
-  // Align new map's Core Orb visual with the game sprite (24 world px offset = 16 image px)
-  var MAP_H = 1254, Y_SHIFT = 16;
+  // Align new map's Core Orb visual with the game sprite
+  var MAP_H = 1254, Y_SHIFT = 48;
   var _di = CanvasRenderingContext2D.prototype.drawImage;
   CanvasRenderingContext2D.prototype.drawImage = function() {
     var a = Array.prototype.slice.call(arguments);
@@ -36,6 +36,76 @@ const MOBILE_INJECT = `<link rel="stylesheet" href="/game-mobile.css">
     if (ctx && type === '2d') { ctx.imageSmoothingEnabled = false; }
     return ctx;
   };
+})();
+(function(){
+  // BFS pathfinding: replace greedy walkPlayerToward so character routes around obstacles
+  document.addEventListener('DOMContentLoaded', function() {
+    if (typeof walkPlayerToward !== 'function') return;
+    walkPlayerToward = function(tx, ty, autoInteract, face) {
+      if (!state || state.scene === 'cave1') return;
+      var cur = state.player;
+      if (!cur) return;
+      var sx = Math.round(cur.x), sy = Math.round(cur.y);
+      var eff = face || 'down';
+      // Approach tile: player stands here facing NPC
+      var fOff = { down:[0,-1], up:[0,1], left:[1,0], right:[-1,0] };
+      var off = fOff[eff] || [0,-1];
+      var apX = tx + off[0], apY = ty + off[1];
+
+      // BFS from (sx,sy) to (dx,dy); returns steps array or null
+      function bfsTo(dx, dy) {
+        if (sx === dx && sy === dy) return [];
+        var DIRS = [[1,0],[-1,0],[0,1],[0,-1]];
+        var par = new Map();
+        par.set(sx+','+sy, null);
+        var q = [[sx, sy]];
+        for (var i = 0; i < q.length; i++) {
+          if (par.size > 2500) return null;
+          var cx = q[i][0], cy = q[i][1];
+          for (var d = 0; d < 4; d++) {
+            var nx = cx+DIRS[d][0], ny = cy+DIRS[d][1];
+            if (nx === dx && ny === dy) {
+              par.set(nx+','+ny, [cx, cy]);
+              var steps = [], node = [nx, ny];
+              while (node) {
+                steps.unshift({ x: node[0], y: node[1] });
+                var p = par.get(node[0]+','+node[1]);
+                node = (p !== undefined) ? p : null;
+              }
+              steps.shift();
+              return steps;
+            }
+            var k = nx+','+ny;
+            if (!par.has(k) && canWalkTo(nx, ny)) { par.set(k, [cx, cy]); q.push([nx, ny]); }
+          }
+        }
+        return null;
+      }
+
+      // Try preferred approach tile, fallback to closest walkable adjacent tile
+      var steps = canWalkTo(apX, apY) ? bfsTo(apX, apY) : null;
+      if (steps === null) {
+        var adjs = [[tx,ty-1],[tx,ty+1],[tx-1,ty],[tx+1,ty]]
+          .filter(function(t) { return canWalkTo(t[0], t[1]); })
+          .sort(function(a, b) { return (Math.abs(a[0]-sx)+Math.abs(a[1]-sy)) - (Math.abs(b[0]-sx)+Math.abs(b[1]-sy)); });
+        for (var fi = 0; fi < adjs.length; fi++) {
+          steps = bfsTo(adjs[fi][0], adjs[fi][1]);
+          if (steps !== null) break;
+        }
+      }
+
+      if (steps === null) return;
+      if (steps.length === 0) {
+        // Already at approach tile
+        if (autoInteract) setTimeout(function() { lastFacing = eff; if (state.player) state.player.dir = eff; tryInteract(); }, 80);
+        return;
+      }
+      state._autoWalkPath = steps;
+      state._autoWalkIdx = 0;
+      state._autoWalkInteract = !!autoInteract;
+      state._autoWalkFace = eff;
+    };
+  });
 })();
 (function(){
   function syncChat() {
@@ -62,6 +132,23 @@ const MOBILE_INJECT = `<link rel="stylesheet" href="/game-mobile.css">
   } else {
     watchOverlays();
   }
+})();
+(function(){
+  // PVP arena: override to COVER the screen — no black bars on portrait/tall screens
+  document.addEventListener('DOMContentLoaded', function() {
+    if (typeof pvpFitArena !== 'function') return;
+    pvpFitArena = function() {
+      var col = document.getElementById('pvpColiseum');
+      var w   = document.getElementById('pvpArenaWrap');
+      if (!col || !w) return;
+      var cw = col.clientWidth, ch = col.clientHeight;
+      if (!cw || !ch) return;
+      var iw = 1881, ih = 836; // ARENA_IMG
+      var scale = Math.max(cw / iw, ch / ih); // COVER: fill, may crop edges
+      w.style.width  = (iw * scale) + 'px';
+      w.style.height = (ih * scale) + 'px';
+    };
+  });
 })();
 <\/script>`
 
