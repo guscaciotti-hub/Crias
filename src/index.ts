@@ -12,7 +12,7 @@ const MOBILE_INJECT = `<link rel="stylesheet" href="/game-mobile.css">
   // Swap embedded base64 map for high-res external file
   var _g = document.getElementById.bind(document);
   document.getElementById = function(id) {
-    if (id === 'd-map') { document.getElementById = _g; return { textContent: '/map-hd.jpg.png' }; }
+    if (id === 'd-map') { document.getElementById = _g; return { textContent: '/map-hd.jpg.png.png' }; }
     return _g(id);
   };
 })();
