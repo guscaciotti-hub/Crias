@@ -1,15 +1,24 @@
 import express from 'express'
 import path from 'path'
+import fs from 'fs'
 
 const app = express()
 
 const publicDir = path.join(process.cwd(), 'public')
 
+// Pre-load game.html with mobile CSS injected (read once at startup)
+let gameHtml = ''
+try {
+  gameHtml = fs.readFileSync(path.join(publicDir, 'game.html'), 'utf8')
+    .replace('</head>', '<link rel="stylesheet" href="/game-mobile.css"></head>')
+} catch { /* served via static fallback */ }
+
 // Serve static files from public/
 app.use(express.static(publicDir))
 
-// /game → game.html
+// /game → game.html with mobile CSS injection
 app.get('/game', (req, res) => {
+  if (gameHtml) return void res.type('html').send(gameHtml)
   res.sendFile(path.join(publicDir, 'game.html'))
 })
 
