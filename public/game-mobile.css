@@ -1,14 +1,3 @@
-/* ─── TOP BAR: gradient fade (map shows through) ─── */
-body::before {
-  content: '';
-  position: fixed;
-  top: 0; left: 0; right: 0;
-  height: max(52px, calc(42px + env(safe-area-inset-top, 10px)));
-  background: linear-gradient(180deg, rgba(4,7,18,0.96) 55%, rgba(4,7,18,0) 100%);
-  z-index: 4;
-  pointer-events: none;
-}
-
 /* ─── HUD: horizontal single-row layout ─── */
 #hud {
   top: max(9px, env(safe-area-inset-top, 9px)) !important;
@@ -20,11 +9,12 @@ body::before {
 }
 
 .hud-card {
-  background: transparent !important;
+  background: rgba(4,7,18,0.65) !important;
   border: none !important;
-  border-radius: 0 !important;
+  border-radius: 6px !important;
   box-shadow: none !important;
-  padding: 2px 8px 2px 0 !important;
+  padding: 3px 8px !important;
+  backdrop-filter: blur(6px) !important;
 }
 
 .hud-mini-sprite { width: 26px !important; height: 26px !important; }
@@ -33,7 +23,8 @@ body::before {
 .hud-card + .hud-card {
   margin-top: 0 !important;
   padding-left: 10px !important;
-  border-left: 1px solid rgba(77, 195, 255, 0.2) !important;
+  border-left: none !important;
+  margin-left: 4px !important;
 }
 
 /* Compact bars */
