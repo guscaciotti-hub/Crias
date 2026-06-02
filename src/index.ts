@@ -60,12 +60,14 @@ const MOBILE_INJECT = `<link rel="stylesheet" href="/game-mobile.css">
   // Game uses: TILE = MAP_W_PX / GRID ≈ 39 px/tile; camX/camY = world-px camera offset
   function _getTS() { return (typeof TILE !== 'undefined' && TILE > 4 && TILE < 500 ? TILE : 39); }
   function _getCam() {
-    if (typeof camX !== 'undefined') return { x: camX, y: camY };
     if (typeof camera !== 'undefined' && camera) return { x: camera.x || 0, y: camera.y || 0 };
     if (!state || !state.player) return { x: 0, y: 0 };
     var tS = _getTS();
-    return { x: state.player.x * tS + tS / 2 - window.innerWidth / 2,
-             y: state.player.y * tS + tS / 2 - window.innerHeight / 2 };
+    var gcEl = document.getElementById('game');
+    var iw = (gcEl && gcEl.width > 0) ? gcEl.width : window.innerWidth;
+    var ih = (gcEl && gcEl.height > 0) ? gcEl.height : window.innerHeight;
+    return { x: state.player.x * tS + tS / 2 - iw / 2,
+             y: state.player.y * tS + tS / 2 - ih / 2 };
   }
 
   // 4-point star sparkle
@@ -96,6 +98,10 @@ const MOBILE_INJECT = `<link rel="stylesheet" href="/game-mobile.css">
     if (!remaining.length) return;
 
     var tS   = _getTS();
+    var _gcEl = document.getElementById('game');
+    var scaleX = (_gcEl && _gcEl.width > 0) ? cw / _gcEl.width : 1;
+    var scaleY = (_gcEl && _gcEl.height > 0) ? ch / _gcEl.height : 1;
+    var tSx  = tS * scaleX;
     var cam  = _getCam();
     var pulse  = 0.55 + 0.45 * Math.sin(ts / 300);         // ~3.3 Hz
     var pulse2 = 0.55 + 0.45 * Math.sin(ts / 300 + Math.PI); // offset for alternating rings
@@ -107,12 +113,12 @@ const MOBILE_INJECT = `<link rel="stylesheet" href="/game-mobile.css">
     // PASS 1 — soft ambient halos (no shadow, large radius, low alpha)
     for (var i = 0; i < n; i++) {
       var s = remaining[i];
-      var sx = s.x * tS + tS / 2 - cam.x;
-      var sy = s.y * tS + tS / 2 - cam.y;
+      var sx = (s.x * tS + tS / 2 - cam.x) * scaleX;
+      var sy = (s.y * tS + tS / 2 - cam.y) * scaleY;
       var prog = (i + 1) / n;
       _ox.fillStyle = 'rgba(0,170,255,' + (pulse * (0.06 + 0.16 * prog)).toFixed(2) + ')';
       _ox.beginPath();
-      _ox.arc(sx, sy, tS * 0.34, 0, 6.2832);
+      _ox.arc(sx, sy, tSx * 0.34, 0, 6.2832);
       _ox.fill();
     }
 
@@ -121,11 +127,11 @@ const MOBILE_INJECT = `<link rel="stylesheet" href="/game-mobile.css">
     _ox.shadowColor = 'rgba(0,210,255,0.9)';
     for (var i = 0; i < n - 1; i++) {
       var s = remaining[i];
-      var sx = s.x * tS + tS / 2 - cam.x;
-      var sy = s.y * tS + tS / 2 - cam.y;
+      var sx = (s.x * tS + tS / 2 - cam.x) * scaleX;
+      var sy = (s.y * tS + tS / 2 - cam.y) * scaleY;
       var prog = (i + 1) / n;
       var alpha = pulse * (0.28 + 0.55 * prog);
-      var r = Math.max(2.5, tS * (0.07 + 0.05 * prog));
+      var r = Math.max(2.5, tSx * (0.07 + 0.05 * prog));
       _ox.fillStyle = 'rgba(80,225,255,' + alpha.toFixed(2) + ')';
       if (i % 5 === 0) {
         _star(_ox, sx, sy, r * 1.7);
@@ -138,8 +144,8 @@ const MOBILE_INJECT = `<link rel="stylesheet" href="/game-mobile.css">
 
     // PASS 3 — destination beacon: ripple rings + bright center
     var dst = remaining[n - 1];
-    var dx = dst.x * tS + tS / 2 - cam.x;
-    var dy = dst.y * tS + tS / 2 - cam.y;
+    var dx = (dst.x * tS + tS / 2 - cam.x) * scaleX;
+    var dy = (dst.y * tS + tS / 2 - cam.y) * scaleY;
 
     _ox.shadowBlur = 22;
     _ox.shadowColor = 'rgba(0,220,255,0.95)';
@@ -147,25 +153,25 @@ const MOBILE_INJECT = `<link rel="stylesheet" href="/game-mobile.css">
 
     _ox.strokeStyle = 'rgba(0,220,255,' + (pulse * 0.7).toFixed(2) + ')';
     _ox.beginPath();
-    _ox.arc(dx, dy, tS * (0.32 + 0.22 * pulse), 0, 6.2832);
+    _ox.arc(dx, dy, tSx * (0.32 + 0.22 * pulse), 0, 6.2832);
     _ox.stroke();
 
     _ox.strokeStyle = 'rgba(0,200,255,' + (pulse2 * 0.5).toFixed(2) + ')';
     _ox.lineWidth = 1.5;
     _ox.beginPath();
-    _ox.arc(dx, dy, tS * (0.32 + 0.22 * pulse2), 0, 6.2832);
+    _ox.arc(dx, dy, tSx * (0.32 + 0.22 * pulse2), 0, 6.2832);
     _ox.stroke();
 
     _ox.strokeStyle = 'rgba(100,230,255,' + (pulse * 0.25).toFixed(2) + ')';
     _ox.lineWidth = 1;
     _ox.beginPath();
-    _ox.arc(dx, dy, tS * (0.52 + 0.2 * pulse), 0, 6.2832);
+    _ox.arc(dx, dy, tSx * (0.52 + 0.2 * pulse), 0, 6.2832);
     _ox.stroke();
 
     _ox.shadowBlur = 26;
     _ox.fillStyle = 'rgba(190,245,255,' + pulse.toFixed(2) + ')';
     _ox.beginPath();
-    _ox.arc(dx, dy, Math.max(4, tS * 0.17), 0, 6.2832);
+    _ox.arc(dx, dy, Math.max(4, tSx * 0.17), 0, 6.2832);
     _ox.fill();
 
     _ox.restore();
@@ -297,6 +303,19 @@ const MOBILE_INJECT = `<link rel="stylesheet" href="/game-mobile.css">
       w.style.height = (ih * scale) + 'px';
     };
   });
+})();
+(function(){
+  // Force landscape: API lock on Android Chrome; CSS overlay handles iOS
+  function tryLock() {
+    if (screen.orientation && screen.orientation.lock) {
+      screen.orientation.lock('landscape').catch(function(){});
+    }
+  }
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', tryLock);
+  } else {
+    tryLock();
+  }
 })();
 <\/script>`
 
