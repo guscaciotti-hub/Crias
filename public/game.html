@@ -3029,7 +3029,11 @@ function saveGame() {
   try { localStorage.setItem(SAVE_KEY, JSON.stringify(state)); } catch(e){}
 }
 function loadGame() {
-  try { return JSON.parse(localStorage.getItem(SAVE_KEY)); } catch(e){ return null; }
+  try {
+    const s = JSON.parse(localStorage.getItem(SAVE_KEY));
+    if (s) { delete s._autoWalkPath; delete s._autoWalkIdx; delete s._autoWalkInteract; delete s._autoWalkFace; }
+    return s;
+  } catch(e){ return null; }
 }
 function resetGame() {
   localStorage.removeItem(SAVE_KEY);
@@ -8285,6 +8289,11 @@ function drawCave1Torch(tx, ty, now) {
 }
 
 function startGame() {
+  // Strip any legacy auto-walk state that might have been saved by old code
+  if (state) { delete state._autoWalkPath; delete state._autoWalkIdx; delete state._autoWalkInteract; delete state._autoWalkFace; }
+  // Reset quest nav trail on each game start
+  questNavTarget = null;
+  questNavPath = [];
   saveGame();
   // Stop abertura theme, transition to city music
   MUSIC.transitionToCity();
