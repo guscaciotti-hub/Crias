@@ -2856,6 +2856,9 @@ let inMenu = false, inBattle = false, inDialog = false;
 let battleState = null;
 let lastFacing = 'down';
 let craPosHistory = [];
+// Quest navigation: persistent neon trail to a destination (player walks manually).
+let questNavTarget = null;   // { x, y, label } — current quest destination tile
+let questNavPath = [];       // [{x,y}, …] BFS route from player to target, recomputed each step
 let assets = { map: null, sprites: {}, monsters: {} };
 let DEBUG_COLLISION = false; // toggle com ` (backtick)
 
@@ -3386,8 +3389,6 @@ function updateJoystickDirection(dx, dy) {
   } else {
     if (dy > 0) keys.down = true; else keys.up = true;
   }
-  // Cancel auto-walk when player manually moves
-  if (state) state._autoWalkPath = null;
 }
 
 function setStickPosition(dx, dy) {
@@ -3476,10 +3477,10 @@ document.addEventListener('keydown', (e) => {
     if (e.key === 'Escape') closeAllOverlays();
     return;
   }
-  if (e.key === 'ArrowUp' || e.key === 'w') { keys.up = true; if (state) { state._autoWalkPath = null; } }
-  if (e.key === 'ArrowDown' || e.key === 's') { keys.down = true; if (state) { state._autoWalkPath = null; } }
-  if (e.key === 'ArrowLeft' || e.key === 'a') { keys.left = true; if (state) { state._autoWalkPath = null; } }
-  if (e.key === 'ArrowRight' || e.key === 'd') { keys.right = true; if (state) { state._autoWalkPath = null; } }
+  if (e.key === 'ArrowUp' || e.key === 'w') { keys.up = true; }
+  if (e.key === 'ArrowDown' || e.key === 's') { keys.down = true; }
+  if (e.key === 'ArrowLeft' || e.key === 'a') { keys.left = true; }
+  if (e.key === 'ArrowRight' || e.key === 'd') { keys.right = true; }
   if (e.key === ' ' || e.key === 'Enter' || e.key.toLowerCase() === 'e') keys.action = true;
 });
 document.addEventListener('keyup', (e) => {
@@ -3552,35 +3553,8 @@ function update(t) {
       saveGame();
     }
   } else if (!inBattle && !inMenu && !inDialog) {
-    // Auto-walk path from quest navigation
-    if (state._autoWalkPath && state._autoWalkIdx < state._autoWalkPath.length) {
-      const step = state._autoWalkPath[state._autoWalkIdx];
-      const cur = state.scene === 'cave1' ? state.cavePlayer : state.player;
-      if (step && canWalkTo(step.x, step.y)) {
-        const dx = step.x - cur.x, dy = step.y - cur.y;
-        const dir = dx > 0 ? 'right' : dx < 0 ? 'left' : dy > 0 ? 'down' : 'up';
-        cur.dir = dir;
-        movingTo = { fromX: cur.x, fromY: cur.y, toX: step.x, toY: step.y, startTime: t };
-        state._autoWalkIdx++;
-      } else {
-        // Obstacle hit, stop auto-walk
-        state._autoWalkPath = null;
-        state._autoWalkIdx = 0;
-      }
-    } else if (state._autoWalkPath) {
-      const shouldInteract = state._autoWalkInteract;
-      const face = state._autoWalkFace || 'down';
-      state._autoWalkPath = null;
-      state._autoWalkIdx = 0;
-      state._autoWalkInteract = false;
-      state._autoWalkFace = null;
-      if (shouldInteract) setTimeout(() => {
-        lastFacing = face;
-        const cur2 = state.scene === 'cave1' ? state.cavePlayer : state.player;
-        if (cur2) cur2.dir = face;
-        tryInteract();
-      }, 80);
-    } else if (keys.up) tryMove('up');
+    // Manual movement only — the neon quest trail just shows the way.
+    if (keys.up) tryMove('up');
     else if (keys.down) tryMove('down');
     else if (keys.left) tryMove('left');
     else if (keys.right) tryMove('right');
@@ -3596,6 +3570,8 @@ function isInCaveArea() {
 
 function onTileStep() {
   if (state.scene === 'cave1') { onCaveTileStep(); return; }
+  // Update the neon quest trail as the player advances toward the destination.
+  recomputeQuestPath();
   const px = state.player.x * TILE + TILE/2;
   const py = state.player.y * TILE + TILE;
   FX.step(px, py, true);
@@ -6260,36 +6236,78 @@ function navigateToQuest(questId) {
   if (questId === 'q1') {
     const hasOrb = state.items && (state.items.orbeCriacao || 0) > 0;
     nav = hasOrb
-      ? { x: 24, y: 26, face: 'up',   label: 'Core Orb',  interact: true }
-      : { x: 16, y: 21, face: 'down', label: 'Guia Solis', interact: true };
+      ? { x: 24, y: 26, label: 'Core Orb' }
+      : { x: 16, y: 21, label: 'Guia Solis' };
   }
   if (!nav) return;
 
-  showToast(`📍 Indo até: ${nav.label}`);
-  walkPlayerToward(nav.x, nav.y, nav.interact, nav.face);
+  // Set a persistent destination and light up the neon trail. The player walks there manually.
+  questNavTarget = { x: nav.x, y: nav.y, label: nav.label };
+  recomputeQuestPath();
+  if (questNavPath.length === 0 && questNavTarget) {
+    showToast(`📍 ${nav.label} é logo aqui!`);
+  } else {
+    showToast(`📍 Siga o caminho até: ${nav.label}`);
+  }
 }
 
-function walkPlayerToward(tx, ty, autoInteract, face) {
-  if (!state || state.scene === 'cave1') return;
-  const cur = state.player;
-  if (!cur) return;
-  const steps = [];
-  let cx = Math.round(cur.x);
-  let cy = Math.round(cur.y);
-  const maxSteps = 60;
-  while ((cx !== tx || cy !== ty) && steps.length < maxSteps) {
-    if (cx < tx) cx++;
-    else if (cx > tx) cx--;
-    else if (cy < ty) cy++;
-    else if (cy > ty) cy--;
-    steps.push({ x: cx, y: cy });
+// Walkable test for pathfinding: blocks walls + NPC tiles, but always allows the
+// destination tile itself (so a route can end right next to an NPC like Guia Solis).
+function isPathTileFree(x, y, tx, ty) {
+  if (x < 0 || x >= GRID || y < 0 || y >= COLLISION.length) return false;
+  if (COLLISION[y][x] === 1) return false;
+  if (!(x === tx && y === ty)) {
+    for (const npc of state.npcs) if (npc.x === x && npc.y === y) return false;
   }
-  if (steps.length > 0) {
-    state._autoWalkPath = steps;
-    state._autoWalkIdx = 0;
-    state._autoWalkInteract = !!autoInteract;
-    state._autoWalkFace = face || 'down';
+  return true;
+}
+
+// BFS on the world collision grid. Returns the route as [{x,y}…] from the first
+// step after the start up to (and including) the target, or [] if none/already there.
+function computeQuestPath(sx, sy, tx, ty) {
+  if (sx === tx && sy === ty) return [];
+  const W = GRID;
+  const key = (x, y) => y * W + x;
+  const prev = new Map();
+  const seen = new Set([key(sx, sy)]);
+  const queue = [[sx, sy]];
+  let head = 0;
+  while (head < queue.length) {
+    const [cx, cy] = queue[head++];
+    if (cx === tx && cy === ty) break;
+    const neighbours = [[cx + 1, cy], [cx - 1, cy], [cx, cy + 1], [cx, cy - 1]];
+    for (const [nx, ny] of neighbours) {
+      const k = key(nx, ny);
+      if (seen.has(k)) continue;
+      if (!isPathTileFree(nx, ny, tx, ty)) continue;
+      seen.add(k);
+      prev.set(k, [cx, cy]);
+      queue.push([nx, ny]);
+    }
   }
+  if (!seen.has(key(tx, ty))) return []; // unreachable
+  const path = [];
+  let cur = [tx, ty];
+  while (!(cur[0] === sx && cur[1] === sy)) {
+    path.push({ x: cur[0], y: cur[1] });
+    cur = prev.get(key(cur[0], cur[1]));
+    if (!cur) return [];
+  }
+  return path.reverse();
+}
+
+// Recompute the neon trail from the player's current tile. Clears the quest when
+// the player arrives. Called whenever the player finishes a step.
+function recomputeQuestPath() {
+  if (!questNavTarget || !state || state.scene === 'cave1') { questNavPath = []; return; }
+  const px = Math.round(state.player.x), py = Math.round(state.player.y);
+  if (px === questNavTarget.x && py === questNavTarget.y) {
+    showToast(`✅ Você chegou: ${questNavTarget.label}`);
+    questNavTarget = null;
+    questNavPath = [];
+    return;
+  }
+  questNavPath = computeQuestPath(px, py, questNavTarget.x, questNavTarget.y);
 }
 
 function populateQuestTab() {
@@ -7492,14 +7510,12 @@ function drawImageNPC(npc, px, py, now, img, nameColor) {
   ctx.fillText(npc.name, bx, py + TILE + 11);
 }
 
-// ── Subtle quest hint: pulsing glow on floor to guide new players ─────────────
+// ── Neon quest trail: pulsing cyan dots on the floor leading to the quest
+//    destination, with a beacon at the end. Player walks it manually. ──────────
 function drawNeonPath(camX, camY, now) {
   if (!state || state.scene === 'cave1') return;
-  const path = state._autoWalkPath;
-  if (!path || path.length === 0) return;
-  const idx = state._autoWalkIdx || 0;
-  const remaining = path.slice(idx);
-  if (remaining.length === 0) return;
+  const remaining = questNavPath;
+  if (!remaining || remaining.length === 0) return;
 
   ctx.save();
   const t = now / 1000;
