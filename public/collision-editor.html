@@ -156,10 +156,16 @@ const MAP_Y_SHIFT = 48;
 function redraw() {
   ctx.clearRect(0, 0, canvas.width, canvas.height);
   if (imgLoaded) {
-    const ih = mapImg.naturalHeight; // 1254
+    // Match the game EXACTLY: each grid cell = (imageHeight/48) source px = 26.125px,
+    // with the whole grid shifted up by MAP_Y_SHIFT (48) source px.
+    // The game does: source Y = row * (imgH/48) + 48. We replicate that here by
+    // scaling the FULL image (not a compressed slice) and offsetting it up by the shift.
+    // (Earlier we compressed height by (imgH - 48), which made each cell 25.125px and
+    //  drifted ~1 tile off near the bottom — that's why marks didn't line up.)
+    const scaleY = canvas.height / mapImg.naturalHeight; // canvas px per source px
     ctx.drawImage(mapImg,
-      0, MAP_Y_SHIFT, mapImg.naturalWidth, ih - MAP_Y_SHIFT,
-      0, 0, canvas.width, canvas.height);
+      0, 0, mapImg.naturalWidth, mapImg.naturalHeight,
+      0, -MAP_Y_SHIFT * scaleY, canvas.width, canvas.height);
   } else {
     ctx.fillStyle = '#1a1a2e';
     ctx.fillRect(0, 0, canvas.width, canvas.height);
