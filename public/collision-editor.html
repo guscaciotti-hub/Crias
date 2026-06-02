@@ -1,0 +1,355 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<title>Editor de Colisão</title>
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { background: #0d1117; color: #e6edf3; font-family: monospace; display: flex; flex-direction: column; height: 100vh; overflow: hidden; }
+#toolbar { background: #161b22; padding: 6px 10px; display: flex; align-items: center; gap: 10px; flex-shrink: 0; border-bottom: 2px solid #30363d; flex-wrap: wrap; }
+#toolbar h1 { font-size: 13px; color: #f85149; font-weight: bold; white-space: nowrap; }
+.btn { background: #21262d; color: #e6edf3; border: 1px solid #30363d; padding: 4px 10px; cursor: pointer; border-radius: 4px; font-size: 12px; font-family: monospace; }
+.btn:hover { background: #30363d; border-color: #58a6ff; }
+#legend { display: flex; gap: 10px; align-items: center; font-size: 11px; flex-wrap: wrap; }
+.leg { display: flex; align-items: center; gap: 4px; white-space: nowrap; }
+.leg-box { width: 14px; height: 14px; border: 1px solid #30363d; flex-shrink: 0; }
+#main { display: flex; flex: 1; overflow: hidden; }
+#canvasWrap { flex: 1; overflow: auto; position: relative; background: #0d1117; }
+#mapCanvas { cursor: crosshair; display: block; }
+#sidebar { width: 240px; background: #161b22; padding: 10px; overflow-y: auto; flex-shrink: 0; border-left: 2px solid #30363d; font-size: 11px; display: flex; flex-direction: column; gap: 8px; }
+#sidebar h2 { font-size: 12px; color: #f85149; }
+#changeList { flex: 1; overflow-y: auto; border: 1px solid #30363d; padding: 4px; max-height: 260px; }
+.change-item { padding: 2px 0; }
+.change-item.walk { color: #3fb950; }
+.change-item.block { color: #f85149; }
+#output { width: 100%; height: 100px; background: #0d1117; color: #79c0ff; border: 1px solid #30363d; font-size: 10px; padding: 4px; resize: vertical; font-family: monospace; }
+#coords { color: #8b949e; font-size: 11px; white-space: nowrap; }
+#zoom-info { font-size: 11px; color: #8b949e; }
+.hint { color: #8b949e; font-size: 10px; line-height: 1.4; }
+</style>
+</head>
+<body>
+<div id="toolbar">
+  <h1>COLLISION EDITOR</h1>
+  <div id="legend">
+    <div class="leg"><div class="leg-box" style="background:rgba(255,50,50,0.38)"></div> bloqueado (atual)</div>
+    <div class="leg"><div class="leg-box" style="background:rgba(40,210,90,0.75)"></div> ✅ vai ficar passável</div>
+    <div class="leg"><div class="leg-box" style="background:rgba(255,50,50,0.88)"></div> 🚫 vai ficar bloqueado</div>
+  </div>
+  <button class="btn" onclick="changeZoom(-1)">−</button>
+  <span id="zoom-info">20px</span>
+  <button class="btn" onclick="changeZoom(1)">+</button>
+  <span id="coords">col:— row:—</span>
+  <button class="btn" onclick="clearAll()">Limpar tudo</button>
+</div>
+<div id="main">
+  <div id="canvasWrap">
+    <canvas id="mapCanvas"></canvas>
+  </div>
+  <div id="sidebar">
+    <div>
+      <h2>ALTERAÇÕES: <span id="changeCount">0</span></h2>
+      <div class="hint">
+        1° clique → verde (passável)<br>
+        2° clique → vermelho (bloqueado)<br>
+        3° clique → sem mudança
+      </div>
+    </div>
+    <div id="changeList"><span style="color:#8b949e">nenhuma mudança ainda</span></div>
+    <button class="btn" onclick="exportChanges()" style="width:100%">📋 Copiar JSON de mudanças</button>
+    <button class="btn" onclick="exportFull()" style="width:100%">📋 Copiar grid completo</button>
+    <textarea id="output" placeholder="Clique num botão acima para copiar..."></textarea>
+    <div class="hint">Cole o JSON aqui de volta ao Claude para aplicar as mudanças no game.html</div>
+  </div>
+</div>
+<script>
+const COLLISION_RAW = [
+  [1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1],
+  [1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,0,0,1,1,1,1,1,1,1,1,1,1,0,0,0,0,1,1,1,1],
+  [1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,0,1,1,1,1,0,0,0,0,0,0,0,0,0,0,0,0,0,1,1],
+  [1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,0,0,0,0,0,1,1,1,1,1,1,0,1,1,1,1,1,0,0,0,0,0,0,0,0,0,0,0,0,1,1],
+  [1,1,0,0,0,0,0,0,0,0,0,0,0,0,1,1,1,1,1,1,1,1,1,1,1,1,1,0,0,0,1,0,1,1,0,0,0,0,0,0,0,0,0,0,0,0,1,1],
+  [1,1,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,0,0,0,0,0,0,0,0,0,0,0,0,0,1,1],
+  [1,0,0,1,1,1,1,1,1,1,1,1,1,1,1,1,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,1],
+  [1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,1],
+  [1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,1],
+  [1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,1,1,1,1,1,1,1,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,1],
+  [1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,1,0,0,0,0,0,0,0,1,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,1],
+  [1,0,0,0,0,0,0,1,1,1,1,1,1,0,0,0,0,0,1,0,1,1,1,1,1,1,1,1,1,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,1],
+  [1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,0,1,0,0,0,0,0,0,1,1,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,1],
+  [1,0,0,0,0,0,0,1,1,1,1,1,0,0,0,0,0,0,1,1,1,1,0,0,0,1,0,1,0,1,0,0,0,0,0,0,0,0,0,0,1,1,0,0,0,0,1,1],
+  [1,0,0,0,0,1,1,1,1,1,1,1,0,0,0,0,0,0,0,0,1,0,1,1,1,1,0,1,0,1,0,0,0,0,0,0,0,0,0,1,1,1,1,0,0,0,1,1],
+  [1,0,0,0,1,1,1,1,1,1,1,1,0,0,0,0,0,0,0,0,1,1,1,1,1,1,0,1,0,1,1,0,0,0,0,0,0,0,0,1,1,0,1,0,0,0,1,1],
+  [1,0,0,0,1,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,1,1,1,0,0,0,0,0,1,0,0,0,0,0,0,0,0,1,1,1,1,0,0,0,1,1],
+  [1,0,0,0,1,1,1,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,1,0,0,0,1,0,0,0,1,1,1,1,1,0,0,0,1],
+  [1,0,0,0,0,1,1,1,1,1,1,1,1,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,1,0,0,0,0,0,0,0,1,1,1,1,1,0,0,0,1],
+  [1,0,0,0,0,1,1,0,0,0,0,0,0,0,0,1,1,1,1,0,0,0,0,0,0,0,0,0,0,1,1,0,0,0,0,0,0,0,0,1,0,1,1,0,0,0,0,1],
+  [1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,1,0,0,0,0,0,0,0,0,1,1,1,1,0,0,0,0,1],
+  [1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1],
+  [1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,1,1,1,1,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1],
+  [1,0,0,0,0,0,0,0,0,0,0,0,0,1,1,1,0,0,0,0,0,0,1,1,1,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1],
+  [1,0,0,0,0,0,0,0,0,0,0,0,0,1,1,1,0,0,0,0,0,0,1,1,1,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1],
+  [1,0,0,0,0,0,0,0,0,0,0,0,0,1,1,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,1,1,0,0,0,0,0,0,1],
+  [1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,0,1,1,1,1,1,0,0,1],
+  [1,0,0,0,0,1,1,1,1,1,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,1,1,1,1,1,1,0,0,1],
+  [1,0,0,0,0,1,1,1,0,1,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,1,1,1,1,1,1,0,0,1],
+  [1,0,0,0,0,1,1,1,0,1,1,1,0,0,0,0,1,1,1,1,0,0,0,0,0,0,0,0,0,1,1,0,0,0,0,0,0,0,1,1,1,1,1,1,1,0,0,1],
+  [1,0,0,0,0,1,1,1,0,1,1,1,0,0,0,0,1,0,0,1,0,0,0,0,0,0,0,0,0,1,1,1,0,0,0,0,0,0,0,1,0,1,1,1,1,0,0,1],
+  [1,0,0,0,0,1,0,1,1,1,1,1,0,0,0,0,1,1,1,1,0,0,0,0,0,0,0,0,0,1,1,1,0,0,0,0,0,0,0,1,1,1,1,1,1,0,0,1],
+  [1,0,0,0,0,1,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1],
+  [1,0,0,0,0,1,1,1,1,1,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1],
+  [1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1],
+  [1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,1,1,1,1,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1],
+  [1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,0,0,1,1,0,0,0,0,0,0,0,0,0,0,0,0,0,1],
+  [1,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,1,1,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1],
+  [1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1],
+  [1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,1,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1],
+  [1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,1,0,0,1,1,1],
+  [1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,0,1,1,1,0,1,1,1,1,1,1,1,1,1,1,1,1,1,1,0,1],
+  [1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,1,1,0,1,1,1,1,1,1,0,0,0,0,0,0,0,0,0,0,0,1],
+  [1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,0,1],
+  [1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,1,1,0,0,1,1,1,1,1,1,1,1,1,1,1,1,1,1,0,1],
+  [1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,1,1,1,1,1,1,1,0,0,0,0,0,0,0,0,0,0,1,1,1],
+  [1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,1,1],
+  [1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1]
+];
+
+const NPC_REFS = [
+  {x:8,  y:20, label:'Mãe',   color:'#ffd700'},
+  {x:16, y:21, label:'Guia',  color:'#00ffcc'},
+  {x:36, y:20, label:'Shop',  color:'#ff88ff'},
+  {x:12, y:22, label:'Riv1',  color:'#ff8800'},
+  {x:32, y:22, label:'Riv2',  color:'#ff8800'},
+  {x:10, y:34, label:'Sage',  color:'#88ffff'},
+  {x:22, y:10, label:'Aren',  color:'#ff4488'},
+  {x:36, y:26, label:'Mage',  color:'#88aaff'},
+  {x:36, y:6,  label:'CvGd',  color:'#aaffaa'},
+  {x:36, y:2,  label:'CvPt',  color:'#66ff66'},
+  {x:23, y:17, label:'PVP',   color:'#ffaa44'},
+  {x:24, y:26, label:'★SPAWN',color:'#ffffff'},
+];
+
+const ROWS = 48, COLS = 48;
+// Deep copy so we can compare
+const COLLISION = COLLISION_RAW.map(r => [...r]);
+const overrides = Array.from({length: ROWS}, () => new Array(COLS).fill(null)); // null | 0 | 1
+
+const canvas = document.getElementById('mapCanvas');
+const ctx = canvas.getContext('2d');
+let cellSize = 20;
+
+const mapImg = new Image();
+mapImg.src = '/map-hd.jpg.png.png';
+let imgLoaded = false;
+mapImg.onload = () => { imgLoaded = true; redraw(); };
+
+function resize() {
+  canvas.width  = COLS * cellSize + 1;
+  canvas.height = ROWS * cellSize + 1;
+  redraw();
+}
+
+function redraw() {
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  if (imgLoaded) {
+    ctx.drawImage(mapImg, 0, 0, canvas.width, canvas.height);
+  } else {
+    ctx.fillStyle = '#1a1a2e';
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+  }
+
+  // Overlay cells
+  for (let r = 0; r < ROWS; r++) {
+    for (let c = 0; c < COLS; c++) {
+      const ov  = overrides[r][c];
+      const cur = COLLISION[r] && COLLISION[r][c] !== undefined ? COLLISION[r][c] : 0;
+      const x = c * cellSize, y = r * cellSize;
+      if (ov === 0) {
+        ctx.fillStyle = 'rgba(40,210,90,0.75)';
+        ctx.fillRect(x, y, cellSize, cellSize);
+      } else if (ov === 1) {
+        ctx.fillStyle = 'rgba(255,50,50,0.88)';
+        ctx.fillRect(x, y, cellSize, cellSize);
+      } else if (cur === 1) {
+        ctx.fillStyle = 'rgba(220,40,40,0.38)';
+        ctx.fillRect(x, y, cellSize, cellSize);
+      }
+    }
+  }
+
+  // NPC markers
+  ctx.save();
+  for (const npc of NPC_REFS) {
+    const cx = npc.x * cellSize + cellSize / 2;
+    const cy = npc.y * cellSize + cellSize / 2;
+    ctx.beginPath();
+    ctx.arc(cx, cy, Math.max(3, cellSize * 0.32), 0, Math.PI * 2);
+    ctx.fillStyle = npc.color;
+    ctx.globalAlpha = 0.85;
+    ctx.fill();
+    ctx.globalAlpha = 1;
+    if (cellSize >= 14) {
+      ctx.fillStyle = '#000';
+      ctx.font = `bold ${Math.max(6, Math.floor(cellSize * 0.38))}px monospace`;
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText(npc.label.substring(0, 2), cx, cy);
+    }
+  }
+  ctx.restore();
+
+  // Grid lines
+  ctx.strokeStyle = 'rgba(255,255,255,0.12)';
+  ctx.lineWidth = 0.5;
+  for (let c = 0; c <= COLS; c++) {
+    ctx.beginPath(); ctx.moveTo(c * cellSize, 0); ctx.lineTo(c * cellSize, ROWS * cellSize); ctx.stroke();
+  }
+  for (let r = 0; r <= ROWS; r++) {
+    ctx.beginPath(); ctx.moveTo(0, r * cellSize); ctx.lineTo(COLS * cellSize, r * cellSize); ctx.stroke();
+  }
+
+  // Axis labels (every 4)
+  if (cellSize >= 12) {
+    ctx.fillStyle = 'rgba(255,255,255,0.65)';
+    ctx.font = `${Math.max(7, Math.floor(cellSize * 0.42))}px monospace`;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    for (let c = 0; c < COLS; c += 4) {
+      ctx.fillText(c, c * cellSize + cellSize / 2, cellSize * 0.45);
+    }
+    ctx.textAlign = 'right';
+    for (let r = 0; r < ROWS; r += 4) {
+      ctx.fillText(r, cellSize * 0.92, r * cellSize + cellSize / 2);
+    }
+  }
+}
+
+// ─── Interaction ───────────────────────────────────────────────────
+let isDown = false;
+let paintMode = null; // 0=walkable, 1=blocked, null=erase
+
+function getCell(clientX, clientY) {
+  const rect = canvas.getBoundingClientRect();
+  const scaleX = canvas.width  / rect.width;
+  const scaleY = canvas.height / rect.height;
+  const c = Math.floor((clientX - rect.left)  * scaleX / cellSize);
+  const r = Math.floor((clientY - rect.top)   * scaleY / cellSize);
+  return [c, r];
+}
+
+function startPaint(c, r) {
+  if (c < 0 || r < 0 || c >= COLS || r >= ROWS) return;
+  const ov = overrides[r][c];
+  // Cycle: null→0 (walkable), 0→1 (blocked), 1→null (erase)
+  if (ov === null)  paintMode = 0;
+  else if (ov === 0) paintMode = 1;
+  else               paintMode = null;
+  applyPaint(c, r);
+}
+
+function applyPaint(c, r) {
+  if (c < 0 || r < 0 || c >= COLS || r >= ROWS) return;
+  overrides[r][c] = paintMode;
+  updateSidebar();
+  redraw();
+}
+
+canvas.addEventListener('mousedown', e => {
+  isDown = true;
+  const [c, r] = getCell(e.clientX, e.clientY);
+  startPaint(c, r);
+});
+canvas.addEventListener('mousemove', e => {
+  const [c, r] = getCell(e.clientX, e.clientY);
+  document.getElementById('coords').textContent = `col:${c} row:${r}`;
+  if (!isDown) return;
+  applyPaint(c, r);
+});
+canvas.addEventListener('mouseup',    () => { isDown = false; });
+canvas.addEventListener('mouseleave', () => { isDown = false; });
+
+// Touch
+canvas.addEventListener('touchstart', e => {
+  e.preventDefault();
+  isDown = true;
+  const t = e.touches[0];
+  const [c, r] = getCell(t.clientX, t.clientY);
+  startPaint(c, r);
+}, {passive: false});
+canvas.addEventListener('touchmove', e => {
+  e.preventDefault();
+  const t = e.touches[0];
+  const [c, r] = getCell(t.clientX, t.clientY);
+  document.getElementById('coords').textContent = `col:${c} row:${r}`;
+  if (!isDown) return;
+  applyPaint(c, r);
+}, {passive: false});
+canvas.addEventListener('touchend', () => { isDown = false; });
+
+// ─── Zoom ──────────────────────────────────────────────────────────
+const ZOOM_STEPS = [8, 10, 12, 14, 16, 20, 24, 28, 32, 40];
+function changeZoom(dir) {
+  let idx = ZOOM_STEPS.indexOf(cellSize);
+  if (idx === -1) idx = ZOOM_STEPS.indexOf(20);
+  idx = Math.max(0, Math.min(ZOOM_STEPS.length - 1, idx + dir));
+  cellSize = ZOOM_STEPS[idx];
+  document.getElementById('zoom-info').textContent = cellSize + 'px';
+  resize();
+}
+
+function clearAll() {
+  for (let r = 0; r < ROWS; r++) overrides[r].fill(null);
+  updateSidebar();
+  redraw();
+}
+
+// ─── Sidebar ───────────────────────────────────────────────────────
+function updateSidebar() {
+  const changes = getChanges();
+  document.getElementById('changeCount').textContent = changes.length;
+  const list = document.getElementById('changeList');
+  if (changes.length === 0) {
+    list.innerHTML = '<span style="color:#8b949e">nenhuma mudança ainda</span>';
+    return;
+  }
+  list.innerHTML = changes.map(ch =>
+    `<div class="change-item ${ch.value === 0 ? 'walk' : 'block'}">` +
+    `row:${String(ch.row).padStart(2,' ')} col:${String(ch.col).padStart(2,' ')} → ${ch.value === 0 ? '✅ passável' : '🚫 bloqueado'}</div>`
+  ).join('');
+}
+
+function getChanges() {
+  const out = [];
+  for (let r = 0; r < ROWS; r++) {
+    for (let c = 0; c < COLS; c++) {
+      if (overrides[r][c] !== null) out.push({row: r, col: c, value: overrides[r][c]});
+    }
+  }
+  return out;
+}
+
+function exportChanges() {
+  const json = JSON.stringify(getChanges(), null, 2);
+  document.getElementById('output').value = json;
+  try { navigator.clipboard.writeText(json); } catch(_) {}
+}
+
+function exportFull() {
+  const rows = [];
+  for (let r = 0; r < ROWS; r++) {
+    const row = [];
+    for (let c = 0; c < COLS; c++) {
+      const ov = overrides[r][c];
+      row.push(ov !== null ? ov : (COLLISION[r][c] || 0));
+    }
+    rows.push('  [' + row.join(',') + ']' + (r < ROWS - 1 ? ',' : ''));
+  }
+  const out = 'const COLLISION = [\n' + rows.join('\n') + '\n];';
+  document.getElementById('output').value = out;
+  try { navigator.clipboard.writeText(out); } catch(_) {}
+}
+
+resize();
+</script>
+</body>
+</html>
