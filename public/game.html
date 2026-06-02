@@ -2982,6 +2982,7 @@ function loadAssets() {
     loadImage(dataUrl, 10000).then(img => { assets.orbSprite = img; }).catch(() => {});
   })();
   loadImage(CAVE1_MAP_URL, 20000).then(img => { assets.cave1map = img; }).catch(() => {});
+  loadImage('/house-roof.png.png', 10000).then(img => { assets.houseRoof = img; }).catch(() => {});
   // Guarda Kalos pixel-art sprite (loaded from <script type="text/plain"> base64 element)
   (function loadGuardaSprite(){
     const el = document.getElementById('d-guarda-kalos');
@@ -7296,34 +7297,15 @@ function render(now) {
     drawPlayer(pX - camX, pY - camY, now);
   }
 
-  // === Building roof overlays (pass-behind: only blocked house tiles drawn after entities) ===
-  // Tile-by-tile: draws COLLISION=1 tiles plus their immediate overhang row above.
-  // This ensures ground tiles are never drawn on top of entities.
-  const BUILDING_OVERLAYS = [
-    { gx: 35, gy: 33, gw: 13, gh: 10 }  // blue-roofed house, lower-right
-  ];
-  if (state && state.scene !== 'cave1') {
-    const _bImgW = assets.map ? assets.map.naturalWidth : 0;
-    const _bImgH = assets.map ? assets.map.naturalHeight : 0;
-    if (_bImgW && _bImgH) {
-      const _bScX = _bImgW / MAP_W_PX, _bScY = _bImgH / MAP_H_PX;
-      for (const bld of BUILDING_OVERLAYS) {
-        for (let r = bld.gy; r < bld.gy + bld.gh; r++) {
-          for (let c = bld.gx; c < bld.gx + bld.gw; c++) {
-            if (r < 0 || r >= GRID || c < 0 || c >= GRID) continue;
-            const isBlocked = COLLISION[r][c] === 1;
-            const isOverhang = !isBlocked && r + 1 < GRID && COLLISION[r + 1][c] === 1;
-            if (!isBlocked && !isOverhang) continue;
-            const tWorldX = c * TILE, tWorldY = r * TILE;
-            if (tWorldX + TILE < camX || tWorldX > camX + cw) continue;
-            if (tWorldY + TILE < camY || tWorldY > camY + ch) continue;
-            ctx.drawImage(assets.map,
-              Math.round(tWorldX * _bScX), Math.round(tWorldY * _bScY),
-              Math.round(TILE * _bScX), Math.round(TILE * _bScY),
-              tWorldX - camX, tWorldY - camY, TILE, TILE);
-          }
-        }
-      }
+  // === House sprite overlay (pass-behind: transparent sprite drawn after entities) ===
+  if (state && state.scene !== 'cave1' && assets.houseRoof && assets.houseRoof.complete) {
+    const hWorldX = 35 * TILE, hWorldY = 33 * TILE;
+    const hWorldW = 13 * TILE, hWorldH = 13 * TILE;
+    if (hWorldX + hWorldW >= camX && hWorldX <= camX + cw &&
+        hWorldY + hWorldH >= camY && hWorldY <= camY + ch) {
+      ctx.imageSmoothingEnabled = true;
+      ctx.drawImage(assets.houseRoof, hWorldX - camX, hWorldY - camY, hWorldW, hWorldH);
+      ctx.imageSmoothingEnabled = false;
     }
   }
 
