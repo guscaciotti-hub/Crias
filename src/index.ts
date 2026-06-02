@@ -133,6 +133,11 @@ app.get('/game', (req, res) => {
   res.sendFile(path.join(publicDir, 'game.html'))
 })
 
+// /collision-editor → collision editor tool
+app.get('/collision-editor', (req, res) => {
+  res.sendFile(path.join(publicDir, 'collision-editor.html'))
+})
+
 // Home route - HTML
 app.get('/', (req, res) => {
   res.type('html').send(`
