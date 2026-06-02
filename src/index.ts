@@ -51,7 +51,8 @@ const MOBILE_INJECT = `<link rel="stylesheet" href="/game-mobile.css">
     var gc = document.getElementById('game');
     if (!gc || !gc.parentNode) return false;
     _oc = document.createElement('canvas');
-    _oc.style.cssText = 'position:fixed;top:0;left:0;width:100%;height:100%;pointer-events:none;z-index:3;';
+    // background:transparent overrides game's global canvas{background:#0a0e1a} rule
+    _oc.style.cssText = 'position:fixed;top:0;left:0;width:100%;height:100%;pointer-events:none;z-index:3;background:transparent;';
     gc.parentNode.insertBefore(_oc, gc.nextSibling);
     _ox = _oc.getContext('2d');
     return true;
