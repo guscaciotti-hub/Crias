@@ -7296,9 +7296,11 @@ function render(now) {
     drawPlayer(pX - camX, pY - camY, now);
   }
 
-  // === Building roof overlays (pass-behind: map crop drawn after entities) ===
+  // === Building roof overlays (pass-behind: only blocked house tiles drawn after entities) ===
+  // Tile-by-tile: draws COLLISION=1 tiles plus their immediate overhang row above.
+  // This ensures ground tiles are never drawn on top of entities.
   const BUILDING_OVERLAYS = [
-    { gx: 38, gy: 33, gw: 6, gh: 6 }  // blue-roofed house, lower-right (tip row33 col38, body cols38-43)
+    { gx: 35, gy: 33, gw: 13, gh: 10 }  // blue-roofed house, lower-right
   ];
   if (state && state.scene !== 'cave1') {
     const _bImgW = assets.map ? assets.map.naturalWidth : 0;
@@ -7306,19 +7308,21 @@ function render(now) {
     if (_bImgW && _bImgH) {
       const _bScX = _bImgW / MAP_W_PX, _bScY = _bImgH / MAP_H_PX;
       for (const bld of BUILDING_OVERLAYS) {
-        const bWorldX = bld.gx * TILE, bWorldY = bld.gy * TILE;
-        const bWorldW = bld.gw * TILE, bWorldH = bld.gh * TILE;
-        if (bWorldX + bWorldW < camX || bWorldX > camX + cw) continue;
-        if (bWorldY + bWorldH < camY || bWorldY > camY + ch) continue;
-        ctx.save();
-        ctx.beginPath();
-        ctx.rect(bWorldX - camX, bWorldY - camY, bWorldW, bWorldH);
-        ctx.clip();
-        ctx.drawImage(assets.map,
-          Math.round(bWorldX * _bScX), Math.round(bWorldY * _bScY),
-          Math.round(bWorldW * _bScX), Math.round(bWorldH * _bScY),
-          bWorldX - camX, bWorldY - camY, bWorldW, bWorldH);
-        ctx.restore();
+        for (let r = bld.gy; r < bld.gy + bld.gh; r++) {
+          for (let c = bld.gx; c < bld.gx + bld.gw; c++) {
+            if (r < 0 || r >= GRID || c < 0 || c >= GRID) continue;
+            const isBlocked = COLLISION[r][c] === 1;
+            const isOverhang = !isBlocked && r + 1 < GRID && COLLISION[r + 1][c] === 1;
+            if (!isBlocked && !isOverhang) continue;
+            const tWorldX = c * TILE, tWorldY = r * TILE;
+            if (tWorldX + TILE < camX || tWorldX > camX + cw) continue;
+            if (tWorldY + TILE < camY || tWorldY > camY + ch) continue;
+            ctx.drawImage(assets.map,
+              Math.round(tWorldX * _bScX), Math.round(tWorldY * _bScY),
+              Math.round(TILE * _bScX), Math.round(TILE * _bScY),
+              tWorldX - camX, tWorldY - camY, TILE, TILE);
+          }
+        }
       }
     }
   }
