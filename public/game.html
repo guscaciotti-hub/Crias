@@ -54,17 +54,20 @@
   }
   #rotatePrompt h2 { font-size: 22px; margin-bottom: 8px; }
   #rotatePrompt p { font-size: 14px; color: #8ab0dd; max-width: 280px; line-height: 1.5; }
-  /* Portrait: rotate entire app 90deg so game always renders as landscape */
+  /* Portrait: rotate entire app 90deg so game always renders as landscape.
+     Must override inset:0 (right/bottom) with auto, otherwise they fight top/left. */
   @media (orientation: portrait) {
     #rotatePrompt { display: none !important; }
     #app {
-      transform: rotate(90deg);
-      transform-origin: center;
-      width: 100vh;
-      height: 100vw;
-      position: fixed;
-      top: calc((100vh - 100vw) / 2);
-      left: calc((100vw - 100vh) / 2);
+      transform: rotate(90deg) !important;
+      transform-origin: center !important;
+      width: 100vh !important;
+      height: 100vw !important;
+      position: fixed !important;
+      top: calc((100vh - 100vw) / 2) !important;
+      left: calc((100vw - 100vh) / 2) !important;
+      right: auto !important;
+      bottom: auto !important;
     }
   }
 
