@@ -54,8 +54,18 @@
   }
   #rotatePrompt h2 { font-size: 22px; margin-bottom: 8px; }
   #rotatePrompt p { font-size: 14px; color: #8ab0dd; max-width: 280px; line-height: 1.5; }
-  @media (orientation: portrait) and (max-width: 900px) {
-    #rotatePrompt { display: flex; }
+  /* Portrait: rotate entire app 90deg so game always renders as landscape */
+  @media (orientation: portrait) {
+    #rotatePrompt { display: none !important; }
+    #app {
+      transform: rotate(90deg);
+      transform-origin: center;
+      width: 100vh;
+      height: 100vw;
+      position: fixed;
+      top: calc((100vh - 100vw) / 2);
+      left: calc((100vw - 100vh) / 2);
+    }
   }
 
   .overlay { position: fixed; inset: 0; display: none; align-items: center; justify-content: center; z-index: 10; }
@@ -2856,20 +2866,31 @@ const ctx = canvas.getContext('2d');
 let viewportW = window.innerWidth;
 let viewportH = window.innerHeight;
 function fitCanvas() {
-  const w = window.innerWidth;
-  const h = window.innerHeight;
+  const rawW = window.innerWidth;
+  const rawH = window.innerHeight;
   // Ignore mid-rotation readings — browser briefly reports 0 or wrong dimensions
-  if (w < 100 || h < 100) return;
+  if (rawW < 100 || rawH < 100) return;
+  // Always use landscape dimensions: wider is landscape-width, shorter is landscape-height
+  const w = Math.max(rawW, rawH);
+  const h = Math.min(rawW, rawH);
   viewportW = w;
   viewportH = h;
   // Cap internal resolution for performance on mobile
-  const internalW = Math.min(viewportW, 1280);
-  const internalH = Math.min(viewportH, 720);
-  canvas.width = internalW;
+  const internalW = Math.min(w, 1280);
+  const internalH = Math.min(h, 720);
+  canvas.width  = internalW;
   canvas.height = internalH;
-  canvas.style.width = viewportW + 'px';
-  canvas.style.height = viewportH + 'px';
+  canvas.style.width  = w + 'px';
+  canvas.style.height = h + 'px';
   ctx.imageSmoothingEnabled = false;
+}
+
+function lockLandscape() {
+  try {
+    if (screen.orientation && screen.orientation.lock) {
+      screen.orientation.lock('landscape').catch(() => {});
+    }
+  } catch (e) {}
 }
 // ResizeObserver fires only after layout stabilises — safe on orientation change.
 // Debounce 100ms to avoid redundant calls during animated resize.
@@ -7097,6 +7118,9 @@ function render(now) {
   // Draw dark socket + blue neon aura (drawn live each frame with aspect correction).
   drawOrbGroundFX(camX, camY, now);
 
+  // Neon quest path — pulsing dots leading player to quest destination
+  drawNeonPath(camX, camY, now);
+
   // Cria follow position — always exactly 1 cell behind player
   let cX, cY;
   if (craPosHistory.length > 0) {
@@ -7469,6 +7493,80 @@ function drawImageNPC(npc, px, py, now, img, nameColor) {
 }
 
 // ── Subtle quest hint: pulsing glow on floor to guide new players ─────────────
+function drawNeonPath(camX, camY, now) {
+  if (!state || state.scene === 'cave1') return;
+  const path = state._autoWalkPath;
+  if (!path || path.length === 0) return;
+  const idx = state._autoWalkIdx || 0;
+  const remaining = path.slice(idx);
+  if (remaining.length === 0) return;
+
+  ctx.save();
+  const t = now / 1000;
+
+  for (let i = 0; i < remaining.length; i++) {
+    const step = remaining[i];
+    const sx = (step.x + 0.5) * TILE - camX;
+    const sy = (step.y + 0.5) * TILE - camY;
+    if (sx < -TILE * 2 || sx > canvas.width + TILE * 2 || sy < -TILE * 2 || sy > canvas.height + TILE * 2) continue;
+
+    const isFinal = i === remaining.length - 1;
+    const wave = Math.sin(t * 5 - i * 0.5) * 0.5 + 0.5; // travelling pulse 0..1
+
+    if (isFinal) {
+      // Destination beacon — ripple rings + glowing core
+      const bp = 0.65 + 0.35 * Math.sin(t * 2.8);
+      const by = sy - 6;
+
+      // Expanding ripple rings
+      for (let ri = 0; ri < 2; ri++) {
+        const phase = ((t * 1.2 + ri * 0.5) % 1);
+        const rr = 10 + phase * 28;
+        const ra = (1 - phase) * 0.5;
+        ctx.strokeStyle = `rgba(0,240,255,${ra})`;
+        ctx.lineWidth = 1.5;
+        ctx.beginPath();
+        ctx.ellipse(sx, by, rr, rr * 0.38, 0, 0, Math.PI * 2);
+        ctx.stroke();
+      }
+      // Static inner ring
+      ctx.strokeStyle = `rgba(0,220,255,${0.6 * bp})`;
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.ellipse(sx, by, 12, 4.5, 0, 0, Math.PI * 2);
+      ctx.stroke();
+      // Core glow
+      const bg = ctx.createRadialGradient(sx, by, 0, sx, by, 14);
+      bg.addColorStop(0, `rgba(180,255,255,${0.95 * bp})`);
+      bg.addColorStop(0.35, `rgba(0,230,255,${0.7 * bp})`);
+      bg.addColorStop(1, 'rgba(0,150,255,0)');
+      ctx.fillStyle = bg;
+      ctx.beginPath();
+      ctx.arc(sx, by, 14, 0, Math.PI * 2);
+      ctx.fill();
+    } else {
+      // Travelling pulse dot
+      const alpha = 0.25 + 0.75 * wave;
+      const dr = 2.5 + 2 * wave;
+      // Outer glow
+      const dg = ctx.createRadialGradient(sx, sy, 0, sx, sy, dr * 3);
+      dg.addColorStop(0, `rgba(0,220,255,${alpha * 0.8})`);
+      dg.addColorStop(0.5, `rgba(0,180,255,${alpha * 0.35})`);
+      dg.addColorStop(1, 'rgba(0,140,255,0)');
+      ctx.fillStyle = dg;
+      ctx.beginPath();
+      ctx.arc(sx, sy, dr * 3, 0, Math.PI * 2);
+      ctx.fill();
+      // Bright core
+      ctx.fillStyle = `rgba(210,245,255,${alpha})`;
+      ctx.beginPath();
+      ctx.arc(sx, sy, dr, 0, Math.PI * 2);
+      ctx.fill();
+    }
+  }
+  ctx.restore();
+}
+
 function drawQuestHint(camX, camY, now) {
   if (!state || state.scene === 'cave1') return;
   // Stage 1 — no Cria, no orb yet: highlight Guia Solis tile
@@ -7768,6 +7866,7 @@ document.getElementById('btnEnter').addEventListener('click', () => {
     if (typeof state.orbFragments !== 'number') state.orbFragments = 0;
     if (!state.party) state.party = [];
     document.getElementById('login').classList.remove('active');
+    lockLandscape();
     startGame();
   }
 });
@@ -8192,6 +8291,7 @@ function startGame() {
   window.onerror = null;
   loadAssets(); // carrega em background
   fitCanvas();
+  lockLandscape();
   initChat();
   
   const saved = loadGame();
