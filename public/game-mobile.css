@@ -35,8 +35,25 @@ canvas#game {
   image-rendering: -moz-crisp-edges !important;
   image-rendering: crisp-edges !important;
 }
-/* Never show the rotate prompt — game runs in any orientation */
-#rotatePrompt { display: none !important; }
+/* Force landscape: hide rotate prompt in landscape, show full-screen blocker in portrait */
+@media (orientation: landscape) {
+  #rotatePrompt { display: none !important; }
+}
+@media (orientation: portrait) {
+  #rotatePrompt {
+    display: flex !important;
+    position: fixed !important;
+    inset: 0 !important;
+    z-index: 9999 !important;
+    background: #0a0e1a !important;
+    flex-direction: column !important;
+    align-items: center !important;
+    justify-content: center !important;
+    color: #fff !important;
+    text-align: center !important;
+    padding: 24px !important;
+  }
+}
 
 /* ─── HUD: horizontal single-row layout ─── */
 #hud {
