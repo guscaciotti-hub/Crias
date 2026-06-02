@@ -54,8 +54,21 @@
   }
   #rotatePrompt h2 { font-size: 22px; margin-bottom: 8px; }
   #rotatePrompt p { font-size: 14px; color: #8ab0dd; max-width: 280px; line-height: 1.5; }
-  @media (orientation: portrait) and (max-width: 900px) {
-    #rotatePrompt { display: flex; }
+  /* Portrait: rotate entire app 90deg so game always renders as landscape.
+     Must override inset:0 (right/bottom) with auto, otherwise they fight top/left. */
+  @media (orientation: portrait) {
+    #rotatePrompt { display: none !important; }
+    #app {
+      transform: rotate(90deg) !important;
+      transform-origin: center !important;
+      width: 100vh !important;
+      height: 100vw !important;
+      position: fixed !important;
+      top: calc((100vh - 100vw) / 2) !important;
+      left: calc((100vw - 100vh) / 2) !important;
+      right: auto !important;
+      bottom: auto !important;
+    }
   }
 
   .overlay { position: fixed; inset: 0; display: none; align-items: center; justify-content: center; z-index: 10; }
@@ -2846,6 +2859,9 @@ let inMenu = false, inBattle = false, inDialog = false;
 let battleState = null;
 let lastFacing = 'down';
 let craPosHistory = [];
+// Quest navigation: persistent neon trail to a destination (player walks manually).
+let questNavTarget = null;   // { x, y, label } — current quest destination tile
+let questNavPath = [];       // [{x,y}, …] BFS route from player to target, recomputed each step
 let assets = { map: null, sprites: {}, monsters: {} };
 let DEBUG_COLLISION = false; // toggle com ` (backtick)
 
@@ -2856,20 +2872,31 @@ const ctx = canvas.getContext('2d');
 let viewportW = window.innerWidth;
 let viewportH = window.innerHeight;
 function fitCanvas() {
-  const w = window.innerWidth;
-  const h = window.innerHeight;
+  const rawW = window.innerWidth;
+  const rawH = window.innerHeight;
   // Ignore mid-rotation readings — browser briefly reports 0 or wrong dimensions
-  if (w < 100 || h < 100) return;
+  if (rawW < 100 || rawH < 100) return;
+  // Always use landscape dimensions: wider is landscape-width, shorter is landscape-height
+  const w = Math.max(rawW, rawH);
+  const h = Math.min(rawW, rawH);
   viewportW = w;
   viewportH = h;
   // Cap internal resolution for performance on mobile
-  const internalW = Math.min(viewportW, 1280);
-  const internalH = Math.min(viewportH, 720);
-  canvas.width = internalW;
+  const internalW = Math.min(w, 1280);
+  const internalH = Math.min(h, 720);
+  canvas.width  = internalW;
   canvas.height = internalH;
-  canvas.style.width = viewportW + 'px';
-  canvas.style.height = viewportH + 'px';
+  canvas.style.width  = w + 'px';
+  canvas.style.height = h + 'px';
   ctx.imageSmoothingEnabled = false;
+}
+
+function lockLandscape() {
+  try {
+    if (screen.orientation && screen.orientation.lock) {
+      screen.orientation.lock('landscape').catch(() => {});
+    }
+  } catch (e) {}
 }
 // ResizeObserver fires only after layout stabilises — safe on orientation change.
 // Debounce 100ms to avoid redundant calls during animated resize.
@@ -3002,7 +3029,11 @@ function saveGame() {
   try { localStorage.setItem(SAVE_KEY, JSON.stringify(state)); } catch(e){}
 }
 function loadGame() {
-  try { return JSON.parse(localStorage.getItem(SAVE_KEY)); } catch(e){ return null; }
+  try {
+    const s = JSON.parse(localStorage.getItem(SAVE_KEY));
+    if (s) { delete s._autoWalkPath; delete s._autoWalkIdx; delete s._autoWalkInteract; delete s._autoWalkFace; }
+    return s;
+  } catch(e){ return null; }
 }
 function resetGame() {
   localStorage.removeItem(SAVE_KEY);
@@ -3365,8 +3396,6 @@ function updateJoystickDirection(dx, dy) {
   } else {
     if (dy > 0) keys.down = true; else keys.up = true;
   }
-  // Cancel auto-walk when player manually moves
-  if (state) state._autoWalkPath = null;
 }
 
 function setStickPosition(dx, dy) {
@@ -3455,10 +3484,10 @@ document.addEventListener('keydown', (e) => {
     if (e.key === 'Escape') closeAllOverlays();
     return;
   }
-  if (e.key === 'ArrowUp' || e.key === 'w') { keys.up = true; if (state) { state._autoWalkPath = null; } }
-  if (e.key === 'ArrowDown' || e.key === 's') { keys.down = true; if (state) { state._autoWalkPath = null; } }
-  if (e.key === 'ArrowLeft' || e.key === 'a') { keys.left = true; if (state) { state._autoWalkPath = null; } }
-  if (e.key === 'ArrowRight' || e.key === 'd') { keys.right = true; if (state) { state._autoWalkPath = null; } }
+  if (e.key === 'ArrowUp' || e.key === 'w') { keys.up = true; }
+  if (e.key === 'ArrowDown' || e.key === 's') { keys.down = true; }
+  if (e.key === 'ArrowLeft' || e.key === 'a') { keys.left = true; }
+  if (e.key === 'ArrowRight' || e.key === 'd') { keys.right = true; }
   if (e.key === ' ' || e.key === 'Enter' || e.key.toLowerCase() === 'e') keys.action = true;
 });
 document.addEventListener('keyup', (e) => {
@@ -3531,35 +3560,8 @@ function update(t) {
       saveGame();
     }
   } else if (!inBattle && !inMenu && !inDialog) {
-    // Auto-walk path from quest navigation
-    if (state._autoWalkPath && state._autoWalkIdx < state._autoWalkPath.length) {
-      const step = state._autoWalkPath[state._autoWalkIdx];
-      const cur = state.scene === 'cave1' ? state.cavePlayer : state.player;
-      if (step && canWalkTo(step.x, step.y)) {
-        const dx = step.x - cur.x, dy = step.y - cur.y;
-        const dir = dx > 0 ? 'right' : dx < 0 ? 'left' : dy > 0 ? 'down' : 'up';
-        cur.dir = dir;
-        movingTo = { fromX: cur.x, fromY: cur.y, toX: step.x, toY: step.y, startTime: t };
-        state._autoWalkIdx++;
-      } else {
-        // Obstacle hit, stop auto-walk
-        state._autoWalkPath = null;
-        state._autoWalkIdx = 0;
-      }
-    } else if (state._autoWalkPath) {
-      const shouldInteract = state._autoWalkInteract;
-      const face = state._autoWalkFace || 'down';
-      state._autoWalkPath = null;
-      state._autoWalkIdx = 0;
-      state._autoWalkInteract = false;
-      state._autoWalkFace = null;
-      if (shouldInteract) setTimeout(() => {
-        lastFacing = face;
-        const cur2 = state.scene === 'cave1' ? state.cavePlayer : state.player;
-        if (cur2) cur2.dir = face;
-        tryInteract();
-      }, 80);
-    } else if (keys.up) tryMove('up');
+    // Manual movement only — the neon quest trail just shows the way.
+    if (keys.up) tryMove('up');
     else if (keys.down) tryMove('down');
     else if (keys.left) tryMove('left');
     else if (keys.right) tryMove('right');
@@ -3575,6 +3577,8 @@ function isInCaveArea() {
 
 function onTileStep() {
   if (state.scene === 'cave1') { onCaveTileStep(); return; }
+  // Update the neon quest trail as the player advances toward the destination.
+  recomputeQuestPath();
   const px = state.player.x * TILE + TILE/2;
   const py = state.player.y * TILE + TILE;
   FX.step(px, py, true);
@@ -6239,36 +6243,78 @@ function navigateToQuest(questId) {
   if (questId === 'q1') {
     const hasOrb = state.items && (state.items.orbeCriacao || 0) > 0;
     nav = hasOrb
-      ? { x: 24, y: 26, face: 'up',   label: 'Core Orb',  interact: true }
-      : { x: 16, y: 21, face: 'down', label: 'Guia Solis', interact: true };
+      ? { x: 24, y: 26, label: 'Core Orb' }
+      : { x: 16, y: 21, label: 'Guia Solis' };
   }
   if (!nav) return;
 
-  showToast(`📍 Indo até: ${nav.label}`);
-  walkPlayerToward(nav.x, nav.y, nav.interact, nav.face);
+  // Set a persistent destination and light up the neon trail. The player walks there manually.
+  questNavTarget = { x: nav.x, y: nav.y, label: nav.label };
+  recomputeQuestPath();
+  if (questNavPath.length === 0 && questNavTarget) {
+    showToast(`📍 ${nav.label} é logo aqui!`);
+  } else {
+    showToast(`📍 Siga o caminho até: ${nav.label}`);
+  }
 }
 
-function walkPlayerToward(tx, ty, autoInteract, face) {
-  if (!state || state.scene === 'cave1') return;
-  const cur = state.player;
-  if (!cur) return;
-  const steps = [];
-  let cx = Math.round(cur.x);
-  let cy = Math.round(cur.y);
-  const maxSteps = 60;
-  while ((cx !== tx || cy !== ty) && steps.length < maxSteps) {
-    if (cx < tx) cx++;
-    else if (cx > tx) cx--;
-    else if (cy < ty) cy++;
-    else if (cy > ty) cy--;
-    steps.push({ x: cx, y: cy });
+// Walkable test for pathfinding: blocks walls + NPC tiles, but always allows the
+// destination tile itself (so a route can end right next to an NPC like Guia Solis).
+function isPathTileFree(x, y, tx, ty) {
+  if (x < 0 || x >= GRID || y < 0 || y >= COLLISION.length) return false;
+  if (COLLISION[y][x] === 1) return false;
+  if (!(x === tx && y === ty)) {
+    for (const npc of state.npcs) if (npc.x === x && npc.y === y) return false;
   }
-  if (steps.length > 0) {
-    state._autoWalkPath = steps;
-    state._autoWalkIdx = 0;
-    state._autoWalkInteract = !!autoInteract;
-    state._autoWalkFace = face || 'down';
+  return true;
+}
+
+// BFS on the world collision grid. Returns the route as [{x,y}…] from the first
+// step after the start up to (and including) the target, or [] if none/already there.
+function computeQuestPath(sx, sy, tx, ty) {
+  if (sx === tx && sy === ty) return [];
+  const W = GRID;
+  const key = (x, y) => y * W + x;
+  const prev = new Map();
+  const seen = new Set([key(sx, sy)]);
+  const queue = [[sx, sy]];
+  let head = 0;
+  while (head < queue.length) {
+    const [cx, cy] = queue[head++];
+    if (cx === tx && cy === ty) break;
+    const neighbours = [[cx + 1, cy], [cx - 1, cy], [cx, cy + 1], [cx, cy - 1]];
+    for (const [nx, ny] of neighbours) {
+      const k = key(nx, ny);
+      if (seen.has(k)) continue;
+      if (!isPathTileFree(nx, ny, tx, ty)) continue;
+      seen.add(k);
+      prev.set(k, [cx, cy]);
+      queue.push([nx, ny]);
+    }
   }
+  if (!seen.has(key(tx, ty))) return []; // unreachable
+  const path = [];
+  let cur = [tx, ty];
+  while (!(cur[0] === sx && cur[1] === sy)) {
+    path.push({ x: cur[0], y: cur[1] });
+    cur = prev.get(key(cur[0], cur[1]));
+    if (!cur) return [];
+  }
+  return path.reverse();
+}
+
+// Recompute the neon trail from the player's current tile. Clears the quest when
+// the player arrives. Called whenever the player finishes a step.
+function recomputeQuestPath() {
+  if (!questNavTarget || !state || state.scene === 'cave1') { questNavPath = []; return; }
+  const px = Math.round(state.player.x), py = Math.round(state.player.y);
+  if (px === questNavTarget.x && py === questNavTarget.y) {
+    showToast(`✅ Você chegou: ${questNavTarget.label}`);
+    questNavTarget = null;
+    questNavPath = [];
+    return;
+  }
+  questNavPath = computeQuestPath(px, py, questNavTarget.x, questNavTarget.y);
 }
 
 function populateQuestTab() {
@@ -7097,6 +7143,9 @@ function render(now) {
   // Draw dark socket + blue neon aura (drawn live each frame with aspect correction).
   drawOrbGroundFX(camX, camY, now);
 
+  // Neon quest path — pulsing dots leading player to quest destination
+  drawNeonPath(camX, camY, now);
+
   // Cria follow position — always exactly 1 cell behind player
   let cX, cY;
   if (craPosHistory.length > 0) {
@@ -7468,7 +7517,79 @@ function drawImageNPC(npc, px, py, now, img, nameColor) {
   ctx.fillText(npc.name, bx, py + TILE + 11);
 }
 
-// ── Subtle quest hint: pulsing glow on floor to guide new players ─────────────
+// ── Neon quest trail: pulsing cyan dots on the floor leading to the quest
+//    destination, with a beacon at the end. Player walks it manually. ──────────
+function drawNeonPath(camX, camY, now) {
+  if (!state || state.scene === 'cave1') return;
+  const remaining = questNavPath;
+  if (!remaining || remaining.length === 0) return;
+
+  ctx.save();
+  const t = now / 1000;
+
+  for (let i = 0; i < remaining.length; i++) {
+    const step = remaining[i];
+    const sx = (step.x + 0.5) * TILE - camX;
+    const sy = (step.y + 0.5) * TILE - camY;
+    if (sx < -TILE * 2 || sx > canvas.width + TILE * 2 || sy < -TILE * 2 || sy > canvas.height + TILE * 2) continue;
+
+    const isFinal = i === remaining.length - 1;
+    const wave = Math.sin(t * 5 - i * 0.5) * 0.5 + 0.5; // travelling pulse 0..1
+
+    if (isFinal) {
+      // Destination beacon — ripple rings + glowing core
+      const bp = 0.65 + 0.35 * Math.sin(t * 2.8);
+      const by = sy - 6;
+
+      // Expanding ripple rings
+      for (let ri = 0; ri < 2; ri++) {
+        const phase = ((t * 1.2 + ri * 0.5) % 1);
+        const rr = 10 + phase * 28;
+        const ra = (1 - phase) * 0.5;
+        ctx.strokeStyle = `rgba(0,240,255,${ra})`;
+        ctx.lineWidth = 1.5;
+        ctx.beginPath();
+        ctx.ellipse(sx, by, rr, rr * 0.38, 0, 0, Math.PI * 2);
+        ctx.stroke();
+      }
+      // Static inner ring
+      ctx.strokeStyle = `rgba(0,220,255,${0.6 * bp})`;
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.ellipse(sx, by, 12, 4.5, 0, 0, Math.PI * 2);
+      ctx.stroke();
+      // Core glow
+      const bg = ctx.createRadialGradient(sx, by, 0, sx, by, 14);
+      bg.addColorStop(0, `rgba(180,255,255,${0.95 * bp})`);
+      bg.addColorStop(0.35, `rgba(0,230,255,${0.7 * bp})`);
+      bg.addColorStop(1, 'rgba(0,150,255,0)');
+      ctx.fillStyle = bg;
+      ctx.beginPath();
+      ctx.arc(sx, by, 14, 0, Math.PI * 2);
+      ctx.fill();
+    } else {
+      // Travelling pulse dot
+      const alpha = 0.25 + 0.75 * wave;
+      const dr = 2.5 + 2 * wave;
+      // Outer glow
+      const dg = ctx.createRadialGradient(sx, sy, 0, sx, sy, dr * 3);
+      dg.addColorStop(0, `rgba(0,220,255,${alpha * 0.8})`);
+      dg.addColorStop(0.5, `rgba(0,180,255,${alpha * 0.35})`);
+      dg.addColorStop(1, 'rgba(0,140,255,0)');
+      ctx.fillStyle = dg;
+      ctx.beginPath();
+      ctx.arc(sx, sy, dr * 3, 0, Math.PI * 2);
+      ctx.fill();
+      // Bright core
+      ctx.fillStyle = `rgba(210,245,255,${alpha})`;
+      ctx.beginPath();
+      ctx.arc(sx, sy, dr, 0, Math.PI * 2);
+      ctx.fill();
+    }
+  }
+  ctx.restore();
+}
+
 function drawQuestHint(camX, camY, now) {
   if (!state || state.scene === 'cave1') return;
   // Stage 1 — no Cria, no orb yet: highlight Guia Solis tile
@@ -7768,6 +7889,7 @@ document.getElementById('btnEnter').addEventListener('click', () => {
     if (typeof state.orbFragments !== 'number') state.orbFragments = 0;
     if (!state.party) state.party = [];
     document.getElementById('login').classList.remove('active');
+    lockLandscape();
     startGame();
   }
 });
@@ -8167,6 +8289,11 @@ function drawCave1Torch(tx, ty, now) {
 }
 
 function startGame() {
+  // Strip any legacy auto-walk state that might have been saved by old code
+  if (state) { delete state._autoWalkPath; delete state._autoWalkIdx; delete state._autoWalkInteract; delete state._autoWalkFace; }
+  // Reset quest nav trail on each game start
+  questNavTarget = null;
+  questNavPath = [];
   saveGame();
   // Stop abertura theme, transition to city music
   MUSIC.transitionToCity();
@@ -8192,6 +8319,7 @@ function startGame() {
   window.onerror = null;
   loadAssets(); // carrega em background
   fitCanvas();
+  lockLandscape();
   initChat();
   
   const saved = loadGame();

@@ -10,50 +10,42 @@ html, body {
   top: 0 !important;
   left: 0 !important;
 }
-#app {
-  position: fixed !important;
-  top: 0 !important;
-  left: 0 !important;
-  right: 0 !important;
-  bottom: 0 !important;
-  width: 100% !important;
-  height: 100% !important;
+/* Landscape: #app fills screen normally */
+@media (orientation: landscape) {
+  #app {
+    position: fixed !important;
+    top: 0 !important;
+    left: 0 !important;
+    right: 0 !important;
+    bottom: 0 !important;
+    width: 100% !important;
+    height: 100% !important;
+    transform: none !important;
+  }
+}
+/* Portrait: rotate #app 90deg so game always appears as landscape.
+   Must NOT set right/bottom so the rotation transform can position correctly. */
+@media (orientation: portrait) {
+  #rotatePrompt { display: none !important; }
+  #app {
+    position: fixed !important;
+    top: calc((100vh - 100vw) / 2) !important;
+    left: calc((100vw - 100vh) / 2) !important;
+    right: auto !important;
+    bottom: auto !important;
+    width: 100vh !important;
+    height: 100vw !important;
+    transform: rotate(90deg) !important;
+    transform-origin: center !important;
+  }
 }
 canvas#game {
-  position: fixed !important;
-  top: 0 !important;
-  left: 0 !important;
-  right: 0 !important;
-  bottom: 0 !important;
-  width: 100vw !important;
-  height: 100vh !important;
-  /* dvh/dvw respects dynamic browser chrome changes on mobile */
-  width: 100dvw !important;
-  height: 100dvh !important;
   /* Nearest-neighbor scaling — keeps pixel art crisp on high-DPI screens */
   image-rendering: pixelated !important;
   image-rendering: -moz-crisp-edges !important;
   image-rendering: crisp-edges !important;
 }
-/* Force landscape: hide rotate prompt in landscape, show full-screen blocker in portrait */
-@media (orientation: landscape) {
-  #rotatePrompt { display: none !important; }
-}
-@media (orientation: portrait) {
-  #rotatePrompt {
-    display: flex !important;
-    position: fixed !important;
-    inset: 0 !important;
-    z-index: 9999 !important;
-    background: #0a0e1a !important;
-    flex-direction: column !important;
-    align-items: center !important;
-    justify-content: center !important;
-    color: #fff !important;
-    text-align: center !important;
-    padding: 24px !important;
-  }
-}
+/* Portrait: rotatePrompt hidden — #app rotation handles orientation */
 
 /* ─── HUD: horizontal single-row layout ─── */
 #hud {
