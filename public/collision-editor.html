@@ -263,8 +263,33 @@ function startPaint(c, r) {
 function applyPaint(c, r) {
   if (c < 0 || r < 0 || c >= COLS || r >= ROWS) return;
   overrides[r][c] = paintMode;
+  saveToStorage();
   updateSidebar();
   redraw();
+}
+
+const STORAGE_KEY = 'collision-editor-overrides';
+
+function saveToStorage() {
+  // Save only non-null cells as [{r,c,v}] for compactness
+  const data = [];
+  for (let r = 0; r < ROWS; r++) {
+    for (let c = 0; c < COLS; c++) {
+      if (overrides[r][c] !== null) data.push([r, c, overrides[r][c]]);
+    }
+  }
+  try { localStorage.setItem(STORAGE_KEY, JSON.stringify(data)); } catch(_) {}
+}
+
+function loadFromStorage() {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if (!raw) return;
+    const data = JSON.parse(raw);
+    for (const [r, c, v] of data) {
+      if (r >= 0 && r < ROWS && c >= 0 && c < COLS) overrides[r][c] = v;
+    }
+  } catch(_) {}
 }
 
 canvas.addEventListener('mousedown', e => {
@@ -312,6 +337,7 @@ function changeZoom(dir) {
 
 function clearAll() {
   for (let r = 0; r < ROWS; r++) overrides[r].fill(null);
+  saveToStorage();
   updateSidebar();
   redraw();
 }
@@ -362,7 +388,9 @@ function exportFull() {
   try { navigator.clipboard.writeText(out); } catch(_) {}
 }
 
+loadFromStorage();
 resize();
+updateSidebar();
 </script>
 </body>
 </html>
