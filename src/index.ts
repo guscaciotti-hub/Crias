@@ -38,12 +38,140 @@ const MOBILE_INJECT = `<link rel="stylesheet" href="/game-mobile.css">
   };
 })();
 (function(){
-  // BFS pathfinding: QUEST_NAV coords are stand tiles — navigate there directly,
-  // routing around obstacles. Re-routes automatically if blocked mid-path.
+  // BFS pathfinding + neon quest-path overlay
   var _navTarget = null;
   var _navStart  = 0;
   var NAV_TIMEOUT = 12000;
 
+  // ── Overlay canvas ──────────────────────────────────────────────────────────
+  var _oc = null, _ox = null;
+
+  function _ensureOC() {
+    if (_oc) return true;
+    var gc = document.getElementById('game');
+    if (!gc || !gc.parentNode) return false;
+    _oc = document.createElement('canvas');
+    _oc.style.cssText = 'position:fixed;top:0;left:0;width:100%;height:100%;pointer-events:none;z-index:3;';
+    gc.parentNode.insertBefore(_oc, gc.nextSibling);
+    _ox = _oc.getContext('2d');
+    return true;
+  }
+
+  // Game uses: TILE = MAP_W_PX / GRID ≈ 39 px/tile; camX/camY = world-px camera offset
+  function _getTS() { return (typeof TILE !== 'undefined' && TILE > 4 && TILE < 500 ? TILE : 39); }
+  function _getCam() {
+    if (typeof camX !== 'undefined') return { x: camX, y: camY };
+    if (typeof camera !== 'undefined' && camera) return { x: camera.x || 0, y: camera.y || 0 };
+    if (!state || !state.player) return { x: 0, y: 0 };
+    var tS = _getTS();
+    return { x: state.player.x * tS + tS / 2 - window.innerWidth / 2,
+             y: state.player.y * tS + tS / 2 - window.innerHeight / 2 };
+  }
+
+  // 4-point star sparkle
+  function _star(ctx, cx, cy, r) {
+    ctx.beginPath();
+    for (var i = 0; i < 8; i++) {
+      var a = i * Math.PI / 4;
+      var d = (i % 2 === 0) ? r : r * 0.35;
+      i === 0 ? ctx.moveTo(cx + d * Math.cos(a), cy + d * Math.sin(a))
+              : ctx.lineTo(cx + d * Math.cos(a), cy + d * Math.sin(a));
+    }
+    ctx.closePath();
+    ctx.fill();
+  }
+
+  function _loop(ts) {
+    requestAnimationFrame(_loop);
+    if (!_ensureOC()) return;
+    var cw = window.innerWidth, ch = window.innerHeight;
+    if (_oc.width !== cw || _oc.height !== ch) { _oc.width = cw; _oc.height = ch; }
+    _ox.clearRect(0, 0, cw, ch);
+
+    if (!_navTarget || !state || !state.player || !state._autoWalkPath) return;
+    var pvp = document.getElementById('pvpBattle');
+    if (document.querySelector('.overlay.active') || (pvp && pvp.classList.contains('active'))) return;
+
+    var remaining = state._autoWalkPath.slice(state._autoWalkIdx || 0);
+    if (!remaining.length) return;
+
+    var tS   = _getTS();
+    var cam  = _getCam();
+    var pulse  = 0.55 + 0.45 * Math.sin(ts / 300);         // ~3.3 Hz
+    var pulse2 = 0.55 + 0.45 * Math.sin(ts / 300 + Math.PI); // offset for alternating rings
+    var n    = remaining.length;
+
+    _ox.save();
+    _ox.globalCompositeOperation = 'screen'; // additive glow blend
+
+    // PASS 1 — soft ambient halos (no shadow, large radius, low alpha)
+    for (var i = 0; i < n; i++) {
+      var s = remaining[i];
+      var sx = s.x * tS + tS / 2 - cam.x;
+      var sy = s.y * tS + tS / 2 - cam.y;
+      var prog = (i + 1) / n;
+      _ox.fillStyle = 'rgba(0,170,255,' + (pulse * (0.06 + 0.16 * prog)).toFixed(2) + ')';
+      _ox.beginPath();
+      _ox.arc(sx, sy, tS * 0.34, 0, 6.2832);
+      _ox.fill();
+    }
+
+    // PASS 2 — bright core dots (+ star sparkles every 5 steps)
+    _ox.shadowBlur = 12;
+    _ox.shadowColor = 'rgba(0,210,255,0.9)';
+    for (var i = 0; i < n - 1; i++) {
+      var s = remaining[i];
+      var sx = s.x * tS + tS / 2 - cam.x;
+      var sy = s.y * tS + tS / 2 - cam.y;
+      var prog = (i + 1) / n;
+      var alpha = pulse * (0.28 + 0.55 * prog);
+      var r = Math.max(2.5, tS * (0.07 + 0.05 * prog));
+      _ox.fillStyle = 'rgba(80,225,255,' + alpha.toFixed(2) + ')';
+      if (i % 5 === 0) {
+        _star(_ox, sx, sy, r * 1.7);
+      } else {
+        _ox.beginPath();
+        _ox.arc(sx, sy, r, 0, 6.2832);
+        _ox.fill();
+      }
+    }
+
+    // PASS 3 — destination beacon: ripple rings + bright center
+    var dst = remaining[n - 1];
+    var dx = dst.x * tS + tS / 2 - cam.x;
+    var dy = dst.y * tS + tS / 2 - cam.y;
+
+    _ox.shadowBlur = 22;
+    _ox.shadowColor = 'rgba(0,220,255,0.95)';
+    _ox.lineWidth = 2;
+
+    _ox.strokeStyle = 'rgba(0,220,255,' + (pulse * 0.7).toFixed(2) + ')';
+    _ox.beginPath();
+    _ox.arc(dx, dy, tS * (0.32 + 0.22 * pulse), 0, 6.2832);
+    _ox.stroke();
+
+    _ox.strokeStyle = 'rgba(0,200,255,' + (pulse2 * 0.5).toFixed(2) + ')';
+    _ox.lineWidth = 1.5;
+    _ox.beginPath();
+    _ox.arc(dx, dy, tS * (0.32 + 0.22 * pulse2), 0, 6.2832);
+    _ox.stroke();
+
+    _ox.strokeStyle = 'rgba(100,230,255,' + (pulse * 0.25).toFixed(2) + ')';
+    _ox.lineWidth = 1;
+    _ox.beginPath();
+    _ox.arc(dx, dy, tS * (0.52 + 0.2 * pulse), 0, 6.2832);
+    _ox.stroke();
+
+    _ox.shadowBlur = 26;
+    _ox.fillStyle = 'rgba(190,245,255,' + pulse.toFixed(2) + ')';
+    _ox.beginPath();
+    _ox.arc(dx, dy, Math.max(4, tS * 0.17), 0, 6.2832);
+    _ox.fill();
+
+    _ox.restore();
+  }
+
+  // ── BFS walk ────────────────────────────────────────────────────────────────
   function bfsWalk(tx, ty, autoInteract, face) {
     if (!state || state.scene === 'cave1') return;
     var cur = state.player;
@@ -108,6 +236,7 @@ const MOBILE_INJECT = `<link rel="stylesheet" href="/game-mobile.css">
   }
 
   document.addEventListener('DOMContentLoaded', function() {
+    requestAnimationFrame(_loop);
     if (typeof walkPlayerToward !== 'function') return;
     walkPlayerToward = function(tx, ty, autoInteract, face) {
       _navTarget = { tx: tx, ty: ty, autoInteract: !!autoInteract, face: face || 'down' };
