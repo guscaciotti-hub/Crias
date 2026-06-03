@@ -7303,8 +7303,10 @@ function render(now) {
     const hWorldW = 12 * TILE, hWorldH = 10 * TILE;
     if (hWorldX + hWorldW >= camX && hWorldX <= camX + cw &&
         hWorldY + hWorldH >= camY && hWorldY <= camY + ch) {
+      const _effCamX = Math.round(camX * _scaleX) / _scaleX;
+      const _effCamY = Math.round(camY * _scaleY) / _scaleY;
       ctx.imageSmoothingEnabled = true;
-      ctx.drawImage(assets.houseRoof, hWorldX - camX, hWorldY - camY, hWorldW, hWorldH);
+      ctx.drawImage(assets.houseRoof, hWorldX - _effCamX, hWorldY - _effCamY, hWorldW, hWorldH);
       ctx.imageSmoothingEnabled = false;
     }
   }
