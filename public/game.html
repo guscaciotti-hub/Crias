@@ -735,10 +735,11 @@
   #profileCard .pc-xp{ width:64px; height:4px; border-radius:3px; background:rgba(255,255,255,.14); overflow:hidden; }
   #profileCard .pc-xp>i{ display:block; height:100%; width:0; background:linear-gradient(90deg,var(--cyan),var(--cyand)); transition:width .3s; }
 
-  /* Resource bar (topo-direito, à esquerda do menu ☰) */
-  #resBar{ position:fixed; top:max(10px,env(safe-area-inset-top,10px)); right:calc(max(10px,env(safe-area-inset-right,10px)) + 52px); z-index:6; display:none; gap:6px; }
-  .res-item{ display:flex; align-items:center; gap:5px; padding:5px 11px; border-radius:30px; background:var(--glass); border:1px solid rgba(77,195,255,.22); backdrop-filter:blur(8px); box-shadow:0 3px 12px rgba(0,0,0,.4); font-size:12px; font-weight:800; }
-  .res-item .ri-ic{ font-size:13px; }
+  /* Resource bar (topo-direito, à esquerda do menu ☰) — barra única compacta */
+  #resBar{ position:fixed; top:max(10px,env(safe-area-inset-top,10px)); right:calc(max(10px,env(safe-area-inset-right,10px)) + 52px); z-index:6; display:none; flex-direction:row; align-items:center; flex-wrap:nowrap; gap:7px; padding:4px 9px; border-radius:20px; background:rgba(8,14,26,0.55); border:1px solid rgba(77,195,255,.18); }
+  .res-item{ display:flex; align-items:center; gap:3px; font-size:11px; font-weight:700; line-height:1; }
+  .res-item+.res-item{ border-left:1px solid rgba(77,195,255,.18); padding-left:7px; }
+  .res-item .ri-ic{ font-size:12px; }
   .res-item.gold .ri-v{ color:#ffe07a; } .res-item.frag .ri-v{ color:#c4b5fd; } .res-item.orb .ri-v{ color:#7fe7ff; }
 
   /* Mission panel = #questQuickBtn repaginado (horizontal, com progresso) */
