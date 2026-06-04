@@ -630,21 +630,19 @@
     flex-direction: column;
     align-items: center;
     gap: 2px;
-    background: rgba(10,14,26,0.88);
-    border: 2px solid #ffd700;
-    border-radius: 10px;
-    padding: 5px 12px 5px 10px;
+    background: rgba(10,14,26,0.82);
+    border: 1px solid rgba(255,215,0,0.5);
+    border-radius: 12px;
+    padding: 5px 13px 5px 11px;
     cursor: pointer;
-    box-shadow: 0 0 14px rgba(255,215,0,0.45), 0 2px 8px rgba(0,0,0,0.6);
-    animation: questPulse 1.8s ease-in-out infinite;
+    backdrop-filter: blur(8px);
+    box-shadow: 0 4px 16px rgba(0,0,0,0.45), inset 0 0 0 1px rgba(255,255,255,.05);
+    transition: transform .12s, border-color .2s;
   }
   #questQuickBtn.show { display: flex; }
-  @keyframes questPulse {
-    0%,100% { box-shadow: 0 0 10px rgba(255,215,0,0.4), 0 2px 8px rgba(0,0,0,0.6); border-color: #ffd700; }
-    50% { box-shadow: 0 0 22px rgba(255,215,0,0.85), 0 2px 8px rgba(0,0,0,0.6); border-color: #ffe85a; }
-  }
-  #questQuickBtn .qb-icon { font-size: 20px; line-height: 1; }
-  #questQuickBtn .qb-label { font-size: 9px; color: #ffd700; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; }
+  #questQuickBtn:active { transform: translateX(-50%) scale(.96); }
+  #questQuickBtn .qb-icon { font-size: 18px; line-height: 1; }
+  #questQuickBtn .qb-label { font-size: 9px; color: #ffd766; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; }
   /* Quest card clickable */
   .quest-card { cursor: pointer; transition: background .15s; }
   .quest-card:hover { background: rgba(77,195,255,0.10); }
@@ -742,11 +740,12 @@
   .res-item .ri-ic{ font-size:12px; }
   .res-item.gold .ri-v{ color:#ffe07a; } .res-item.frag .ri-v{ color:#c4b5fd; } .res-item.orb .ri-v{ color:#7fe7ff; }
 
-  /* Economy inline in profileCard */
-  .pc-eco{ display:flex; align-items:center; gap:5px; margin-top:2px; font-size:9px; font-weight:700; opacity:.65; line-height:1; }
-  .pc-eco .eco-item{ display:flex; align-items:center; gap:2px; }
+  /* Economy inline in profileCard — chips premium, integrados ao card */
+  .pc-eco{ display:flex; align-items:center; gap:4px; margin-top:5px; line-height:1; }
+  .pc-eco .eco-item{ display:flex; align-items:center; gap:3px; font-size:10px; font-weight:800; padding:2px 7px 2px 5px; border-radius:9px; background:rgba(255,255,255,.04); border:1px solid rgba(255,255,255,.06); transition:filter .3s; }
+  .pc-eco .ri-ic{ font-size:10px; filter:saturate(1.15); }
+  .pc-eco .ri-v{ letter-spacing:.02em; }
   .pc-eco .ri-v.gold{ color:#ffe07a; } .pc-eco .ri-v.frag{ color:#c4b5fd; } .pc-eco .ri-v.orb{ color:#7fe7ff; }
-  .pc-eco .ri-ic{ font-size:10px; }
 
   /* Mission panel = #questQuickBtn repaginado (horizontal, com progresso) */
   #questQuickBtn{ flex-direction:row !important; gap:9px; padding:6px 14px 7px; border-radius:14px; max-width:min(60vw,360px); }
@@ -1412,7 +1411,7 @@
     border-radius: 4px;
     background: rgba(10,15,30,0.4);
   }
-  canvas.char-preview-img { image-rendering: pixelated; }
+  canvas.char-preview-img { image-rendering: auto; }
   .char-preview-img.sprite-loading { animation: previewPulse 1.2s ease-in-out infinite; }
   @keyframes previewPulse { 0%,100%{ opacity:.35; } 50%{ opacity:.7; } }
   .char-card-name { font-size: 11px; font-weight: 700; color: #fff; }
@@ -6641,6 +6640,10 @@ try { PLAYER_SPRITES_DATA = JSON.parse((document.getElementById("d-sprites-playe
 
 let selectedCombo = (PLAYER_COMBOS.find(c => c.available) || PLAYER_COMBOS[0]).id;
 const spriteImageCache = {};
+// Aspect ratio (largura/altura) do sprite recortado por combo — usado para desenhar
+// personagens externos (ex.: char3) com a proporção REAL (pessoa = oval vertical),
+// sem esticar na horizontal ao caber numa caixa fixa.
+const comboAspect = {};
 
 // === Sprites externos (arquivos PNG em /public) para personagens adicionais ===
 // Permite somar personagens sem embutir base64 gigante no HTML. Os PNGs podem ter
@@ -6711,6 +6714,7 @@ function loadExternalCombo(comboId) {
     const box = (maxX >= minX && maxY >= minY)
       ? { minX, minY, w: maxX - minX + 1, h: maxY - minY + 1 }
       : null;
+    if (box) comboAspect[comboId] = box.w / box.h;
     loaded.forEach((fr, idx) => {
       const out = (box && px[idx]) ? _trimToBox(fr.img, box, false) : fr.img;
       spriteImageCache[comboId][fr.dir][fr.i] = out;
@@ -6727,14 +6731,27 @@ function loadExternalCombo(comboId) {
       }
     }
     // Atualiza o preview do card de seleção com o sprite frontal já recortado.
-    const prev = document.getElementById('char3preview');
+    const prev = document.getElementById(comboId + 'preview');
     const front = spriteImageCache[comboId]['down'] && spriteImageCache[comboId]['down'][0];
     if (prev && front) {
       prev.classList.remove('sprite-loading');
       if (prev.tagName === 'CANVAS') {
+        // Backing store em alta resolução p/ nitidez (char3 é detalhado, não pixel-art).
+        const cssW = 56, cssH = 70, dpr = 2;
+        prev.width = cssW * dpr; prev.height = cssH * dpr;
         const pctx = prev.getContext('2d');
-        pctx.clearRect(0, 0, prev.width, prev.height);
-        const finDraw = () => { try { pctx.drawImage(front, 0, 0, prev.width, prev.height); } catch(e){} };
+        pctx.imageSmoothingEnabled = true;
+        const finDraw = () => {
+          try {
+            pctx.clearRect(0, 0, prev.width, prev.height);
+            const iw = front.naturalWidth || 1, ih = front.naturalHeight || 1;
+            // contain preservando proporção, ancorado embaixo (pés na base)
+            const scale = Math.min((prev.width) / iw, (prev.height) / ih);
+            const dw = iw * scale, dh = ih * scale;
+            const dx = (prev.width - dw) / 2, dy = prev.height - dh;
+            pctx.drawImage(front, dx, dy, dw, dh);
+          } catch (e) {}
+        };
         if (front.complete && front.naturalWidth > 0) finDraw();
         else { front.onload = finDraw; }
       } else if (front.src) {
@@ -6855,7 +6872,12 @@ function drawComposedPlayer(px, py, now) {
   ctx.beginPath();
   ctx.ellipse(px+TILE/2+swayX*0.3,py+TILE-6,14*shadowScale,4*shadowScale,0,0,Math.PI*2);
   ctx.fill();
-  const w=48, h=60-squashY;
+  const h=60-squashY;
+  // Largura segue a proporção REAL do sprite (evita esticar uma pessoa — oval vertical —
+  // numa caixa quadrada). Combos externos têm comboAspect; os demais usam 48 (legado).
+  const _combo = (state && state.appearance) ? state.appearance.comboId : selectedCombo;
+  const _asp = comboAspect[_combo];
+  const w = _asp ? Math.round(60 * _asp) : 48;
   ctx.imageSmoothingEnabled = true;
   ctx.drawImage(sprite,px+TILE/2-w/2+swayX+leanX,py+TILE-h+6+bob+squashY,w,h);
 
