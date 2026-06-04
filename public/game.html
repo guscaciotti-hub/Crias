@@ -742,6 +742,12 @@
   .res-item .ri-ic{ font-size:12px; }
   .res-item.gold .ri-v{ color:#ffe07a; } .res-item.frag .ri-v{ color:#c4b5fd; } .res-item.orb .ri-v{ color:#7fe7ff; }
 
+  /* Economy inline in profileCard */
+  .pc-eco{ display:flex; align-items:center; gap:5px; margin-top:2px; font-size:9px; font-weight:700; opacity:.65; line-height:1; }
+  .pc-eco .eco-item{ display:flex; align-items:center; gap:2px; }
+  .pc-eco .ri-v.gold{ color:#ffe07a; } .pc-eco .ri-v.frag{ color:#c4b5fd; } .pc-eco .ri-v.orb{ color:#7fe7ff; }
+  .pc-eco .ri-ic{ font-size:10px; }
+
   /* Mission panel = #questQuickBtn repaginado (horizontal, com progresso) */
   #questQuickBtn{ flex-direction:row !important; gap:9px; padding:6px 14px 7px; border-radius:14px; max-width:min(60vw,360px); }
   #questQuickBtn .qb-icon{ font-size:18px; align-self:center; }
@@ -2561,13 +2567,12 @@
   <div>
     <div class="pc-name" id="pcName">Treinador</div>
     <div class="pc-lvrow"><span class="pc-lv" id="pcLv">Lv.1</span><span class="pc-xp"><i id="pcXp"></i></span></div>
+    <div class="pc-eco">
+      <span class="eco-item"><span class="ri-ic">🪙</span><span class="ri-v gold" id="resGold">0</span></span>
+      <span class="eco-item"><span class="ri-ic">🧩</span><span class="ri-v frag" id="resFrag">0</span></span>
+      <span class="eco-item"><span class="ri-ic">💠</span><span class="ri-v orb" id="resOrb">0</span></span>
+    </div>
   </div>
-</div>
-
-<div id="resBar">
-  <div class="res-item gold"><span class="ri-ic">🪙</span><span class="ri-v" id="resGold">0</span></div>
-  <div class="res-item frag"><span class="ri-ic">🧩</span><span class="ri-v" id="resFrag">0</span></div>
-  <div class="res-item orb"><span class="ri-ic">💠</span><span class="ri-v" id="resOrb">0</span></div>
 </div>
 
 <button id="chatFab" onclick="toggleChat(true)">💬<span class="cf-badge" id="chatBadge">0</span></button>
@@ -8125,7 +8130,7 @@ function fmtDate(ts){ try{ return new Date(ts).toLocaleDateString('pt-BR'); }cat
 let _hudShown = false;
 function showPremiumHUD(){
   _hudShown = true;
-  ['profileCard','resBar','chatFab'].forEach(id=>{ const e=document.getElementById(id); if(e) e.style.display='flex'; });
+  ['profileCard','chatFab'].forEach(id=>{ const e=document.getElementById(id); if(e) e.style.display='flex'; });
 }
 
 let _lastHudExtra = 0, _lastAvatarSrc = '';
@@ -8141,12 +8146,13 @@ function updateHUDExtras(){
   const pcXp=document.getElementById('pcXp'); if(pcXp) pcXp.style.width=(playerLevelProgress(state)*100).toFixed(1)+'%';
   const av=playerAvatarSrc();
   if(av && av!==_lastAvatarSrc){ _lastAvatarSrc=av; const a=document.getElementById('pcAvatar'); if(a) a.style.backgroundImage='url('+av+')'; }
-  // ── Resource bar
+  // ── Economy (inline no profileCard)
   const g=document.getElementById('resGold'); if(g) g.textContent=fmtCoins(state.coins||0);
   const f=document.getElementById('resFrag'); if(f) f.textContent=(state.orbFragments||0);
   const o=document.getElementById('resOrb'); if(o) o.textContent=orbsCompleted(state);
-  const fEl=f?f.closest('.res-item'):null;
-  if(fEl){ const ready=(state.orbFragments||0)>=FRAGMENTS_PER_ORB; fEl.style.boxShadow=ready?'0 0 14px rgba(196,181,253,.8)':''; fEl.style.borderColor=ready?'rgba(196,181,253,.8)':''; }
+  // glow em fragmento quando pronto para coletar
+  const fPco=f?f.closest('.eco-item'):null;
+  if(fPco){ const ready=(state.orbFragments||0)>=FRAGMENTS_PER_ORB; fPco.style.filter=ready?'drop-shadow(0 0 4px rgba(196,181,253,.9))':''; }
   // ── Mission panel
   updateMissionPanel();
 }
