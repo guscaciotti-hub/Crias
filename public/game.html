@@ -3085,10 +3085,12 @@ function drawOrbGroundFX(camX, camY, now) {
   const orbCY = 22 * TILE - camY;
 
   const rGlow = 4.8 * TILE;
-  // Skip entirely if orb center is far off-screen (prevents glow from bleeding into
-  // portrait-rotated top edge when player is on the opposite side of the map).
-  if (orbCX + rGlow < 0 || orbCX - rGlow > canvas.width ||
-      orbCY + rGlow < 0 || orbCY - rGlow > canvas.height) return;
+  // Only render when the orb CENTER is inside the canvas (with small margin).
+  // This prevents the glow from bleeding to the canvas edge — which, on portrait
+  // devices where #app is rotated 90°, maps directly to the top-left of the screen.
+  const _margin = TILE * 2;
+  if (orbCX < -_margin || orbCX > canvas.width  + _margin ||
+      orbCY < -_margin || orbCY > canvas.height + _margin) return;
 
   // Viewport aspect-ratio correction: compensates CSS stretch on non-16:9 screens.
   const cssRX = viewportW / canvas.width;
@@ -3097,8 +3099,8 @@ function drawOrbGroundFX(camX, camY, now) {
 
   ctx.save();
 
-  // Clip to the orb zone so glow can't bleed into distant canvas regions.
-  // Orb zone spans tiles 19–28 (x) × 17–27 (y) — a safe margin around the socket.
+  // Tight clip around the orb zone — prevents the gradient from painting any
+  // canvas pixels outside tiles 19–28 × 17–27, regardless of glow radius.
   const clipX1 = Math.max(0, 19 * TILE - camX);
   const clipX2 = Math.min(canvas.width,  28 * TILE - camX);
   const clipY1 = Math.max(0, 17 * TILE - camY);
@@ -6137,6 +6139,7 @@ function checkQuestCompletion() {
     q.progress = prog;
     if (prog >= q.total) {
       q.done = true;
+      FX.sfx.questDone && FX.sfx.questDone();
       const reward = REWARDS[q.id] || 0;
       if (reward > 0) {
         state.coins += reward;
@@ -7030,6 +7033,13 @@ const FX = (function() {
     levelup: () => {
       [523, 659, 784, 1047, 1319].forEach((f, i) => setTimeout(() => beep(f, 0.12, 'triangle', 0.09), i * 60));
     },
+    questDone: () => {
+      // Bright "plin" chime: two ascending notes + sparkle
+      beep(880, 0.12, 'triangle', 0.09);
+      setTimeout(() => beep(1320, 0.18, 'triangle', 0.10), 90);
+      setTimeout(() => beep(1760, 0.22, 'sine',     0.08), 190);
+      setTimeout(() => beep(2093, 0.14, 'triangle', 0.06), 300);
+    },
     orbPulse: () => { beep(80, 0.4, 'sine', 0.04, 0.5); },
     orbRumble: () => {                // terremoto crescente
       noise(1.5, 0.06, 80);
@@ -7578,19 +7588,29 @@ function render(now) {
     const _fgRY = viewportH / canvas.height;
     const _fgYS = (_fgRY > 0 && _fgRX > 0) ? _fgRX / _fgRY : 1;
     const _pulse = 0.75 + 0.25 * Math.sin((now || 0) / 900);
-    ctx.save();
-    ctx.beginPath(); ctx.rect(0, 0, canvas.width, _splitCanvasY); ctx.clip();
-    ctx.scale(1, _fgYS);
-    const _fgSY = _fgCY / _fgYS;
-    const _rFG = 4.2 * TILE; // covers rows 19-22 (up to ~3 tiles from centre)
-    const _gFG = ctx.createRadialGradient(_fgCX, _fgSY, 0, _fgCX, _fgSY, _rFG);
-    _gFG.addColorStop(0.0,  `rgba(40,210,255,${+(0.35 * _pulse).toFixed(2)})`);
-    _gFG.addColorStop(0.40, `rgba(0,185,255,${+(0.28 * _pulse).toFixed(2)})`);
-    _gFG.addColorStop(0.72, `rgba(0,150,230,${+(0.16 * _pulse).toFixed(2)})`);
-    _gFG.addColorStop(1.0,  'rgba(0,100,200,0)');
-    ctx.fillStyle = _gFG;
-    ctx.beginPath(); ctx.arc(_fgCX, _fgSY, _rFG, 0, Math.PI * 2); ctx.fill();
-    ctx.restore();
+    // Foreground glow: only render when center is on-screen (same portrait-safe guard).
+    const _rFG = 4.2 * TILE;
+    const _fgMargin = TILE * 2;
+    if (_fgCX >= -_fgMargin && _fgCX <= canvas.width + _fgMargin &&
+        _fgCY >= -_fgMargin && _fgCY <= canvas.height + _fgMargin) {
+      ctx.save();
+      // Clip: vertical top-half split AND horizontal orb zone (tiles 19–28).
+      const _clipX1 = Math.max(0, 19 * TILE - camX);
+      const _clipX2 = Math.min(canvas.width, 28 * TILE - camX);
+      ctx.beginPath();
+      ctx.rect(_clipX1, 0, Math.max(0, _clipX2 - _clipX1), _splitCanvasY);
+      ctx.clip();
+      ctx.scale(1, _fgYS);
+      const _fgSY = _fgCY / _fgYS;
+      const _gFG = ctx.createRadialGradient(_fgCX, _fgSY, 0, _fgCX, _fgSY, _rFG);
+      _gFG.addColorStop(0.0,  `rgba(40,210,255,${+(0.35 * _pulse).toFixed(2)})`);
+      _gFG.addColorStop(0.40, `rgba(0,185,255,${+(0.28 * _pulse).toFixed(2)})`);
+      _gFG.addColorStop(0.72, `rgba(0,150,230,${+(0.16 * _pulse).toFixed(2)})`);
+      _gFG.addColorStop(1.0,  'rgba(0,100,200,0)');
+      ctx.fillStyle = _gFG;
+      ctx.beginPath(); ctx.arc(_fgCX, _fgSY, _rFG, 0, Math.PI * 2); ctx.fill();
+      ctx.restore();
+    }
   }
 
   // Redraw player on top of the orb stone-platform wall borders (both sides).
