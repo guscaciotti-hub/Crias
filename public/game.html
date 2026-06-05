@@ -6671,22 +6671,46 @@ const comboAspect = {};
 // alinhando ao mesmo box 48x60 usado pelos demais personagens (mesmo tamanho).
 const EXTERNAL_COMBO_SPRITES = {
   char3: {
-    down:  ['/char3-down-0.png', '/char3-down-1.png', '/char3-down-2.png'],
-    up:    ['/char3-up-0.png', '/char3-up-1.png', '/char3-up-2.png'],
-    left:  ['/char3-left-0.png', '/char3-left-1.png'],
-    right: ['/char3-right-0.png', '/char3-right-1.png']
+    down:  ['/char3-down-0.png', '/char3-down-1.png'],
+    up:    ['/char3-down-0.png', '/char3-down-1.png'],
+    left:  ['/char3-down-0.png', '/char3-down-1.png'],
+    right: ['/char3-down-0.png', '/char3-down-1.png']
   }
 };
 
-function _trimToBox(img, box, flip) {
-  // Recorta img para box {minX,minY,w,h}; devolve um Image (mantém .src e .complete).
+function _removeBlackBg(data, w, h) {
+  // BFS flood-fill from all edge pixels that are near-black → make transparent.
+  // Preserves black outlines inside the sprite.
+  const total = w * h;
+  const visited = new Uint8Array(total);
+  const queue = new Int32Array(total);
+  let qHead = 0, qTail = 0;
+  const tryPush = p => {
+    if (p < 0 || p >= total || visited[p]) return;
+    const o = p * 4;
+    if (data[o] < 30 && data[o+1] < 30 && data[o+2] < 30 && data[o+3] > 50) {
+      visited[p] = 1; queue[qTail++] = p;
+    }
+  };
+  for (let x = 0; x < w; x++) { tryPush(x); tryPush((h-1)*w + x); }
+  for (let y = 1; y < h-1; y++) { tryPush(y*w); tryPush(y*w + w-1); }
+  while (qHead < qTail) {
+    const p = queue[qHead++], x = p % w, y = (p / w) | 0;
+    data[p*4 + 3] = 0;
+    if (x > 0) tryPush(p-1); if (x < w-1) tryPush(p+1);
+    if (y > 0) tryPush(p-w); if (y < h-1) tryPush(p+w);
+  }
+}
+
+function _trimToBox(src, box, flip) {
+  // Recorta src (Image ou Canvas) para box {minX,minY,w,h}; devolve um Image.
   const oc = document.createElement('canvas');
   oc.width = box.w; oc.height = box.h;
   const ox = oc.getContext('2d');
   if (flip) { ox.translate(box.w, 0); ox.scale(-1, 1); }
-  ox.drawImage(img, box.minX, box.minY, box.w, box.h, 0, 0, box.w, box.h);
+  ox.drawImage(src, box.minX, box.minY, box.w, box.h, 0, 0, box.w, box.h);
   const out = new Image();
-  try { out.src = oc.toDataURL('image/png'); } catch (e) { return img; }
+  try { out.src = oc.toDataURL('image/png'); } catch (e) { return src; }
   return out;
 }
 
@@ -6713,13 +6737,25 @@ function loadExternalCombo(comboId) {
     });
   }
   return Promise.all(proms).then(() => {
-    // União das bounding boxes de conteúdo (alpha > 16) entre todos os frames carregados.
-    let minX = 1e9, minY = 1e9, maxX = -1, maxY = -1;
-    const px = [];
-    loaded.forEach(fr => {
+    // Passo 1: remover fundo preto de cada frame carregado via flood-fill.
+    const procCanvases = loaded.map(fr => {
       const w = fr.img.naturalWidth, h = fr.img.naturalHeight;
       const c = document.createElement('canvas'); c.width = w; c.height = h;
       const cx = c.getContext('2d'); cx.drawImage(fr.img, 0, 0);
+      try {
+        const id = cx.getImageData(0, 0, w, h);
+        _removeBlackBg(id.data, w, h);
+        cx.putImageData(id, 0, 0);
+      } catch(e) {}
+      return c;
+    });
+
+    // Passo 2: união das bounding boxes de conteúdo (alpha > 16) nos frames sem fundo.
+    let minX = 1e9, minY = 1e9, maxX = -1, maxY = -1;
+    const px = [];
+    procCanvases.forEach(pc => {
+      const w = pc.width, h = pc.height;
+      const cx = pc.getContext('2d');
       let d = null;
       try { d = cx.getImageData(0, 0, w, h).data; } catch (e) {}
       px.push(d);
@@ -6736,7 +6772,7 @@ function loadExternalCombo(comboId) {
       : null;
     if (box) comboAspect[comboId] = box.w / box.h;
     loaded.forEach((fr, idx) => {
-      const out = (box && px[idx]) ? _trimToBox(fr.img, box, false) : fr.img;
+      const out = (box && px[idx]) ? _trimToBox(procCanvases[idx], box, false) : fr.img;
       spriteImageCache[comboId][fr.dir][fr.i] = out;
     });
     // Fallback: se 'right' não veio em arquivo, espelha horizontalmente o 'left'.
@@ -6745,8 +6781,8 @@ function loadExternalCombo(comboId) {
     if (rightArr && leftArr && leftArr.length) {
       for (let i = 0; i < leftArr.length; i++) {
         if (!rightArr[i]) {
-          const li = loaded.find(f => f.dir === 'left' && f.i === i);
-          rightArr[i] = (box && li) ? _trimToBox(li.img, box, true) : (leftArr[i] || leftArr[0]);
+          const liIdx = loaded.findIndex(f => f.dir === 'left' && f.i === i);
+          rightArr[i] = (box && liIdx >= 0) ? _trimToBox(procCanvases[liIdx], box, true) : (leftArr[i] || leftArr[0]);
         }
       }
     }
