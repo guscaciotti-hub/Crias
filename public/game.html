@@ -2222,6 +2222,7 @@
       <button data-action="skill1"><span class="skill-name">—</span><span class="skill-type">—</span></button>
       <button data-action="defend"><span class="skill-name">DEFENDER</span><span class="skill-type">+50% def</span></button>
       <button data-action="item"><span class="skill-name">ITEM</span><span class="skill-type">poção</span></button>
+      <button data-action="capture" id="btnCapture" style="display:none;grid-column:1/-1;background:linear-gradient(135deg,#1a0040,#3a0070);border-color:#a855f7;color:#e9d5ff;"><span class="skill-name">🔮 CAPTURAR</span><span class="skill-type" id="captureOrbCount">orbe × 0</span></button>
     </div>
   </div>
 </div>
@@ -2756,6 +2757,129 @@ const MONSTERS = {
     ],
     baseStats: { hp: 52, atk: 22, def: 24, spd: 8, esp: 14, mind: 9 },
   },
+  florax: {
+    name: 'Florax',
+    species: 'Guardião da Floresta',
+    element: 'nature',
+    elementLabel: 'Natureza',
+    color: '#4ade80',
+    aura: 'rgba(74,222,128,0.8)',
+    lore: 'Espírito vegetal ancestral. Suas raízes absorvem energia da terra e a transformam em força vital pura.',
+    capturable: true,
+    skills: [
+      { name: 'Vine Whip', type: 'nature', power: 'normal', special: false, msg: 'chicoteou com cipós selvagens!' },
+      { name: 'Petal Storm', type: 'nature', power: 'special', special: true, msg: 'invocou uma tempestade de pétalas cortantes!' }
+    ],
+    baseStats: { hp: 52, atk: 18, def: 22, spd: 14, esp: 20, mind: 16 },
+  },
+  glacius: {
+    name: 'Glacius',
+    species: 'Espírito do Gelo',
+    element: 'ice',
+    elementLabel: 'Gelo',
+    color: '#93c5fd',
+    aura: 'rgba(147,197,253,0.8)',
+    lore: 'Criatura formada nas geleiras eternas. Cada toque congela o ar ao redor por metros.',
+    capturable: true,
+    skills: [
+      { name: 'Ice Shard', type: 'ice', power: 'normal', special: false, msg: 'atirou fragmentos de gelo afiados!' },
+      { name: 'Blizzard', type: 'ice', power: 'special', special: true, msg: 'desencadeou uma nevasca devastadora!' }
+    ],
+    baseStats: { hp: 40, atk: 20, def: 18, spd: 26, esp: 22, mind: 16 },
+  },
+  ferrus: {
+    name: 'Ferrus',
+    species: 'Golem de Ferro',
+    element: 'metal',
+    elementLabel: 'Metal',
+    color: '#94a3b8',
+    aura: 'rgba(148,163,184,0.8)',
+    lore: 'Construto de metal vivo forjado nas profundezas por pressão extrema durante eras.',
+    capturable: true,
+    skills: [
+      { name: 'Iron Fist', type: 'metal', power: 'normal', special: false, msg: 'golpeou com punhos de aço!' },
+      { name: 'Steel Barrage', type: 'metal', power: 'special', special: true, msg: 'disparou uma rajada de metal!' }
+    ],
+    baseStats: { hp: 62, atk: 20, def: 32, spd: 8, esp: 14, mind: 12 },
+  },
+  psychon: {
+    name: 'Psychon',
+    species: 'Mente Etérea',
+    element: 'mind',
+    elementLabel: 'Psíquico',
+    color: '#e879f9',
+    aura: 'rgba(232,121,249,0.8)',
+    lore: 'Ser de energia psíquica pura. Consegue ler pensamentos e manipular matéria com a mente.',
+    capturable: true,
+    skills: [
+      { name: 'Mind Blast', type: 'mind', power: 'normal', special: false, msg: 'atacou com energia mental!' },
+      { name: 'Psycho Wave', type: 'mind', power: 'special', special: true, msg: 'liberou uma onda psíquica devastadora!' }
+    ],
+    baseStats: { hp: 38, atk: 16, def: 12, spd: 22, esp: 32, mind: 28 },
+  },
+  luminos: {
+    name: 'Luminos',
+    species: 'Guardião da Luz',
+    element: 'light',
+    elementLabel: 'Luz',
+    color: '#fef08a',
+    aura: 'rgba(254,240,138,0.9)',
+    lore: 'Ser feito de luz pura. Seu brilho pode cegar inimigos e seu calor cura aliados.',
+    capturable: true,
+    rarity: 'uncommon',
+    skills: [
+      { name: 'Solar Ray', type: 'light', power: 'normal', special: false, msg: 'disparou um raio solar certeiro!' },
+      { name: 'Nova Burst', type: 'light', power: 'special', special: true, msg: 'explodiu em luz ofuscante!' }
+    ],
+    baseStats: { hp: 44, atk: 22, def: 16, spd: 20, esp: 28, mind: 22 },
+  },
+  toxyl: {
+    name: 'Toxyl',
+    species: 'Besta Venenosa',
+    element: 'poison',
+    elementLabel: 'Veneno',
+    color: '#a3e635',
+    aura: 'rgba(163,230,53,0.8)',
+    lore: 'Serpente venenosa das regiões pantanosas. Seu veneno dissolve pedra em segundos.',
+    capturable: true,
+    skills: [
+      { name: 'Toxic Fang', type: 'poison', power: 'normal', special: false, msg: 'mordeu com presas venenosas!' },
+      { name: 'Acid Spray', type: 'poison', power: 'special', special: true, msg: 'cuspiu ácido corrosivo!' }
+    ],
+    baseStats: { hp: 46, atk: 24, def: 14, spd: 20, esp: 20, mind: 14 },
+  },
+  tempestix: {
+    name: 'Tempestix',
+    species: 'Raptor da Tormenta',
+    element: 'electric',
+    elementLabel: 'Elétrico',
+    color: '#818cf8',
+    aura: 'rgba(129,140,248,0.8)',
+    lore: 'Ave que habita o olho do furacão. Velocidade inigualável e relâmpagos que partem do bico.',
+    capturable: true,
+    rarity: 'uncommon',
+    skills: [
+      { name: 'Thunder Dash', type: 'electric', power: 'normal', special: false, msg: 'cortou o ar deixando rastro elétrico!' },
+      { name: 'Storm Surge', type: 'electric', power: 'special', special: true, msg: 'desencadeou uma tempestade elétrica!' }
+    ],
+    baseStats: { hp: 42, atk: 26, def: 14, spd: 32, esp: 18, mind: 12 },
+  },
+  drakon: {
+    name: 'Drakon',
+    species: 'Dragão Primordial',
+    element: 'fire',
+    elementLabel: 'Fogo',
+    color: '#f97316',
+    aura: 'rgba(249,115,22,0.9)',
+    lore: 'Dragão ancião das Ruínas. Seu rugido estilhaça rochas e seu fogo derrete qualquer armadura.',
+    capturable: true,
+    rarity: 'rare',
+    skills: [
+      { name: 'Dragon Claw', type: 'fire', power: 'normal', special: false, msg: 'atacou com garras ardentes!' },
+      { name: 'Inferno Breath', type: 'fire', power: 'special', special: true, msg: 'soltou um sopro de fogo primordial!' }
+    ],
+    baseStats: { hp: 58, atk: 34, def: 20, spd: 18, esp: 24, mind: 16 },
+  },
 };
 
 const RARITIES = [
@@ -2770,12 +2894,18 @@ const PERSONALITIES = ['Ousado', 'Calmo', 'Agressivo', 'Defensivo', 'Astuto', 'L
 
 // Type effectiveness
 const ELEMENT_ADV = {
-  fire:     { earth: 0.75, water: 0.5, air: 1.5 },
-  water:    { fire: 1.5, earth: 1.25, electric: 0.5 },
-  air:      { earth: 1.25, electric: 0.75 },
-  electric: { water: 1.5, air: 1.5, earth: 0.5 },
-  earth:    { fire: 1.5, electric: 1.5, water: 0.75, air: 0.75 },
-  shadow:   { mind: 1.5, air: 1.25, earth: 0.75 },
+  fire:     { earth: 0.75, water: 0.5, air: 1.5, ice: 2.0, nature: 1.5 },
+  water:    { fire: 1.5, earth: 1.25, electric: 0.5, ice: 0.5 },
+  air:      { earth: 1.25, electric: 0.75, poison: 1.25 },
+  electric: { water: 1.5, air: 1.5, earth: 0.5, metal: 0.5 },
+  earth:    { fire: 1.5, electric: 1.5, water: 0.75, air: 0.75, metal: 1.25 },
+  shadow:   { mind: 1.5, air: 1.25, earth: 0.75, light: 0.5 },
+  nature:   { water: 1.25, fire: 0.5, earth: 0.75, poison: 0.5 },
+  ice:      { water: 0.5, fire: 1.5, air: 0.75, nature: 1.5 },
+  metal:    { earth: 1.5, electric: 0.5, ice: 1.25 },
+  mind:     { shadow: 1.5, poison: 1.25 },
+  light:    { shadow: 2.0, mind: 0.75 },
+  poison:   { nature: 1.5, earth: 0.75, metal: 0.5 },
 };
 
 // ============================================================================
@@ -2870,6 +3000,7 @@ const NPCS_TEMPLATE = [
   { id: 'shop', x: 36, y: 20, emoji: '🧔', name: 'Vendedor Bartô', type: 'shop',
     shopItems: [
       { key: 'potions',      qty: 1, price: 40,  icon: '💊', name: 'Poção',             desc: 'Restaura 40% do HP da Cria em batalha.' },
+      { key: 'orbeComum',    qty: 1, price: 80,  icon: '🔮', name: 'Orbe de Captura',   desc: 'Captura criaturas selvagens durante a batalha.' },
       { key: 'orbFragments', qty: 1, price: 60,  icon: '🔷', name: 'Fragmento de Orbe',  desc: 'Acelera a coleta para chocar uma nova Cria no Core Orb.' },
     ],
     gift: { qty: 0, given: true } },
@@ -2909,6 +3040,18 @@ const NPCS_TEMPLATE = [
 
 const WILD_ZONES = [
   { x: 36, y: 2 }, { x: 36, y: 4 }, { x: 36, y: 6 }
+];
+
+// Zonas de encontros selvagens no mundo (cx,cy=centro, r=raio em tiles)
+const WORLD_ENCOUNTER_ZONES = [
+  { cx: 8,  cy: 5,  r: 7, rate: 0.18, species: ['florax', 'aerix', 'toxyl'],          minLv: 1, maxLv: 3 },
+  { cx: 20, cy: 8,  r: 6, rate: 0.18, species: ['psychon', 'luminos', 'aerix'],         minLv: 2, maxLv: 4 },
+  { cx: 40, cy: 12, r: 5, rate: 0.20, species: ['voltalon', 'tempestix'],               minLv: 2, maxLv: 4 },
+  { cx: 10, cy: 20, r: 8, rate: 0.15, species: ['terron', 'aquafy', 'florax'],          minLv: 2, maxLv: 4 },
+  { cx: 28, cy: 22, r: 7, rate: 0.18, species: ['glacius', 'ferrus', 'terron'],         minLv: 3, maxLv: 5 },
+  { cx: 15, cy: 35, r: 6, rate: 0.20, species: ['toxyl', 'aquafy', 'shadowyn'],         minLv: 3, maxLv: 5 },
+  { cx: 35, cy: 30, r: 6, rate: 0.22, species: ['drakon', 'ferrus', 'ignivar'],         minLv: 4, maxLv: 6 },
+  { cx: 5,  cy: 30, r: 5, rate: 0.18, species: ['glacius', 'psychon'],                  minLv: 3, maxLv: 5 },
 ];
 
 // ============================================================================
@@ -3287,7 +3430,7 @@ function newGameState(playerName, monster) {
     coins: 3000,
     potions: 1,
     orbFragments: 0, // fragmentos de orbe — juntar FRAGMENTS_PER_ORB pra chocar uma cria
-    items: { orbeCriacao: 0 }, // orbeCriacao é o presente do tutorial (Guia Solis) p/ a 1ª cria
+    items: { orbeCriacao: 0, orbeComum: 3 }, // orbeComum = orbe de captura de criaturas selvagens
     npcs: JSON.parse(JSON.stringify(NPCS_TEMPLATE)),
     enteredCave: false,
     encountersDefeated: 0,
@@ -3755,7 +3898,6 @@ function isInCaveArea() {
 
 function onTileStep() {
   if (state.scene === 'cave1') { onCaveTileStep(); return; }
-  // Update the neon quest trail as the player advances toward the destination.
   recomputeQuestPath();
   const px = state.player.x * TILE + TILE/2;
   const py = state.player.y * TILE + TILE;
@@ -3772,6 +3914,27 @@ function onTileStep() {
       return;
     }
   }
+  // Wild encounters in the open world
+  if (!state.cria) return;
+  const wz = getWorldEncounterZone(state.player.x, state.player.y);
+  if (wz && Math.random() < wz.rate) {
+    setTimeout(() => startWorldEncounter(wz), 200);
+  }
+}
+
+function getWorldEncounterZone(x, y) {
+  for (const z of WORLD_ENCOUNTER_ZONES) {
+    if (Math.sqrt((x - z.cx) ** 2 + (y - z.cy) ** 2) <= z.r) return z;
+  }
+  return null;
+}
+
+function startWorldEncounter(zone) {
+  if (inBattle || inDialog || inMenu) return;
+  const speciesId = zone.species[Math.floor(Math.random() * zone.species.length)];
+  const enemy = generateMonster(speciesId, randInt(zone.minLv, zone.maxLv));
+  enemy.capturable = true;
+  startBattle(enemy, { wild: true });
 }
 
 function onCaveTileStep() {
@@ -5907,6 +6070,56 @@ async function doPlayerAction(action) {
     updateHpBars();
     setBattleLog(`Poção usada. +${heal} HP. Restam ${state.potions}.`);
     await wait(900);
+  } else if (action === 'capture') {
+    const isWild = battleState.options && battleState.options.wild;
+    if (!isWild) {
+      setBattleLog('Só é possível capturar criaturas selvagens!');
+      battleState.locked = false; setActionsDisabled(false); return;
+    }
+    const orbCount = (state.items && state.items.orbeComum) || 0;
+    if (orbCount <= 0) {
+      setBattleLog('Sem Orbes de Captura! Compre na loja do Bartô.');
+      battleState.locked = false; setActionsDisabled(false); return;
+    }
+    state.items.orbeComum--;
+    updateCaptureButton();
+
+    const hpRatio = battleState.enemy.hp / battleState.enemy.maxHp;
+    const specDef = MONSTERS[battleState.enemy.species] || {};
+    const rarityMod = specDef.rarity === 'rare' ? 0.55 : specDef.rarity === 'uncommon' ? 0.75 : 1.0;
+    const catchRate = (0.35 + (1 - hpRatio) * 0.50) * rarityMod;
+
+    setBattleLog(`Lançando Orbe de Captura... 🔮`);
+    // Wobble animation
+    const eBattleEl = document.getElementById('battleEnemy');
+    if (eBattleEl) eBattleEl.classList.add('capture-orb-anim');
+    await wait(1400);
+    if (eBattleEl) eBattleEl.classList.remove('capture-orb-anim');
+
+    if (Math.random() < catchRate) {
+      FX.sfx.victory && FX.sfx.victory();
+      const capName = MONSTERS[battleState.enemy.species].name;
+      setBattleLog(`${capName} foi capturado! 🎉`);
+      if (!state.party) state.party = [];
+      const allCrias = [state.cria].concat(state.party).filter(Boolean);
+      if (allCrias.length < PARTY_MAX) {
+        state.party.push({ ...battleState.enemy });
+        showToast(`🎉 ${capName} adicionado à party!`);
+      } else {
+        showToast(`Party cheia! ${capName} foi liberado.`);
+      }
+      // Quest: chocar/capturar nova cria
+      const q5 = state.quests && state.quests.find(q => q.id === 'q5');
+      if (q5 && !q5.done) { q5.progress = 1; q5.done = true; setTimeout(() => showToast('✅ Missão: Nova Cria obtida!'), 1800); }
+      checkQuestCompletion();
+      await wait(1000);
+      endBattle('win', true);
+      return;
+    } else {
+      FX.sfx.hit && FX.sfx.hit();
+      setBattleLog(`${MONSTERS[battleState.enemy.species].name} escapou da orbe! 💨`);
+      await wait(800);
+    }
   }
 
   if (battleState.enemy.hp <= 0) {
@@ -6304,6 +6517,7 @@ const INV_CATEGORIES = {
     items: [
       { key:'orbFragments', icon:'🔷', name:'Fragmento de Orbe', desc:'Junte para chocar uma Cria', fromState: true, always: true },
       { key:'orbeCriacao',  icon:'🌟', name:'Orbe da Criação',   desc:'Manifesta a 1ª Cria' },
+      { key:'orbeComum',    icon:'🔮', name:'Orbe de Captura',   desc:'Captura criaturas selvagens' },
     ]
   },
   consumiveis: {
@@ -8220,6 +8434,9 @@ function _migrateProfile(s){
   if(!s.playerId) s.playerId = 'CR-' + Math.random().toString(36).slice(2,7).toUpperCase();
   if(!Array.isArray(s.friends)) s.friends = [];
   if(s.photo === undefined) s.photo = null;
+  if(!s.items) s.items = {};
+  if(s.items.orbeCriacao === undefined) s.items.orbeCriacao = 0;
+  if(s.items.orbeComum === undefined) s.items.orbeComum = 3;
   return s;
 }
 
