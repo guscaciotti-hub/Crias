@@ -3044,16 +3044,17 @@ const WILD_ZONES = [
   { x: 36, y: 2 }, { x: 36, y: 4 }, { x: 36, y: 6 }
 ];
 
-// Zonas de encontros selvagens no mundo (cx,cy=centro, r=raio em tiles)
+// Zonas de encontros selvagens — SÓ nas periferias/trilhas, NUNCA na cidade.
+// Além do raio, getWorldEncounterZone veta encontros a menos de 6 tiles de
+// qualquer NPC (cinturão de segurança urbano).
 const WORLD_ENCOUNTER_ZONES = [
-  { cx: 8,  cy: 5,  r: 7, rate: 0.18, species: ['florax', 'aerix', 'toxyl'],          minLv: 1, maxLv: 3 },
-  { cx: 20, cy: 8,  r: 6, rate: 0.18, species: ['psychon', 'luminos', 'aerix'],         minLv: 2, maxLv: 4 },
-  { cx: 40, cy: 12, r: 5, rate: 0.20, species: ['voltalon', 'tempestix'],               minLv: 2, maxLv: 4 },
-  { cx: 10, cy: 20, r: 8, rate: 0.15, species: ['terron', 'aquafy', 'florax'],          minLv: 2, maxLv: 4 },
-  { cx: 28, cy: 22, r: 7, rate: 0.18, species: ['glacius', 'ferrus', 'terron'],         minLv: 3, maxLv: 5 },
-  { cx: 15, cy: 35, r: 6, rate: 0.20, species: ['toxyl', 'aquafy', 'shadowyn'],         minLv: 3, maxLv: 5 },
-  { cx: 35, cy: 30, r: 6, rate: 0.22, species: ['drakon', 'ferrus', 'ignivar'],         minLv: 4, maxLv: 6 },
-  { cx: 5,  cy: 30, r: 5, rate: 0.18, species: ['glacius', 'psychon'],                  minLv: 3, maxLv: 5 },
+  { cx: 10, cy: 2,  r: 4, rate: 0.18, species: ['florax', 'aerix', 'toxyl'],    minLv: 1, maxLv: 3 },
+  { cx: 2,  cy: 15, r: 4, rate: 0.18, species: ['psychon', 'luminos', 'aerix'], minLv: 2, maxLv: 4 },
+  { cx: 2,  cy: 30, r: 5, rate: 0.18, species: ['terron', 'aquafy', 'florax'],  minLv: 2, maxLv: 4 },
+  { cx: 3,  cy: 43, r: 4, rate: 0.20, species: ['glacius', 'psychon'],          minLv: 3, maxLv: 5 },
+  { cx: 23, cy: 45, r: 4, rate: 0.20, species: ['toxyl', 'aquafy', 'shadowyn'], minLv: 3, maxLv: 5 },
+  { cx: 44, cy: 4,  r: 3, rate: 0.22, species: ['drakon', 'ferrus', 'ignivar'], minLv: 4, maxLv: 6 },
+  { cx: 40, cy: 12, r: 4, rate: 0.20, species: ['voltalon', 'tempestix'],       minLv: 2, maxLv: 4 },
 ];
 
 // ============================================================================
@@ -3065,7 +3066,7 @@ try { MONSTER_ART = JSON.parse((document.getElementById("d-art")||{textContent:"
 // Entradas aqui SOBRESCREVEM o JSON base64 embutido. Padrão: '/mon-<species>.png'
 const EXTERNAL_MONSTER_ART = {
   // lista de candidatos: o primeiro que carregar assume
-  ignivar: ['/ignivar-teste.png', '/ignivar teste.png', '/ignivar-3d.png'],
+  ignivar: ['/ignivar-teste.png?v=3', '/ignivar teste.png', '/ignivar-3d.png'],
 };
 // O override só assume DEPOIS do PNG carregar com sucesso — se o arquivo
 // não existir (404), a arte embutida (base64) continua valendo.
@@ -3945,6 +3946,12 @@ function onTileStep() {
 }
 
 function getWorldEncounterZone(x, y) {
+  // Cinturão urbano: nada de monstro a menos de 6 tiles de qualquer NPC.
+  if (state && state.npcs) {
+    for (const n of state.npcs) {
+      if (Math.sqrt((x - n.x) ** 2 + (y - n.y) ** 2) < 6) return null;
+    }
+  }
   for (const z of WORLD_ENCOUNTER_ZONES) {
     if (Math.sqrt((x - z.cx) ** 2 + (y - z.cy) ** 2) <= z.r) return z;
   }
@@ -6913,16 +6920,16 @@ const EXTERNAL_COMBO_SPRITES = {
     right: ['/char3-down-0.png', '/char3-down-1.png']
   },
   char4: {
-    down:  ['/char4-down-0.png', '/char4-down-1.png', '/char4-down-2.png'],
-    up:    ['/char4-up-0.png', '/char4-up-1.png', '/char4-up-2.png'],
-    left:  ['/char4-left-0.png', '/char4-left-1.png'],
-    right: ['/char4-right-0.png']  // right-1 vem do espelho automático do left-1
+    down:  ['/char4-down-0.png?v=3', '/char4-down-1.png?v=3', '/char4-down-2.png?v=3'],
+    up:    ['/char4-up-0.png?v=3', '/char4-up-1.png?v=3', '/char4-up-2.png?v=3'],
+    left:  ['/char4-left-0.png?v=3', '/char4-left-1.png?v=3'],
+    right: ['/char4-right-0.png?v=3']  // right-1 vem do espelho automático do left-1
   },
   char5: {
-    down:  ['/char5-down-0.png', '/char5-down-1.png', '/char5-down-2.png'],
-    up:    ['/char5-up-0.png', '/char5-up-1.png', '/char5-up-2.png'],
-    left:  ['/char5-left-0.png', '/char5-left-1.png'],
-    right: ['/char5-right-0.png']  // right-1 vem do espelho automático do left-1
+    down:  ['/char5-down-0.png?v=3', '/char5-down-1.png?v=3', '/char5-down-2.png?v=3'],
+    up:    ['/char5-up-0.png?v=3', '/char5-up-1.png?v=3', '/char5-up-2.png?v=3'],
+    left:  ['/char5-left-0.png?v=3', '/char5-left-1.png?v=3'],
+    right: ['/char5-right-0.png?v=3']  // right-1 vem do espelho automático do left-1
   }
 };
 
@@ -7219,9 +7226,9 @@ document.getElementById('obConfirm').addEventListener('click', async () => {
     // Prepare state first
     state = newGameState(name, null);
     state.appearance = { comboId: combo };
-    // Caçador (char5) já começa com o Ignivar acoplado — companion no mapa
+    // Errante (char4) já começa com o Ignivar acoplado — companion no mapa
     // desde o primeiro passo, sem precisar do ritual do Core Orb.
-    if (combo === 'char5') {
+    if (combo === 'char4') {
       state.cria = generateMonster('ignivar', 1);
       state.items.orbeCriacao = 0;
     }
