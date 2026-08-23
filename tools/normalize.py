@@ -43,4 +43,13 @@ for d, files in DIRS.items():
         canvas.paste(crop, ((CANVAS_W - nw) // 2, CANVAS_H - nh - 6), crop)
         canvas.save(os.path.join(OUT, f))
         print(f'{f}: dir={d} scale={scale:.3f} placed {nw}x{nh}')
+
+# Frames defeituosos na sheet (ex: pé cortado pela borda da célula) substituídos
+# pelo espelho horizontal do frame oposto — em vistas frontais/traseiras o corpo
+# é simétrico, então o passo esquerdo é o espelho do passo direito.
+MIRROR_FIXES = {'char4-up-1.png': 'char4-up-2.png'}
+for broken, source in MIRROR_FIXES.items():
+    im = Image.open(os.path.join(OUT, source)).transpose(Image.FLIP_LEFT_RIGHT)
+    im.save(os.path.join(OUT, broken))
+    print(f'{broken}: espelhado de {source}')
 print('done')
