@@ -40,7 +40,7 @@ for d, files in DIRS.items():
         crop = crop.resize((nw, nh), Image.LANCZOS)
         canvas = Image.new('RGBA', (CANVAS_W, CANVAS_H), (0, 0, 0, 0))
         # feet on canvas bottom, horizontally centered
-        canvas.paste(crop, ((CANVAS_W - nw) // 2, CANVAS_H - nh), crop)
+        canvas.paste(crop, ((CANVAS_W - nw) // 2, CANVAS_H - nh - 6), crop)
         canvas.save(os.path.join(OUT, f))
         print(f'{f}: dir={d} scale={scale:.3f} placed {nw}x{nh}')
 print('done')

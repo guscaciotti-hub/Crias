@@ -6964,7 +6964,13 @@ function loadExternalCombo(comboId) {
       const cx = c.getContext('2d'); cx.drawImage(fr.img, 0, 0);
       try {
         const id = cx.getImageData(0, 0, w, h);
-        _removeBlackBg(id.data, w, h);
+        // Só remove fundo preto se o PNG for opaco (sem transparência própria).
+        // PNGs já transparentes (ex: char4, roupa preta) NÃO passam pelo flood,
+        // senão ele entra pelos pés escuros na borda e come o personagem.
+        let transparent = 0;
+        const total = w * h, step = 61; // amostragem esparsa
+        for (let i = 3; i < total * 4; i += 4 * step) if (id.data[i] < 10) transparent++;
+        if (transparent < (total / step) * 0.02) _removeBlackBg(id.data, w, h);
         cx.putImageData(id, 0, 0);
       } catch(e) {}
       return c;
