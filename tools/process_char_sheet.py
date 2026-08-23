@@ -96,8 +96,19 @@ for d, suffixes in DIRS.items():
         fscale = scale if abs(h - h0) / h0 <= 0.08 else TARGET_H / h
         nw, nh = round(w * fscale), round(h * fscale)
         crop = crop.resize((nw, nh), Image.LANCZOS)
+        # Âncora horizontal = centro dos PÉS (12% inferiores), não da imagem:
+        # capas/braços esticados deslocam o centro do bbox e fazem o corpo
+        # "pular" de lado ao alternar frames de caminhada.
+        cpx = crop.load()
+        y_start = max(0, nh - max(4, round(nh * 0.12)))
+        sx = n_px = 0
+        for y in range(y_start, nh):
+            for x in range(nw):
+                if cpx[x, y][3] > 40:
+                    sx += x; n_px += 1
+        foot_cx = (sx / n_px) if n_px else nw / 2
         canvas = Image.new('RGBA', (CANVAS_W, CANVAS_H), (0, 0, 0, 0))
-        canvas.paste(crop, ((CANVAS_W - nw) // 2, CANVAS_H - nh - BOTTOM_PAD), crop)
+        canvas.paste(crop, (round(CANVAS_W / 2 - foot_cx), CANVAS_H - nh - BOTTOM_PAD), crop)
         p = os.path.join(outdir, f'{char}-{s}.png')
         canvas.save(p)
         out_paths[s] = p
