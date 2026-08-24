@@ -110,7 +110,34 @@
   <div class="note">char2 · char3 · char4 · char5 → serão apagados quando o char1 entrar.</div>
 </div>
 
-<h2>8 · Fora do MVP</h2>
+<h2>8 · Mapa oficial</h2>
+<div class="card">
+  <div style="font-size:13px;margin-bottom:10px;">
+    O mapa novo precisa ser o <b>mesmo layout</b> do atual, só que mais bonito e nítido.
+    Se casa, árvore ou rio mudarem de lugar, a colisão do jogo quebra.
+  </div>
+  <table>
+    <tr><th>Regra</th><th>Valor</th></tr>
+    <tr><td>Vista</td><td><b style="color:var(--cut)">DE CIMA (top-down)</b> — nunca isométrico</td></tr>
+    <tr><td>Formato</td><td>Quadrado perfeito, 1:1</td></tr>
+    <tr><td>Resolução</td><td>4000×4000 (ou o máximo possível)</td></tr>
+    <tr><td>Layout</td><td>Idêntico ao atual, elemento por elemento</td></tr>
+  </table>
+  <div style="margin-top:12px;display:flex;gap:8px;flex-wrap:wrap;">
+    <a href="/mapa-atual.jpg" download><button class="ghost">⬇ baixar mapa atual (anexar no GPT)</button></a>
+    <span id="mapBtn"></span>
+  </div>
+  <div class="q" style="margin-top:12px;">
+    <b>Como fazer:</b> anexa o mapa atual no ChatGPT <b>junto</b> com o prompt.
+    Sem a imagem de referência ele inventa outro layout.
+  </div>
+  <div class="note">
+    Se mesmo assim o layout sair diferente, me avisa — eu regenero o mapa de colisão
+    a partir da imagem nova em vez de descartar o mapa.
+  </div>
+</div>
+
+<h2>9 · Fora do MVP</h2>
 <div class="card">
   <div class="cut-item"><b>✕ Captura de crias</b> — copiava o PvP e inchava o escopo. Crias vêm de orbes.</div>
   <div class="cut-item"><b>✕ Loja de itens</b> — vira só troca de fragmentos.</div>
@@ -118,7 +145,7 @@
   <div class="cut-item"><b>✕ Mapa de passeio 3D</b> — depende de gerador de mapas; fica pós-MVP.</div>
 </div>
 
-<h2>9 · A decidir</h2>
+<h2>10 · A decidir</h2>
 <div class="card">
   <div class="q"><b>Chefe da masmorra:</b> uma cria lendária (Drakon) ou um monstro exclusivo de chefe?</div>
   <div class="q"><b>Orbe diário:</b> o jogador ganha 1 orbe comum por dia ao logar? (é o gancho de retorno)</div>
@@ -140,6 +167,23 @@ Ordem: linha 1 = frente (parado, passo esquerdo, passo direito, extra) | linha 2
 Sem sombra no chão, sem borda, sem texto. Pixel art 16-bit detalhado.
 Personagem: jovem treinador de Crias, jaqueta escura com detalhes azuis brilhantes,
 calça resistente, botas de viagem, cabelo castanho bagunçado, expressão confiante.`;
+
+const P_MAPA = `Recrie ESTE MAPA (imagem anexada) com qualidade visual muito superior:
+mais nítido, com iluminação volumétrica, sombras suaves, profundidade e materiais ricos —
+como um mapa de RPG moderno renderizado em alta qualidade.
+
+REGRAS ABSOLUTAS (não quebrar nenhuma):
+1. VISTA DE CIMA (top-down, câmera perpendicular ao chão). NÃO use perspectiva isométrica,
+   NÃO incline a câmera, NÃO mostre laterais dos prédios.
+2. Mantenha EXATAMENTE o mesmo layout da imagem anexada: cada casa, árvore, rio, cachoeira,
+   ponte, cerca, poste, caminho de pedra e o orbe azul central devem ficar na MESMA posição,
+   mesmo tamanho e mesma proporção. É uma remasterização, não um redesenho.
+3. Imagem quadrada 1:1, 4000x4000 pixels.
+4. Sem grade visível, sem texto, sem marca d'água, sem bordas ou moldura.
+5. Preservar a paleta: grama verde, água azul, pedra cinza, telhados coloridos,
+   e o brilho azul mágico do orbe central.
+
+Objetivo: a mesma cidade, no mesmo lugar, com acabamento de jogo AAA.`;
 
 const CRIAS = [
   ['Ignivar','Fogo','comum','ok','Lobo vulcânico de rocha negra rachada com brasas nas fissuras, juba de fogo laranja'],
@@ -182,6 +226,8 @@ CRIAS.forEach(([nome, el, rar, st, desc]) => {
   tr.appendChild(td);
   tb.appendChild(tr);
 });
+
+document.getElementById('mapBtn').appendChild(mkBtn(P_MAPA, '📋 copiar prompt do mapa'));
 
 const cr = document.getElementById('charRow');
 cr.lastElementChild.appendChild(mkBtn(P_CHAR, 'Copiar prompt'));
