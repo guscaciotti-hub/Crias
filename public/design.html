@@ -110,32 +110,17 @@
   <div class="note">char2 · char3 · char4 · char5 → serão apagados quando o char1 entrar.</div>
 </div>
 
-<h2>8 · Mapa oficial</h2>
+<h2>8 · Reconstrução do mapa — peça por peça, fiel ao original</h2>
 <div class="card">
   <div style="font-size:13px;margin-bottom:10px;">
-    O mapa novo precisa ser o <b>mesmo layout</b> do atual, só que mais bonito e nítido.
-    Se casa, árvore ou rio mudarem de lugar, a colisão do jogo quebra.
+    Cada elemento do mapa atual foi recortado como <b>referência</b>. O fluxo por peça:
+    <b>⬇ baixa a referência → copia o prompt → anexa os dois no ChatGPT</b> → ele recria
+    AQUELE elemento (mesmo design, mesmas cores) em 3D melhorado → sobe em
+    <code>public/map-kit/</code> com o nome de saída. O compositor remonta o mapa idêntico,
+    peça nova por peça nova, com a colisão intacta.
   </div>
-  <table>
-    <tr><th>Regra</th><th>Valor</th></tr>
-    <tr><td>Vista</td><td><b style="color:var(--cut)">DE CIMA (top-down)</b> — nunca isométrico</td></tr>
-    <tr><td>Formato</td><td>Quadrado perfeito, 1:1</td></tr>
-    <tr><td>Resolução</td><td>4000×4000 (ou o máximo possível)</td></tr>
-    <tr><td>Layout</td><td>Idêntico ao atual, elemento por elemento</td></tr>
-  </table>
-  <div style="margin-top:12px;display:flex;gap:8px;flex-wrap:wrap;">
-    <a href="/mapa-planta.jpg" download><button>⬇ 1. baixar a PLANTA (anexar no GPT)</button></a>
-    <span id="mapBtn"></span>
-  </div>
-  <div class="q" style="margin-top:12px;">
-    <b>Fluxo:</b> baixa a planta → anexa no ChatGPT junto com o prompt → ele repinta como
-    cena única rica em detalhes <b>sem mover nada</b> (a planta trava o layout, que é o que
-    casa com a colisão) → sobe a imagem e o Claude confere o alinhamento e instala.
-  </div>
-  <div class="note">
-    Se mesmo assim o layout sair diferente, me avisa — eu regenero o mapa de colisão
-    a partir da imagem nova em vez de descartar o mapa.
-  </div>
+  <table id="refs"><tr><th>Elemento</th><th>Ref</th><th>Saída</th><th>Status</th><th></th></tr></table>
+  <div class="note">Fase 2 = peças que ainda vou plugar no compositor (bordas, ponte, adornos da praça) — pode gerar desde já.</div>
 </div>
 
 <h2>9 · Kit do Mapa Oficial (montado por peças)</h2>
@@ -264,16 +249,26 @@ const KIT = [
   ['🪨 Caminho', 'tile-caminho.png', T_TILE('caminho de pedras irregulares bege e marrom assentadas em terra batida, juntas visíveis')],
   ['⬜ Piso da praça', 'tile-praca.png', T_TILE('piso de pedra lavrada cinza-clara de praça mágica medieval, lajes grandes com runas azuis MUITO sutis')],
   ['🌊 Água', 'tile-agua.png', T_TILE('água azul profunda de rio com leve ondulação e reflexos suaves de luz')],
-  ['🌳 Árvore 1', 'prop-arvore-1.png', T_VEG('Árvore frondosa de copa redonda verde-média, galhos aparecendo nas bordas da copa')],
-  ['🌳 Árvore 2', 'prop-arvore-2.png', T_VEG('Árvore frondosa de copa irregular verde com tons levemente amarelados')],
-  ['🌲 Pinheiro', 'prop-pinheiro.png', T_VEG('Pinheiro cônico verde-escuro visto de cima, camadas de galhos visíveis')],
-  ['🗿 Pedra', 'prop-pedra.png', T_VEG('Rocha cinza grande com musgo nas laterais')],
-  ['🏠 Casa azul', 'prop-casa-azul.png', T_BLD('Casa grande de dois andares com telhado AZUL vibrante, paredes de madeira clara e pedra.', '13:10')],
-  ['🏡 Casa da curandeira', 'prop-casa-marrom.png', T_BLD('Casa acolhedora com telhado verde-musgo e chaminé fumegante, jardim de ervas na frente.', '11:9')],
-  ['🏟️ Coliseu', 'prop-arena.png', T_BLD('Arena/coliseu de pedra clara com bandeiras azuis e entrada imponente em arco.', '13:8')],
-  ['🏢 Prédio místico', 'prop-predio-roxo.png', T_BLD('Prédio místico de telhado ROXO com símbolos arcanos brilhando discretos.', '11:8')],
-  ['🏪 Loja de trocas', 'prop-shop.png', T_BLD('Loja pequena e charmosa com toldo listrado e balcão na frente.', '9:6')],
-  ['🔮 Cúpula PvP', 'prop-cupula.png', T_BLD('Cúpula arcana ROXA com anel de energia azul pulsando no topo.', '11:8')],
+];
+
+const T_FIEL = (hint) => `Recrie FIELMENTE o elemento principal da imagem anexada — MESMO design, MESMAS cores, mesma identidade visual, mesmo ângulo (vista top-down 3/4 de RPG). ${hint}
+Versão MELHORADA: render 3D estilizado volumétrico, materiais ricos com relevo, mais nitidez e definição, iluminação vinda do canto superior esquerdo, sombras suaves internas.
+NÃO invente um design novo — é uma remasterização do elemento anexado.
+Elemento isolado e centralizado, fundo MAGENTA CHROMA #FF00FF sólido, SEM sombra projetada no chão, sem texto, nada tocando as bordas da imagem.`;
+
+const REFS = [
+  ['🏡 Casa da curandeira', 'ref-casa-marrom.png', 'prop-casa-marrom.png', 'Recrie a casa completa (telhado verde, chaminé, varanda).', 1],
+  ['🏟️ Coliseu/Arena', 'ref-arena.png', 'prop-arena.png', 'Recrie o conjunto da arena com o portal e os cristais.', 1],
+  ['🏢 Prédio místico', 'ref-predio-roxo.png', 'prop-predio-roxo.png', 'Recrie o prédio de telhado roxo com os símbolos.', 1],
+  ['🏪 Loja', 'ref-shop.png', 'prop-shop.png', 'Recrie a construção da loja com o painel azul.', 1],
+  ['🔮 Cúpula PvP', 'ref-cupula.png', 'prop-cupula.png', 'Recrie a cúpula roxa com o anel de energia.', 1],
+  ['🏠 Casa azul', 'ref-casa-azul.png', 'prop-casa-azul.png', 'Recrie a casa grande de telhado azul completa.', 1],
+  ['🌲 Pinheiro', 'ref-pinheiros.png', 'prop-pinheiro.png', 'Recrie UM ÚNICO pinheiro no estilo exato dos da imagem.', 1],
+  ['🌳 Árvore cheia', 'ref-pinheiros.png', 'prop-arvore-1.png', 'Crie UMA árvore frondosa que combine com a vegetação da imagem.', 1],
+  ['🌉 Ponte', 'ref-ponte.png', 'prop-ponte.png', 'Recrie a ponte de madeira sobre o rio.', 2],
+  ['🌊 Margem do rio', 'ref-rio-margem.png', 'borda-rio.png', 'Recrie um trecho VERTICAL de margem (pedras + grama encontrando a água), tileable na vertical.', 2],
+  ['💦 Cachoeira', 'ref-cachoeira.png', 'prop-cachoeira.png', 'Recrie a queda d água com espuma.', 2],
+  ['✨ Adornos da praça', 'ref-praca-detalhes.png', 'prop-adornos.png', 'Recrie os postes de cristal e canteiros em uma tira horizontal (um de cada, separados).', 2],
 ];
 
 const CRIAS = [
@@ -327,6 +322,22 @@ AMBIENTE.forEach(([nome, arq, st, n, desc]) => {
   td.appendChild(mkBtn(BASE_AMB.replace('{N}', n).replace('{DESC}', desc)));
   tr.appendChild(td);
   tamb.appendChild(tr);
+});
+
+const trefs = document.getElementById('refs');
+REFS.forEach(([nome, ref, out, hint, fase]) => {
+  const tr = document.createElement('tr');
+  tr.innerHTML = '<td><b>' + nome + '</b>' + (fase === 2 ? ' <span class="tag t-todo">fase 2</span>' : '') + '</td>' +
+    '<td><a href="/map-ref/' + ref + '" download><button class="ghost">⬇ ref</button></a></td>' +
+    '<td style="font-size:11px;color:var(--dim)">' + out + '</td>' +
+    '<td class="rst"><span class="tag t-todo">falta</span></td>';
+  const td = document.createElement('td');
+  td.appendChild(mkBtn(T_FIEL(hint)));
+  tr.appendChild(td);
+  trefs.appendChild(tr);
+  fetch('/map-kit/' + out, { method: 'HEAD' }).then(r => {
+    if (r.ok) tr.querySelector('.rst').innerHTML = '<span class="tag t-ok">recebida</span>';
+  }).catch(() => {});
 });
 
 const tkit = document.getElementById('kit');
