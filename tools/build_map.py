@@ -162,13 +162,39 @@ def moldura_cells(cells):
             elif (x + 1, y + 1) not in inside: out[(x, y)] = 'curva-int-se'
     return out
 
-def aplicar_molduras(dest, cells, prefixo):
+_MOLD_CACHE = {}
+def aplicar_molduras(dest, cells, prefixo, escala=2.0):
+    """Desenha a moldura MAIOR que o tile, centralizada na célula: a faixa
+    decorativa transborda para o tile vizinho e vira uma beira real em vez de
+    uma listra fina presa dentro de 1 tile."""
     usadas, faltas = 0, set()
+    S = int(T * escala)
+    off = (S - T) // 2
     for (x, y), ori in moldura_cells(cells).items():
-        im = load_asset(f'{prefixo}-{ori}.png', True)
+        key = (prefixo, ori, S)
+        if key not in _MOLD_CACHE:
+            im0 = load_asset(f'{prefixo}-{ori}.png', True)
+            # Recorta a FAIXA real (o GPT às vezes a desenha encostada na borda
+            # em vez de centralizada) e reescala para a espessura da fronteira.
+            if im0 is not None:
+                bb = im0.getbbox()
+                if bb:
+                    im0 = im0.crop(bb)
+                    lado = 'h' if im0.width >= im0.height else 'v'
+                    esp = int(T * 0.9)
+                    comp = int(T * escala)
+                    im0 = im0.resize((comp, esp) if lado == 'h' else (esp, comp), Image.LANCZOS)
+            _MOLD_CACHE[key] = im0
+        im = _MOLD_CACHE[key]
         if im is None: faltas.add(ori); continue
-        im = im.resize((T, T), Image.LANCZOS)
-        dest.alpha_composite(im, (x * T, y * T))
+        cx0, cy0 = x * T, y * T
+        # ancora a faixa na fronteira que ela representa
+        if ori.startswith('reta-n'):   pos = (cx0 + (T - im.width)//2, cy0 - im.height//2)
+        elif ori.startswith('reta-s'): pos = (cx0 + (T - im.width)//2, cy0 + T - im.height//2)
+        elif ori.startswith('reta-o'): pos = (cx0 - im.width//2, cy0 + (T - im.height)//2)
+        elif ori.startswith('reta-l'): pos = (cx0 + T - im.width//2, cy0 + (T - im.height)//2)
+        else:                          pos = (cx0 + (T - im.width)//2, cy0 + (T - im.height)//2)
+        dest.alpha_composite(im, pos)
         usadas += 1
     if usadas: print(f'{prefixo}: {usadas} molduras aplicadas')
     if faltas: print(f'{prefixo}: orientações faltando -> {sorted(faltas)}')
@@ -254,8 +280,8 @@ shadow = shadow.filter(ImageFilter.GaussianBlur(T // 5))
 dark = Image.new('RGBA', (W, H), (12, 18, 10, 255))
 dark.putalpha(shadow.point(lambda v: int(v * 0.55)))
 final_ground = canvas.convert('RGBA')
-aplicar_molduras(final_ground, water_cells, 'margem')
-aplicar_molduras(final_ground, praca_cells, 'meiofio')
+aplicar_molduras(final_ground, water_cells, 'margem', escala=2.2)
+aplicar_molduras(final_ground, praca_cells, 'meiofio', escala=1.8)
 final = final_ground
 final.alpha_composite(dark)        # sombras entre o chão e os props
 final.alpha_composite(prop_layer)  # edifícios e vegetação por cima
