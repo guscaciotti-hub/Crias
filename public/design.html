@@ -42,6 +42,18 @@
 <div class="sub">Fonte única de verdade do MVP. Tudo que não está aqui, não entra no lançamento.</div>
 <div class="ver">v1 · sistema de masmorras · sem captura</div>
 
+<h2>0 · Falta gerar (checklist de produção)</h2>
+<div class="card">
+  <table>
+    <tr><th>Grupo</th><th>Pendências</th><th>Onde estão os prompts</th></tr>
+    <tr><td>🗺️ <b>Mapa</b></td><td>14 peças geradas <b>aguardando upload</b> + 7 novas (penhasco, cerca, poste, pedra, arbusto, canteiro — seção 8)</td><td>Seção 8</td></tr>
+    <tr><td>🐺 <b>Crias</b></td><td>11 de 12 (só o Ignivar está pronto)</td><td>Seção 3</td></tr>
+    <tr><td>🌤️ <b>Ambiente</b></td><td>6 sprites (nuvens, pássaros, borboletas, folhas, névoa, luz) — <b>nuvem.png não chegou no GitHub</b>, re-sobe</td><td>Seção 10</td></tr>
+    <tr><td>🧍 <b>Personagem</b></td><td>char1 v2 com sentado em 4 direções (opcional, o atual funciona)</td><td>Seção 7</td></tr>
+  </table>
+  <div class="note">Ordem sugerida: subir as 14 do mapa → 7 novas do mapa → 11 crias → ambiente. A cada leva enviada, o Claude processa e integra.</div>
+</div>
+
 <h2>1 · Loop principal</h2>
 <div class="card loop">
   <b>Loga</b> <span class="arrow">→</span> <b>Ganha Orbe</b> <span class="arrow">→</span> <b>Invoca Cria</b>
@@ -269,6 +281,12 @@ const REFS = [
   ['🌊 Margem do rio', 'ref-rio-margem.png', 'borda-rio.png', 'Recrie um trecho VERTICAL de margem (pedras + grama encontrando a água), tileable na vertical.', 2],
   ['💦 Cachoeira', 'ref-cachoeira.png', 'prop-cachoeira.png', 'Recrie a queda d água com espuma.', 2],
   ['✨ Adornos da praça', 'ref-praca-detalhes.png', 'prop-adornos.png', 'Recrie os postes de cristal e canteiros em uma tira horizontal (um de cada, separados).', 2],
+  ['🧱 Penhasco', 'ref-cachoeira.png', 'tile-penhasco.png', 'Crie uma textura TILEABLE HORIZONTAL da parede de penhasco de pedra da imagem (topo gramado, base sombreada). Sem fundo magenta: a textura preenche a imagem toda.', 2],
+  ['🚧 Cerca', 'ref-shop.png', 'prop-cerca.png', 'Recrie a cerca de madeira da imagem em UMA tira com 2 células lado a lado: [segmento HORIZONTAL] e [segmento VERTICAL].', 2],
+  ['🏮 Poste de cristal', 'ref-praca-detalhes.png', 'prop-poste.png', 'Recrie UM poste de cristal azul idêntico aos da imagem, isolado.', 2],
+  ['🗿 Pedra', 'ref-rio-margem.png', 'prop-pedra.png', 'Recrie UMA pedra musgosa no estilo das da margem da imagem, isolada.', 2],
+  ['🌳 Arbusto', 'ref-casa-marrom.png', 'prop-arbusto.png', 'Recrie UM arbusto redondo no estilo dos que cercam a casa da imagem, isolado.', 2],
+  ['🌺 Canteiro', 'ref-casa-marrom.png', 'prop-canteiro.png', 'Recrie UM canteiro de flores no estilo dos da imagem, isolado.', 2],
 ];
 
 const CRIAS = [
