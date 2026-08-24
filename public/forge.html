@@ -79,11 +79,19 @@
 
   <div class="card" style="grid-column:1/-1;">
     <h2>3 · Resultado</h2>
-    <model-viewer id="mv" camera-controls auto-rotate exposure="1.15" shadow-intensity="0.9"></model-viewer>
+    <div class="sub">Também dá pra carregar um .glb já baixado: <input type="file" id="glbFile" accept=".glb" style="display:inline;width:auto;font-size:11px;"></div>
+    <model-viewer id="mv" camera-controls exposure="1.15" shadow-intensity="0.9"></model-viewer>
     <div class="row">
       <button class="ghost" id="btnGlb" disabled>⬇ baixar .glb</button>
-      <label style="margin:0;">nome da espécie: <input type="text" id="sp" value="monstro" style="width:140px;display:inline-block;"></label>
+      <label style="margin:0;">nome: <input type="text" id="sp" value="asset" style="width:120px;display:inline-block;"></label>
+      <label style="margin:0;">ângulo frontal: <input type="range" id="front" min="0" max="360" value="200" style="width:130px;vertical-align:middle;"> <span id="frontV">200°</span></label>
     </div>
+    <div class="row" style="margin-top:6px;">
+      <button id="btnViews" disabled>🎮 Gerar vistas do jogo (frente/costas/lados)</button>
+      <label style="margin:0;font-size:11px;color:var(--dim);">+ sentado (opcional, imagem do GPT): <input type="file" id="sitFile" accept="image/*" style="display:inline;width:auto;font-size:11px;"></label>
+    </div>
+    <canvas class="prev" id="viewsPrev" width="10" height="10" style="margin-top:10px;"></canvas>
+    <div class="row"><button class="ghost" id="btnViewsDown" disabled>⬇ baixar sheet de vistas</button></div>
     <div class="snippet" id="snip">// gere um modelo para ver o snippet de integração</div>
     <div class="sub" style="margin-top:8px;">Depois: sobe o .glb no GitHub e cola o snippet no MONSTER_3D do game.html (ou me manda que eu integro).</div>
   </div>
@@ -136,7 +144,12 @@ Iluminação SUAVE e uniforme, sem sombras duras, SEM sombra no chão.
 Fundo VERDE CHROMA #00FF00 sólido. Sem borda, sem texto, sem marca d'água.
 O personagem ocupa ~85% da altura, centralizado, sem nenhuma parte (nem capa/cabelo)
 tocando as bordas da imagem.
-Personagem: [DESCREVA AQUI — ex: treinadora ruiva de jaqueta azul com mochila e luvas]`,
+Personagem: [DESCREVA AQUI — ex: treinadora ruiva de jaqueta azul com mochila e luvas]
+
+--- PROMPT EXTRA (2ª imagem, para a pose sentada) ---
+Mesmo personagem descrito acima, SENTADO no chão relaxado, corpo inteiro,
+vista frontal com leve 3/4, fundo verde chroma #00FF00 sólido, iluminação
+suave, sem sombra no chão, nada tocando as bordas da imagem.`,
 };
 const tipoSel = () => document.querySelector('input[name=tipo]:checked').value;
 function refreshPrompt() {
@@ -269,6 +282,7 @@ $('btnGen').onclick = async () => {
     const local = URL.createObjectURL(glbBlob);
     $('mv').src = local;
     $('btnGlb').disabled = false;
+    $('btnViews').disabled = false;
     const sp = ($('sp').value || 'asset').toLowerCase();
     $('snip').textContent = tipoSel() === 'monstro'
       ? sp + ": { url: '/" + sp + ".glb', center: 200, sway: 12 },"
@@ -280,7 +294,110 @@ $('btnGen').onclick = async () => {
   }
   $('btnGen').disabled = false;
 };
-$('btnGlb').onclick = () => save(glbBlob, ($('sp').value || 'monstro').toLowerCase() + '.glb');
+$('btnGlb').onclick = () => save(glbBlob, ($('sp').value || 'asset').toLowerCase() + '.glb');
+
+// ---- vistas do jogo: captura o glb em 4 ângulos + pose sentada opcional ----
+$('front').oninput = () => { $('frontV').textContent = $('front').value + '°'; $('mv').cameraOrbit = $('front').value + 'deg 76deg 100%'; };
+$('glbFile').onchange = e => {
+  const f = e.target.files[0]; if (!f) return;
+  glbBlob = f; $('mv').src = URL.createObjectURL(f);
+  $('btnGlb').disabled = false; $('btnViews').disabled = false;
+  log('glb local carregado: ' + f.name);
+};
+let sitImg = null;
+$('sitFile').onchange = e => {
+  const f = e.target.files[0]; if (!f) return;
+  const img = new Image();
+  img.onload = () => {
+    // chroma no sentado
+    const c = document.createElement('canvas'); c.width = img.width; c.height = img.height;
+    const x = c.getContext('2d'); x.drawImage(img, 0, 0);
+    const d = x.getImageData(0, 0, c.width, c.height); const pd = d.data;
+    for (let i = 0; i < pd.length; i += 4) {
+      const r = pd[i], g = pd[i+1], b = pd[i+2];
+      if (g > 90 && g > r * 1.35 && g > b * 1.35) pd[i+3] = 0;
+      else if (g > Math.max(r, b)) pd[i+1] = Math.max(r, b);
+    }
+    x.putImageData(d, 0, 0);
+    sitImg = c; log('pose sentada carregada (' + c.width + 'x' + c.height + ')');
+  };
+  img.src = URL.createObjectURL(f);
+};
+
+function bboxOf(cv, thr = 40) {
+  const { width: w, height: h } = cv;
+  const d = cv.getContext('2d').getImageData(0, 0, w, h).data;
+  let x0 = w, y0 = h, x1 = -1, y1 = -1;
+  for (let y = 0; y < h; y++) for (let x = 0; x < w; x++)
+    if (d[(y * w + x) * 4 + 3] > thr) { if (x < x0) x0 = x; if (x > x1) x1 = x; if (y < y0) y0 = y; if (y > y1) y1 = y; }
+  return x1 < 0 ? null : { x0, y0, x1: x1 + 1, y1: y1 + 1 };
+}
+
+$('btnViews').onclick = async () => {
+  const mv = $('mv');
+  if (!mv.src) { log('carrega um modelo primeiro'); return; }
+  $('btnViews').disabled = true;
+  const F = parseFloat($('front').value);
+  const DIRS = { down: F, right: F + 90, up: F + 180, left: F + 270 };
+  const caps = {};
+  const shadowBefore = mv.getAttribute('shadow-intensity');
+  mv.setAttribute('shadow-intensity', '0');  // sombra vira mancha na captura
+  log('capturando vistas (frente=' + F + '°)…');
+  for (const [dir, th] of Object.entries(DIRS)) {
+    mv.cameraOrbit = th + 'deg 76deg 135%';
+    if (mv.jumpCameraToGoal) mv.jumpCameraToGoal();  // sem interpolação
+    // captura até estabilizar: 2 frames consecutivos idênticos (GPU real: ~1 iteração)
+    let blob = null, prevSize = -1;
+    for (let k = 0; k < 8; k++) {
+      await new Promise(r => setTimeout(r, 350));
+      blob = await mv.toBlob({ mimeType: 'image/png' });
+      if (Math.abs(blob.size - prevSize) < blob.size * 0.002) break;
+      prevSize = blob.size;
+    }
+    const img = await createImageBitmap(blob);
+    const c = document.createElement('canvas'); c.width = img.width; c.height = img.height;
+    c.getContext('2d').drawImage(img, 0, 0);
+    caps[dir] = c; log('  ' + dir + ' ✓ (' + img.width + 'x' + img.height + ')');
+  }
+  mv.setAttribute('shadow-intensity', shadowBefore || '0.9');
+  // escala comum pela MAIOR altura de bbox; cada vista centrada pelo próprio bbox
+  const boxes = {};
+  for (const d of Object.keys(caps)) boxes[d] = bboxOf(caps[d]);
+  const valid = Object.values(boxes).filter(Boolean);
+  if (!valid.length) { log('ERRO: captura vazia (fundo opaco?)'); $('btnViews').disabled = false; return; }
+  const maxH = Math.max(...valid.map(b => b.y1 - b.y0));
+  const CELL = 64, TH = 54;  // resolução do jogo, pixel duro
+  const order = ['down', 'up', 'left', 'right'];
+  const cells = order.length + (sitImg ? 1 : 0);
+  const sheet = document.createElement('canvas'); sheet.width = CELL * cells; sheet.height = CELL;
+  const sx = sheet.getContext('2d'); sx.imageSmoothingEnabled = false;
+  const scale = TH / maxH;
+  order.forEach((dir, i) => {
+    const b = boxes[dir]; if (!b) return;
+    const w = Math.round((b.x1 - b.x0) * scale), h = Math.round((b.y1 - b.y0) * scale);
+    sx.drawImage(caps[dir], b.x0, b.y0, b.x1 - b.x0, b.y1 - b.y0,
+      i * CELL + Math.round((CELL - w) / 2), CELL - h - 2, w, h);
+  });
+  if (sitImg) {
+    const b = bboxOf(sitImg);
+    const sh = Math.round(TH * 0.72), sw = Math.round((b.x1 - b.x0) * (sh / (b.y1 - b.y0)));
+    sx.drawImage(sitImg, b.x0, b.y0, b.x1 - b.x0, b.y1 - b.y0,
+      order.length * CELL + (CELL - sw) / 2, CELL - sh - 2, sw, sh);
+  }
+  // alpha binário (estilo pixel art do jogo)
+  const id = sx.getImageData(0, 0, sheet.width, sheet.height);
+  for (let i = 3; i < id.data.length; i += 4) id.data[i] = id.data[i] < 110 ? 0 : 255;
+  sx.putImageData(id, 0, 0);
+  const pv = $('viewsPrev'); pv.width = sheet.width * 3; pv.height = sheet.height * 3;
+  const px = pv.getContext('2d'); px.imageSmoothingEnabled = false;
+  px.drawImage(sheet, 0, 0, pv.width, pv.height);
+  sheet.toBlob(bl => {
+    window._viewsBlob = bl; $('btnViewsDown').disabled = false;
+    log('✅ sheet de vistas pronta (' + cells + ' células de ' + CELL + 'px): baixa e sobe no GitHub junto com o .glb');
+  }, 'image/png');
+  $('btnViews').disabled = false;
+};
+$('btnViewsDown').onclick = () => save(window._viewsBlob, ($('sp').value || 'asset').toLowerCase() + '-views.png');
 </script>
 </body>
 </html>
