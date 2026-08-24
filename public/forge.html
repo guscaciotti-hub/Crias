@@ -99,6 +99,7 @@ const auth = () => { const t = $('tok').value.trim(); return t ? { Authorization
 // Spaces variam de versão do gradio: v5 usa /gradio_api/*, v4 usa as rotas na
 // raiz. Tenta as duas e memoriza a que respondeu.
 let gBase = null;
+let epInfo = {};  // assinaturas dos endpoints (via /info)
 async function gfetch(host, path, opts) {
   const bases = gBase !== null ? [gBase] : ['/gradio_api', ''];
   let last = null;
@@ -193,7 +194,8 @@ $('btnInfo').onclick = async () => {
     if (!r.ok) throw new Error('HTTP ' + r.status + ': ' + (await r.text()).slice(0, 150));
     const j = await r.json();
     log('api base: "' + (gBase || '(raiz)') + '"');
-    const eps = Object.keys(j.named_endpoints || {});
+    epInfo = j.named_endpoints || {};
+    const eps = Object.keys(epInfo);
     log('endpoints: ' + (eps.join('  ') || '(nenhum nomeado)'));
     for (const e of eps) {
       const ins = (j.named_endpoints[e].parameters || []).map(p => p.label || p.parameter_name).join(', ');
@@ -219,10 +221,28 @@ $('btnGen').onclick = async () => {
     log('upload ok: ' + path);
 
     const fileRef = { path, meta: { _type: 'gradio.FileData' } };
-    // parâmetros extras comuns (foreground ratio etc.) ficam com default do space
+    // A API REST NÃO preenche defaults sozinha: monta o data completo pela
+    // assinatura do endpoint (imagem -> fileRef, demais -> default do /info).
+    if (!epInfo[api]) {
+      try {
+        const ir = await gfetch(host, '/info', { headers: auth() });
+        epInfo = (await ir.json()).named_endpoints || {};
+      } catch (e) { log('aviso: /info indisponível, enviando só a imagem'); }
+    }
+    let data = [fileRef];
+    const sig = epInfo[api];
+    if (sig && sig.parameters && sig.parameters.length) {
+      let usedImg = false;
+      data = sig.parameters.map(prm => {
+        const t = JSON.stringify([prm.component, prm.python_type, prm.label]).toLowerCase();
+        if (!usedImg && /image|filepath|file/.test(t)) { usedImg = true; return fileRef; }
+        return prm.parameter_default !== undefined ? prm.parameter_default : null;
+      });
+      log('parâmetros: [' + data.map(d => d === fileRef ? 'IMAGEM' : JSON.stringify(d)).join(', ') + ']');
+    }
     const call = await gfetch(host, '/call' + api, {
       method: 'POST', headers: { 'Content-Type': 'application/json', ...auth() },
-      body: JSON.stringify({ data: [fileRef] }),
+      body: JSON.stringify({ data }),
     });
     if (!call.ok) throw new Error('call HTTP ' + call.status + ': ' + (await call.text()).slice(0, 250));
     const cj = await call.json();
@@ -231,7 +251,12 @@ $('btnGen').onclick = async () => {
 
     const es = await gfetch(host, '/call' + api + '/' + cj.event_id, { headers: auth() });
     const text = await es.text();
-    if (/event:\s*error/.test(text)) log('⚠ o space reportou erro no stream');
+    if (/event:\s*error/.test(text)) {
+      const eps = Object.keys(epInfo);
+      throw new Error('o space recusou a chamada (event: error). Endpoints disponíveis: ' +
+        (eps.join(' ') || 'clique em Descobrir APIs') +
+        ' — tenta outro no campo API. Se persistir: cota do dia ou space precisa de 2 etapas.');
+    }
     log('stream recebido (' + text.length + ' bytes)');
     // pega a última URL de arquivo .glb no SSE
     const urls = [...text.matchAll(/"(https?:[^"]+?\.glb[^"]*)"|"path":\s*"([^"]+?\.glb)"/g)]
