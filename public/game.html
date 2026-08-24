@@ -8564,8 +8564,8 @@ function render(now) {
 
   // === House sprite overlay (pass-behind: transparent sprite drawn after entities) ===
   if (state && state.scene !== 'cave1' && assets.houseRoof && assets.houseRoof.complete) {
-    const hWorldX = 33 * TILE, hWorldY = 33 * TILE;
-    const hWorldW = 10 * TILE, hWorldH = 9 * TILE;
+    const hWorldX = 31 * TILE, hWorldY = 30 * TILE;
+    const hWorldW = 15 * TILE, hWorldH = 13 * TILE;
     if (hWorldX + hWorldW >= camX && hWorldX <= camX + cw &&
         hWorldY + hWorldH >= camY && hWorldY <= camY + ch) {
       const _effCamX = Math.round(camX * _scaleX) / _scaleX;
