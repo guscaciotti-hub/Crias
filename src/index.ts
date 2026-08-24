@@ -145,6 +145,12 @@ app.get('/game', (req, res) => {
   res.sendFile(path.join(publicDir, 'game.html'))
 })
 
+// /forge → fábrica de assets (imagem → chroma limpo → modelo 3D via HF)
+app.get('/forge', (req, res) => {
+  res.setHeader('Cache-Control', 'no-store, must-revalidate')
+  res.sendFile(path.join(publicDir, 'forge.html'))
+})
+
 // /collision-editor → collision editor tool
 app.get('/collision-editor', (req, res) => {
   res.sendFile(path.join(publicDir, 'collision-editor.html'))
