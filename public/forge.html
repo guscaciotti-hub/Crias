@@ -103,11 +103,25 @@ const log = m => { const l = $('log'); l.textContent += '\n' + m; l.scrollTop = 
 $('tok').value = localStorage.getItem('hf_tok') || '';
 $('tok').addEventListener('change', () => localStorage.setItem('hf_tok', $('tok').value.trim()));
 const hostOf = s => s.replace('/', '-').toLowerCase() + '.hf.space';
+document.addEventListener('change', e => {
+  if (e.target && e.target.id === 'space') { gBase = null; epInfo = {}; log('space trocado — base e APIs resetadas; clica em Descobrir APIs'); }
+});
 const auth = () => { const t = $('tok').value.trim(); return t ? { Authorization: 'Bearer ' + t } : {}; };
 // Spaces variam de versão do gradio: v5 usa /gradio_api/*, v4 usa as rotas na
 // raiz. Tenta as duas e memoriza a que respondeu.
 let gBase = null;
 let epInfo = {};  // assinaturas dos endpoints (via /info)
+function epScore(name, info) {
+  const sig = info[name] || {};
+  const rets = JSON.stringify(sig.returns || []).toLowerCase();
+  const pars = JSON.stringify(sig.parameters || []).toLowerCase();
+  let sc = 0;
+  if (/3d|model|glb|mesh/.test(rets)) sc += 4;          // produz modelo
+  if (/image|filepath/.test(pars)) sc += 2;             // aceita imagem
+  if (/run|generate|button|submit/.test(name)) sc += 1; // nome de ação final
+  sc += Math.min(3, (sig.parameters || []).length) * 0.1;
+  return sc;
+}
 async function gfetch(host, path, opts) {
   const bases = gBase !== null ? [gBase] : ['/gradio_api', ''];
   let last = null;
@@ -218,7 +232,7 @@ $('btnInfo').onclick = async () => {
       const outs = (sig.returns || []).map(r => r.label || r.component || '?').join(', ');
       log('  ' + e + ' ← (' + ins + ') → [' + outs + ']');
     }
-    if (eps.length) $('api').value = eps[0];
+    if (eps.length) $('api').value = eps.sort((a, b) => epScore(b, epInfo) - epScore(a, epInfo))[0];
   } catch (e) { log('ERRO: ' + e.message + ' (space dormindo? abre ele no navegador pra acordar)'); }
 };
 
@@ -279,34 +293,34 @@ $('btnGen').onclick = async () => {
         return prm.parameter_default !== undefined ? prm.parameter_default : null;
       });
     };
-    let text = await callApi(api, data);
-    if (/event:\s*error/.test(text)) {
-      // Cadeia automática: spaces de 2 etapas (ex: SF3D) processam a imagem
-      // num endpoint e o botão final consome o RESULTADO. Tenta cada outro
-      // endpoint como pré-processador e realimenta o principal.
-      const others = Object.keys(epInfo).filter(e => e !== api);
-      log('endpoint direto falhou; tentando cadeia com: ' + others.join(' '));
-      let ok = false;
-      for (const pre of others) {
-        try {
-          const t1 = await callApi(pre, buildData(pre, fileRef));
-          const img2 = [...t1.matchAll(/"path":\s*"([^"]+?\.(?:png|webp|jpg))"/gi)].map(m => m[1]).pop();
-          if (!img2) { log('  ' + pre + ': sem imagem no retorno, pulando'); continue; }
-          log('  ' + pre + ' devolveu imagem processada; reenviando ao ' + api);
-          const ref2 = { path: img2, meta: { _type: 'gradio.FileData' } };
-          text = await callApi(api, buildData(api, ref2));
-          if (!/event:\s*error/.test(text)) { ok = true; break; }
-          log('  cadeia via ' + pre + ' também falhou');
-        } catch (e2) { log('  ' + pre + ': ' + e2.message.slice(0, 120)); }
-      }
-      if (!ok) throw new Error('todas as tentativas falharam (event: error). Clica em "Descobrir APIs" e me manda o log completo — ou troca o space no seletor. Pode ser cota ZeroGPU do dia: espera algumas horas ou tenta outro space.');
+    const extractGlb = t => {
+      const m = [...t.matchAll(/"(https?:[^"]+?\.glb[^"]*)"|"path":\s*"([^"]+?\.glb)"/g)]
+        .map(x => x[1] || ('https://' + host + (gBase || '') + '/file=' + x[2]));
+      return m.length ? m[m.length - 1] : null;
+    };
+    const extractImg = t => {
+      const m = [...t.matchAll(/"path":\s*"([^"]+?\.(?:png|webp|jpg))"/gi)].map(x => x[1]);
+      return m.length ? m[m.length - 1] : null;
+    };
+    // fila: endpoint escolhido primeiro, depois os demais por score
+    const queue = [api, ...Object.keys(epInfo).filter(e => e !== api)
+      .sort((a, b) => epScore(b, epInfo) - epScore(a, epInfo))];
+    let curImg = fileRef, glbUrl2 = null;
+    for (const ep of queue) {
+      let t;
+      try { t = await callApi(ep, buildData(ep, curImg)); }
+      catch (e2) { log('  ' + ep + ': ' + e2.message.slice(0, 110)); continue; }
+      const g = extractGlb(t);
+      if (g) { glbUrl2 = g; log('  ' + ep + ' → modelo encontrado! ✓'); break; }
+      const im2 = extractImg(t);
+      if (im2) { curImg = { path: im2, meta: { _type: 'gradio.FileData' } }; log('  ' + ep + ' → imagem processada, encadeando…'); continue; }
+      if (/event:\s*error/.test(t)) log('  ' + ep + ' → recusou (error)');
+      else log('  ' + ep + ' → sem modelo nem imagem no retorno');
     }
-    log('stream recebido (' + text.length + ' bytes)');
-    // pega a última URL de arquivo .glb no SSE
-    const urls = [...text.matchAll(/"(https?:[^"]+?\.glb[^"]*)"|"path":\s*"([^"]+?\.glb)"/g)]
-      .map(m => m[1] || ('https://' + host + (gBase || '') + '/file=' + m[2]));
-    if (!urls.length) throw new Error('nenhum .glb no resultado — tenta outro endpoint (Descobrir APIs) ou outro space. Trecho: ' + text.slice(-300));
-    const glbUrl = urls[urls.length - 1];
+    if (!glbUrl2) throw new Error('nenhum endpoint devolveu .glb. Pode ser cota ZeroGPU do dia (tenta mais tarde) ou o space está fora — troca no seletor e clica Descobrir APIs.');
+    const text = JSON.stringify([glbUrl2]);
+    log('stream recebido');
+    const glbUrl = JSON.parse(text)[0];
     log('baixando ' + glbUrl.slice(0, 90) + '…');
     const g = await fetch(glbUrl, { headers: auth() });
     glbBlob = await g.blob();
