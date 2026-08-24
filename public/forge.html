@@ -211,8 +211,12 @@ $('btnInfo').onclick = async () => {
     const eps = Object.keys(epInfo);
     log('endpoints: ' + (eps.join('  ') || '(nenhum nomeado)'));
     for (const e of eps) {
-      const ins = (j.named_endpoints[e].parameters || []).map(p => p.label || p.parameter_name).join(', ');
-      log('  ' + e + ' ← (' + ins + ')');
+      const sig = j.named_endpoints[e];
+      const ins = (sig.parameters || []).map(p =>
+        (p.label || p.parameter_name) + ':' + (p.component || p.python_type && p.python_type.type || '?') +
+        (p.parameter_default !== undefined ? '=' + JSON.stringify(p.parameter_default) : '')).join(', ');
+      const outs = (sig.returns || []).map(r => r.label || r.component || '?').join(', ');
+      log('  ' + e + ' ← (' + ins + ') → [' + outs + ']');
     }
     if (eps.length) $('api').value = eps[0];
   } catch (e) { log('ERRO: ' + e.message + ' (space dormindo? abre ele no navegador pra acordar)'); }
@@ -253,22 +257,49 @@ $('btnGen').onclick = async () => {
       });
       log('parâmetros: [' + data.map(d => d === fileRef ? 'IMAGEM' : JSON.stringify(d)).join(', ') + ']');
     }
-    const call = await gfetch(host, '/call' + api, {
-      method: 'POST', headers: { 'Content-Type': 'application/json', ...auth() },
-      body: JSON.stringify({ data }),
-    });
-    if (!call.ok) throw new Error('call HTTP ' + call.status + ': ' + (await call.text()).slice(0, 250));
-    const cj = await call.json();
-    if (!cj.event_id) throw new Error('resposta sem event_id: ' + JSON.stringify(cj).slice(0, 200));
-    log('gerando (event ' + cj.event_id + ')… isso leva 10-60s');
-
-    const es = await gfetch(host, '/call' + api + '/' + cj.event_id, { headers: auth() });
-    const text = await es.text();
+    async function callApi(apiName, payload) {
+      const call = await gfetch(host, '/call' + apiName, {
+        method: 'POST', headers: { 'Content-Type': 'application/json', ...auth() },
+        body: JSON.stringify({ data: payload }),
+      });
+      if (!call.ok) throw new Error('call HTTP ' + call.status + ': ' + (await call.text()).slice(0, 250));
+      const cj = await call.json();
+      if (!cj.event_id) throw new Error('resposta sem event_id: ' + JSON.stringify(cj).slice(0, 200));
+      log('  event ' + cj.event_id + ' em ' + apiName + '…');
+      const es = await gfetch(host, '/call' + apiName + '/' + cj.event_id, { headers: auth() });
+      return await es.text();
+    }
+    const buildData = (apiName, imgRef) => {
+      const sig2 = epInfo[apiName];
+      if (!sig2 || !sig2.parameters || !sig2.parameters.length) return [imgRef];
+      let used = false;
+      return sig2.parameters.map(prm => {
+        const t = JSON.stringify([prm.component, prm.python_type, prm.label]).toLowerCase();
+        if (!used && /image|filepath|file/.test(t)) { used = true; return imgRef; }
+        return prm.parameter_default !== undefined ? prm.parameter_default : null;
+      });
+    };
+    let text = await callApi(api, data);
     if (/event:\s*error/.test(text)) {
-      const eps = Object.keys(epInfo);
-      throw new Error('o space recusou a chamada (event: error). Endpoints disponíveis: ' +
-        (eps.join(' ') || 'clique em Descobrir APIs') +
-        ' — tenta outro no campo API. Se persistir: cota do dia ou space precisa de 2 etapas.');
+      // Cadeia automática: spaces de 2 etapas (ex: SF3D) processam a imagem
+      // num endpoint e o botão final consome o RESULTADO. Tenta cada outro
+      // endpoint como pré-processador e realimenta o principal.
+      const others = Object.keys(epInfo).filter(e => e !== api);
+      log('endpoint direto falhou; tentando cadeia com: ' + others.join(' '));
+      let ok = false;
+      for (const pre of others) {
+        try {
+          const t1 = await callApi(pre, buildData(pre, fileRef));
+          const img2 = [...t1.matchAll(/"path":\s*"([^"]+?\.(?:png|webp|jpg))"/gi)].map(m => m[1]).pop();
+          if (!img2) { log('  ' + pre + ': sem imagem no retorno, pulando'); continue; }
+          log('  ' + pre + ' devolveu imagem processada; reenviando ao ' + api);
+          const ref2 = { path: img2, meta: { _type: 'gradio.FileData' } };
+          text = await callApi(api, buildData(api, ref2));
+          if (!/event:\s*error/.test(text)) { ok = true; break; }
+          log('  cadeia via ' + pre + ' também falhou');
+        } catch (e2) { log('  ' + pre + ': ' + e2.message.slice(0, 120)); }
+      }
+      if (!ok) throw new Error('todas as tentativas falharam (event: error). Clica em "Descobrir APIs" e me manda o log completo — ou troca o space no seletor. Pode ser cota ZeroGPU do dia: espera algumas horas ou tenta outro space.');
     }
     log('stream recebido (' + text.length + ' bytes)');
     // pega a última URL de arquivo .glb no SSE
