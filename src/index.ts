@@ -125,10 +125,22 @@ try {
 } catch { /* served via static fallback */ }
 
 // Serve static files from public/
-app.use(express.static(publicDir))
+// HTML nunca é cacheado (senão um deploy novo continua servindo a versão antiga
+// do jogo); assets versionados podem ficar no cache do browser.
+app.use(express.static(publicDir, {
+  setHeaders: (res, filePath) => {
+    if (filePath.endsWith('.html')) {
+      res.setHeader('Cache-Control', 'no-store, must-revalidate')
+    } else {
+      res.setHeader('Cache-Control', 'public, max-age=3600, must-revalidate')
+    }
+  },
+}))
 
 // /game → game.html with mobile CSS injection
 app.get('/game', (req, res) => {
+  // sem cache: cada acesso recebe a build mais recente do jogo
+  res.setHeader('Cache-Control', 'no-store, must-revalidate')
   if (gameHtml) return void res.type('html').send(gameHtml)
   res.sendFile(path.join(publicDir, 'game.html'))
 })
