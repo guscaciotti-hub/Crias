@@ -235,16 +235,22 @@ const AMBIENTE = [
    `Elementos: 1 halo de luz quente redondo (amarelo-alaranjado), bem suave, forte no centro e desaparecendo nas bordas — é o brilho de um poste aceso à noite visto de cima.`],
 ];
 
-const T_TILE = (desc) => `Textura SEAMLESS (tileable: repete perfeitamente nas 4 bordas, sem emenda visível) vista DE CIMA, 512×512 pixels, estilo pixel art 16-bit rico e detalhado, iluminação neutra e uniforme, sem sombras direcionais, sem objetos grandes, sem texto, sem marca d'água.
+const T_TILE = (desc) => `Textura SEAMLESS (tileable: repete perfeitamente nas 4 bordas, sem emenda visível) vista DE CIMA, 512×512 pixels.
+Estilo: RENDER 3D ESTILIZADO de jogo moderno (como Pokémon Pokopia / Zelda recente): materiais ricos com relevo e profundidade, cores vibrantes, acabamento polido — NÃO pixel art.
+Iluminação neutra e uniforme, sem sombras direcionais, sem objetos grandes, sem texto, sem marca d'água.
 Textura: ${desc}`;
 
-const T_VEG = (desc) => `${desc}, vista DE CIMA (top-down) com volume: iluminação vinda do canto superior esquerdo e sombras suaves na própria copa — SEM sombra projetada no chão.
-Estilo pixel art 16-bit detalhado. Imagem única, elemento centralizado ocupando ~85% da área.
+const T_VEG = (desc) => `${desc}, vista DE CIMA (top-down) com volume real.
+Estilo: RENDER 3D ESTILIZADO de jogo moderno (como Pokémon Pokopia): formas volumétricas fofas, materiais definidos, cores vibrantes — NÃO pixel art.
+Iluminação vinda do canto superior esquerdo, sombras suaves na própria copa — SEM sombra projetada no chão.
+Imagem única, elemento centralizado ocupando ~85% da área.
 Fundo MAGENTA CHROMA #FF00FF sólido. Sem borda, sem texto, nada tocando as bordas.`;
 
 const T_BLD = (desc, prop) => `${desc}
-Vista TOP-DOWN 3/4 de RPG: telhado dominante visto de cima + fachada frontal estreita visível na parte de baixo (com porta e janelas). Volumétrico, iluminação do canto superior esquerdo, sombras suaves internas — SEM sombra projetada no chão.
-Estilo pixel art 16-bit rico e detalhado, janelas com luz acesa aconchegante.
+Vista TOP-DOWN 3/4 de RPG: telhado dominante visto de cima + fachada frontal estreita visível na parte de baixo (com porta e janelas).
+Estilo: RENDER 3D ESTILIZADO de jogo moderno (como Pokémon Pokopia / Animal Crossing): volumétrico de verdade, materiais ricos (madeira, telha, pedra com relevo), cores vibrantes, acabamento AAA fofo — NÃO pixel art.
+Iluminação do canto superior esquerdo, sombras suaves internas — SEM sombra projetada no chão.
+Janelas com luz acesa aconchegante.
 Proporção da imagem: ${prop} (largura:altura). Fundo MAGENTA CHROMA #FF00FF sólido.
 Sem borda, sem texto, nada tocando as bordas.`;
 
