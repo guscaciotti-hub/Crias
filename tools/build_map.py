@@ -51,6 +51,13 @@ def load_asset(name, chroma_magenta=False):
                 r, g, b, a = px[x, y]
                 if r > 150 and b > 150 and g < r * 0.55 and g < b * 0.55:
                     px[x, y] = (0, 0, 0, 0)
+                elif r > g and b > g and g > 105:
+                    # de-spill: fumaça/vidro claro contaminado de magenta vira
+                    # neutro; flores rosas saturadas (g baixo) ficam intactas
+                    spill = min(r, b) - g
+                    if 0 < spill < 135:
+                        k = 0.9
+                        px[x, y] = (int(r - spill * k), g, int(b - spill * k), a)
     return im
 
 TEX_SCALE = 256  # textura seamless cobre 4x4 tiles — detalhe em escala natural
@@ -128,6 +135,43 @@ path_cells -= water_cells | praca_cells
 canvas = compor_terreno(canvas, tex['caminho'], sorted(path_cells), feather=7)
 canvas = compor_terreno(canvas, tex['praca'], sorted(praca_cells - water_cells), feather=5)
 canvas = compor_terreno(canvas, tex['agua'], sorted(water_cells), feather=4)
+
+# ── molduras de fronteira (leva 2): margens de rio e meio-fio da praça ──
+# Para cada tile do terreno na fronteira, a vizinhança define a peça:
+# reta (1 lado de fora), curva externa (canto de fora), curva interna (quina).
+def moldura_cells(cells):
+    """mapa tile -> nome da orientação, lido da vizinhança"""
+    out = {}
+    inside = cells
+    for (x, y) in inside:
+        n = (x, y - 1) not in inside; s_ = (x, y + 1) not in inside
+        o = (x - 1, y) not in inside; l = (x + 1, y) not in inside
+        if n and o: out[(x, y)] = 'curva-ext-no'
+        elif n and l: out[(x, y)] = 'curva-ext-ne'
+        elif s_ and o: out[(x, y)] = 'curva-ext-so'
+        elif s_ and l: out[(x, y)] = 'curva-ext-se'
+        elif n: out[(x, y)] = 'reta-n'
+        elif s_: out[(x, y)] = 'reta-s'
+        elif o: out[(x, y)] = 'reta-o'
+        elif l: out[(x, y)] = 'reta-l'
+        else:
+            # quinas internas: diagonal de fora com lados de dentro
+            if (x - 1, y - 1) not in inside: out[(x, y)] = 'curva-int-no'
+            elif (x + 1, y - 1) not in inside: out[(x, y)] = 'curva-int-ne'
+            elif (x - 1, y + 1) not in inside: out[(x, y)] = 'curva-int-so'
+            elif (x + 1, y + 1) not in inside: out[(x, y)] = 'curva-int-se'
+    return out
+
+def aplicar_molduras(dest, cells, prefixo):
+    usadas, faltas = 0, set()
+    for (x, y), ori in moldura_cells(cells).items():
+        im = load_asset(f'{prefixo}-{ori}.png', True)
+        if im is None: faltas.add(ori); continue
+        im = im.resize((T, T), Image.LANCZOS)
+        dest.alpha_composite(im, (x * T, y * T))
+        usadas += 1
+    if usadas: print(f'{prefixo}: {usadas} molduras aplicadas')
+    if faltas: print(f'{prefixo}: orientações faltando -> {sorted(faltas)}')
 
 # ── edifícios ───────────────────────────────────────────────────────────
 building_cells = set()
@@ -209,7 +253,10 @@ for (x, y) in veg:
 shadow = shadow.filter(ImageFilter.GaussianBlur(T // 5))
 dark = Image.new('RGBA', (W, H), (12, 18, 10, 255))
 dark.putalpha(shadow.point(lambda v: int(v * 0.55)))
-final = canvas.convert('RGBA')
+final_ground = canvas.convert('RGBA')
+aplicar_molduras(final_ground, water_cells, 'margem')
+aplicar_molduras(final_ground, praca_cells, 'meiofio')
+final = final_ground
 final.alpha_composite(dark)        # sombras entre o chão e os props
 final.alpha_composite(prop_layer)  # edifícios e vegetação por cima
 final.convert('RGB').save(out_path, quality=90, optimize=True)
