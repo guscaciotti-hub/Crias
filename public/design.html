@@ -143,20 +143,7 @@
     Nada disso está desenhado no mapa — é vida gerada pelo jogo por cima dele.
     Continua funcionando quando o mapa for remasterizado.
   </div>
-  <table>
-    <tr><th>Efeito</th><th>Como funciona</th><th>Status</th></tr>
-    <tr><td>☁️ Nuvens</td><td>Sombras que cruzam o chão em ritmos diferentes</td><td><span class="tag t-ok">no ar</span></td></tr>
-    <tr><td>🐦 Pássaros</td><td>Bandos atravessam a tela, com sombra no chão</td><td><span class="tag t-ok">no ar</span></td></tr>
-    <tr><td>💧 Água viva</td><td>Brilhos dançando no rio e na cachoeira</td><td><span class="tag t-ok">no ar</span></td></tr>
-    <tr><td>🍃 Folhas</td><td>Sopram pelo gramado e giram no vento</td><td><span class="tag t-ok">no ar</span></td></tr>
-    <tr><td>✨ Vaga-lumes</td><td>Acendem só ao anoitecer, sobre a grama</td><td><span class="tag t-ok">no ar</span></td></tr>
-    <tr><td>🌧️ Chuva</td><td>Entra e sai sozinha, com ar frio na cena</td><td><span class="tag t-ok">no ar</span></td></tr>
-    <tr><td>🌅 Dia / noite</td><td>Segue o relógio real: jogou à noite, o mundo escurece</td><td><span class="tag t-ok">no ar</span></td></tr>
-    <tr><td>🏮 Postes acesos</td><td>Luz quente piscando nos postes à noite</td><td><span class="tag t-todo">próximo</span></td></tr>
-    <tr><td>🌫️ Névoa</td><td>Bruma baixa perto da água de manhã</td><td><span class="tag t-todo">próximo</span></td></tr>
-    <tr><td>🦋 Borboletas</td><td>Voam perto dos canteiros de flores</td><td><span class="tag t-todo">próximo</span></td></tr>
-    <tr><td>💦 Névoa da cachoeira</td><td>Respingos subindo na base da queda d'água</td><td><span class="tag t-todo">próximo</span></td></tr>
-  </table>
+  <table id="amb"><tr><th>Efeito</th><th>Arquivo</th><th>Status</th><th></th></tr></table>
   <div class="note">
     A posição de cada efeito é lida do próprio mapa: o jogo detecta onde é água e onde é grama
     antes de espalhar brilhos, folhas e vaga-lumes.
@@ -211,6 +198,28 @@ REGRAS ABSOLUTAS (não quebrar nenhuma):
 
 Objetivo: a mesma cidade, no mesmo lugar, com acabamento de jogo AAA.`;
 
+const BASE_AMB = `Sprite sheet para jogo RPG 2D visto DE CIMA (top-down).
+Formato: uma tira horizontal com {N} elementos lado a lado, todos do mesmo tamanho,
+imagem quadrada por célula, FUNDO 100% TRANSPARENTE (PNG com alpha, sem fundo branco,
+sem fundo verde, sem sombra, sem borda, sem texto).
+Estilo: pixel art 16-bit suave, combinando com um mapa de RPG de cidade mágica.
+{DESC}`;
+
+const AMBIENTE = [
+  ['☁️ Nuvens','amb-nuvens.png','ok',4,
+   `Elementos: 4 nuvens brancas DIFERENTES vistas de cima, finas e vaporosas, bem discretas e translúcidas — devem sugerir sombra passando, sem tapar o cenário. Bordas suaves e difusas, sem contorno duro. Formatos alongados e irregulares.`],
+  ['🐦 Pássaros','amb-passaros.png','todo',3,
+   `Elementos: o MESMO pássaro pequeno visto DE CIMA (de costas, olhando para baixo — vê-se o dorso e as asas abertas), em 3 quadros de voo: asas para cima, asas na horizontal, asas para baixo. Silhueta escura azulada, tamanho de gaivota vista de longe, sem detalhes finos.`],
+  ['🦋 Borboletas','amb-borboletas.png','todo',2,
+   `Elementos: a MESMA borboleta pequena vista DE CIMA, em 2 quadros: asas abertas e asas quase fechadas. Cores suaves (azul-claro e branco), brilho leve, bem pequena.`],
+  ['🍃 Folhas','amb-folhas.png','todo',3,
+   `Elementos: 3 folhas soltas diferentes vistas de cima — uma verde, uma amarelada, uma alaranjada. Pequenas, formato simples e legível, leve nervura.`],
+  ['🌫️ Névoa','amb-nevoa.png','todo',2,
+   `Elementos: 2 manchas de névoa branca acinzentada, horizontais, MUITO translúcidas e difusas, sem contorno. Devem parecer bruma baixa pairando sobre o chão.`],
+  ['🏮 Luz de poste','amb-luz.png','todo',1,
+   `Elementos: 1 halo de luz quente redondo (amarelo-alaranjado), bem suave, forte no centro e desaparecendo nas bordas — é o brilho de um poste aceso à noite visto de cima.`],
+];
+
 const CRIAS = [
   ['Ignivar','Fogo','comum','ok','Lobo vulcânico de rocha negra rachada com brasas nas fissuras, juba de fogo laranja'],
   ['Aerix','Ar','comum','todo','Drake aéreo azul-claro esguio, asas membranosas, trilhas de vento ao redor'],
@@ -251,6 +260,17 @@ CRIAS.forEach(([nome, el, rar, st, desc]) => {
   if (st !== 'ok') td.appendChild(mkBtn(P_MON + desc + '.'));
   tr.appendChild(td);
   tb.appendChild(tr);
+});
+
+const tamb = document.getElementById('amb');
+AMBIENTE.forEach(([nome, arq, st, n, desc]) => {
+  const tr = document.createElement('tr');
+  tr.innerHTML = '<td><b>' + nome + '</b></td><td style="font-size:12px;color:var(--dim)">' + arq + '</td>' +
+    '<td>' + (st === 'ok' ? '<span class="tag t-ok">no ar</span>' : '<span class="tag t-todo">falta</span>') + '</td>';
+  const td = document.createElement('td');
+  td.appendChild(mkBtn(BASE_AMB.replace('{N}', n).replace('{DESC}', desc)));
+  tr.appendChild(td);
+  tamb.appendChild(tr);
 });
 
 document.getElementById('mapBtn').appendChild(mkBtn(P_MAPA, '📋 copiar prompt do mapa'));

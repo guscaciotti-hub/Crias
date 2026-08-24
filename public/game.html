@@ -3279,6 +3279,38 @@ function loadImage(src, timeout) {
 // As máscaras de água/grama são lidas do próprio mapa uma vez, então os
 // efeitos caem exatamente sobre rio, cachoeira e gramado do desenho.
 // ============================================================================
+// Sprites do ambiente (strips horizontais de N células). Enquanto o arquivo
+// não existe, o efeito continua desenhado por código como fallback.
+const AMB_SPRITES = {
+  cloud:     { url: '/amb-nuvens.png',     cells: 4, img: null, parts: null },
+  bird:      { url: '/amb-passaros.png',   cells: 3, img: null, parts: null },
+  butterfly: { url: '/amb-borboletas.png', cells: 2, img: null, parts: null },
+  leaf:      { url: '/amb-folhas.png',     cells: 3, img: null, parts: null },
+  mist:      { url: '/amb-nevoa.png',      cells: 2, img: null, parts: null },
+  glow:      { url: '/amb-luz.png',        cells: 1, img: null, parts: null },
+};
+function ambSprite(key, idx) {
+  const sp = AMB_SPRITES[key];
+  if (!sp) return null;
+  if (!sp.img) {
+    sp.img = new Image();
+    sp.img.onload = () => {
+      // fatia o strip em células do mesmo tamanho
+      const w = sp.img.naturalWidth / sp.cells, h = sp.img.naturalHeight;
+      sp.parts = [];
+      for (let i = 0; i < sp.cells; i++) {
+        const c = document.createElement('canvas'); c.width = w; c.height = h;
+        c.getContext('2d').drawImage(sp.img, i * w, 0, w, h, 0, 0, w, h);
+        sp.parts.push(c);
+      }
+    };
+    sp.img.onerror = () => { sp.img = 'fail'; };
+    sp.img.src = sp.url;
+  }
+  if (!sp.parts) return null;
+  return sp.parts[Math.abs(idx | 0) % sp.parts.length];
+}
+
 const AMBIENT = {
   ready: false, water: [], grass: [], MW: 0, MH: 0,
   clouds: [], birds: [], sparks: [], flies: [], leaves: [], drops: [],
@@ -3308,10 +3340,11 @@ const AMBIENT = {
 
   _newCloud(spread) {
     return {
-      x: (spread ? Math.random() : -0.25) * MAP_W_PX * 1.5 - MAP_W_PX * 0.25,
+      x: (spread ? Math.random() * MAP_W_PX * 1.2 : -400) - 200,
       y: Math.random() * MAP_H_PX,
-      w: 260 + Math.random() * 420, h: 130 + Math.random() * 200,
-      v: 5 + Math.random() * 9, a: 0.05 + Math.random() * 0.08,
+      w: 300 + Math.random() * 460, h: 150 + Math.random() * 230,
+      v: 9 + Math.random() * 14, a: 0.16 + Math.random() * 0.16,
+      k: (Math.random() * 4) | 0,
     };
   },
 
@@ -3423,13 +3456,13 @@ const AMBIENT = {
       const r = 1 + a * 2.1;
       ctx.beginPath(); ctx.arc(s.x - camX, s.y - camY, r, 0, 6.283); ctx.fill();
     }
-    // sombra das nuvens
+    // sombra que a nuvem projeta no chão
     ctx.globalAlpha = 1;
     for (const c of this.clouds) {
       const sx = c.x - camX, sy = c.y - camY;
       if (sx + c.w < -50 || sx > cw + 50 || sy + c.h < -50 || sy > ch + 50) continue;
       const g = ctx.createRadialGradient(sx + c.w/2, sy + c.h/2, 10, sx + c.w/2, sy + c.h/2, c.w/2);
-      g.addColorStop(0, `rgba(10,16,32,${c.a})`);
+      g.addColorStop(0, `rgba(10,16,32,${c.a * 0.5})`);
       g.addColorStop(1, 'rgba(10,16,32,0)');
       ctx.fillStyle = g;
       ctx.fillRect(sx, sy, c.w, c.h);
@@ -3441,15 +3474,31 @@ const AMBIENT = {
   drawSky(ctx, camX, camY, cw, ch, now) {
     if (!this.ready) return;
     ctx.save();
+    // nuvens passando por cima (sprite quando existir; senão, névoa suave)
+    for (const c of this.clouds) {
+      const sx = c.x - camX, sy = c.y - camY;
+      if (sx + c.w < -60 || sx > cw + 60 || sy + c.h < -60 || sy > ch + 60) continue;
+      const spr = ambSprite('cloud', c.k);
+      ctx.globalAlpha = c.a;
+      if (spr) ctx.drawImage(spr, sx, sy, c.w, c.h);
+      else {
+        const g = ctx.createRadialGradient(sx + c.w/2, sy + c.h/2, 8, sx + c.w/2, sy + c.h/2, c.w/2);
+        g.addColorStop(0, 'rgba(255,255,255,0.85)');
+        g.addColorStop(1, 'rgba(255,255,255,0)');
+        ctx.fillStyle = g; ctx.fillRect(sx, sy, c.w, c.h);
+      }
+    }
+    ctx.globalAlpha = 1;
     // folhas
     for (const l of this.leaves) {
       const k = 1 - l.t / l.max;
       ctx.globalAlpha = Math.min(1, k * 1.6) * 0.85;
-      ctx.fillStyle = ['#8fbf5a','#c9a227','#d9853b'][(l.ph * 3 | 0) % 3];
       ctx.save();
       ctx.translate(l.x - camX, l.y - camY);
       ctx.rotate(l.t * 3 + l.ph);
-      ctx.fillRect(-2.5, -1.5, 5, 3);
+      const ls = ambSprite('leaf', l.ph * 3);
+      if (ls) ctx.drawImage(ls, -7, -7, 14, 14);
+      else { ctx.fillStyle = ['#8fbf5a','#c9a227','#d9853b'][(l.ph * 3 | 0) % 3]; ctx.fillRect(-2.5, -1.5, 5, 3); }
       ctx.restore();
     }
     // vaga-lumes
@@ -3472,12 +3521,22 @@ const AMBIENT = {
       ctx.globalAlpha = 0.16;
       ctx.fillStyle = '#0a1020';
       ctx.beginPath(); ctx.ellipse(sx + 6, sy + 44, 5 * b.s, 1.6 * b.s, 0, 0, 6.283); ctx.fill();
-      ctx.globalAlpha = 0.82;
-      ctx.strokeStyle = '#20293d'; ctx.lineWidth = 1.6 * b.s; ctx.lineCap = 'round';
-      const w = 6 * b.s, up = flap * 3.4 * b.s;
-      ctx.beginPath();
-      ctx.moveTo(sx - w, sy - up); ctx.quadraticCurveTo(sx, sy + 1.5 * b.s, sx + w, sy - up);
-      ctx.stroke();
+      ctx.globalAlpha = 0.92;
+      const bs = ambSprite('bird', (now / 120 + b.ph * 3) | 0);
+      if (bs) {
+        const bw = 26 * b.s, bh = 26 * b.s;
+        ctx.save();
+        ctx.translate(sx, sy);
+        if (b.v < 0) ctx.scale(-1, 1);          // vira para o lado do voo
+        ctx.drawImage(bs, -bw/2, -bh/2, bw, bh);
+        ctx.restore();
+      } else {
+        ctx.strokeStyle = '#20293d'; ctx.lineWidth = 1.6 * b.s; ctx.lineCap = 'round';
+        const w = 6 * b.s, up = flap * 3.4 * b.s;
+        ctx.beginPath();
+        ctx.moveTo(sx - w, sy - up); ctx.quadraticCurveTo(sx, sy + 1.5 * b.s, sx + w, sy - up);
+        ctx.stroke();
+      }
     }
     // chuva
     if (this.weather === 'rain') {
