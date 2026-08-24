@@ -53,18 +53,26 @@ def load_asset(name, chroma_magenta=False):
                     px[x, y] = (0, 0, 0, 0)
     return im
 
-def tile_fill(canvas, tex, cells, jitter=True):
-    """pinta células com textura seamless (offset por célula p/ variação)"""
-    if tex:
-        tw = tex.width
-        for (x, y) in cells:
-            ox = (h2(x, y, 1) % tw) if jitter else 0
-            oy = (h2(x, y, 2) % tw) if jitter else 0
-            reg = Image.new('RGBA', (T, T))
-            for yy in range(-tw, T + tw, tw):
-                for xx in range(-tw, T + tw, tw):
-                    reg.paste(tex, (xx - ox % tw, yy - oy % tw))
-            canvas.paste(reg.convert('RGB'), (x * T, y * T))
+TEX_SCALE = 256  # textura seamless cobre 4x4 tiles — detalhe em escala natural
+
+def pano(tex):
+    """pano contínuo do mapa inteiro com a textura repetida (sem emendas)"""
+    t = tex.convert('RGB').resize((TEX_SCALE, TEX_SCALE), Image.LANCZOS)
+    p = Image.new('RGB', (W, H))
+    for y in range(0, H, TEX_SCALE):
+        for x in range(0, W, TEX_SCALE):
+            p.paste(t, (x, y))
+    return p
+
+def compor_terreno(base, tex, cells, feather=6):
+    """compõe o pano da textura sobre a base via máscara suavizada das células"""
+    if not tex or not cells: return base
+    mask = Image.new('L', (W, H), 0)
+    d = ImageDraw.Draw(mask)
+    for (x, y) in cells:
+        d.rectangle([x * T, y * T, x * T + T, y * T + T], fill=255)
+    mask = mask.filter(ImageFilter.GaussianBlur(feather))
+    return Image.composite(pano(tex), base, mask)
 
 def placeholder_tex(color, noise=18):
     im = Image.new('RGB', (128, 128), color)
@@ -90,9 +98,7 @@ props = {
     'pedra':   load_asset('prop-pedra.png', True),
 }
 
-canvas = Image.new('RGB', (W, H), (74, 128, 60))
-all_cells = [(x, y) for y in range(N) for x in range(N)]
-tile_fill(canvas, tex['grama'], all_cells)
+canvas = pano(tex['grama']) if tex['grama'] else Image.new('RGB', (W, H), (74, 128, 60))
 
 # máscaras de terreno
 water_cells, praca_cells, path_cells = set(), set(), set()
@@ -113,9 +119,9 @@ for c in layout['caminhos']:
                 cx_, cy_ = int(fx + dx), int(fy + dy)
                 if 0 <= cx_ < N and 0 <= cy_ < N: path_cells.add((cx_, cy_))
 path_cells -= water_cells | praca_cells
-tile_fill(canvas, tex['caminho'], sorted(path_cells))
-tile_fill(canvas, tex['praca'], sorted(praca_cells))
-tile_fill(canvas, tex['agua'], sorted(water_cells))
+canvas = compor_terreno(canvas, tex['caminho'], sorted(path_cells), feather=7)
+canvas = compor_terreno(canvas, tex['praca'], sorted(praca_cells - water_cells), feather=5)
+canvas = compor_terreno(canvas, tex['agua'], sorted(water_cells), feather=4)
 
 # ── edifícios ───────────────────────────────────────────────────────────
 building_cells = set()
