@@ -46,7 +46,7 @@
 <div class="card">
   <table>
     <tr><th>Grupo</th><th>Pendências</th><th>Onde estão os prompts</th></tr>
-    <tr><td>🗺️ <b>Mapa</b></td><td>14 peças geradas <b>aguardando upload</b> + 7 novas (penhasco, cerca, poste, pedra, arbusto, canteiro — seção 8)</td><td>Seção 8</td></tr>
+    <tr><td>🗺️ <b>Mapa</b></td><td>✅ 14 recebidas e montadas · <b>Leva 2:</b> 12 margens de rio + 12 meios-fios da praça + 3 detalhes de chão + ponte, cachoeira, poste, cercas, arbusto, canteiro, adornos</td><td>Seção 8</td></tr>
     <tr><td>🐺 <b>Crias</b></td><td>11 de 12 (só o Ignivar está pronto)</td><td>Seção 3</td></tr>
     <tr><td>🌤️ <b>Ambiente</b></td><td>6 sprites (nuvens, pássaros, borboletas, folhas, névoa, luz) — <b>nuvem.png não chegou no GitHub</b>, re-sobe</td><td>Seção 10</td></tr>
     <tr><td>🧍 <b>Personagem</b></td><td>char1 v2 com sentado em 4 direções (opcional, o atual funciona)</td><td>Seção 7</td></tr>
@@ -289,6 +289,37 @@ const REFS = [
   ['🌺 Canteiro', 'ref-casa-marrom.png', 'prop-canteiro.png', 'Recrie UM canteiro de flores no estilo dos da imagem, isolado.', 2],
 ];
 
+// LEVA 2 — molduras de fronteira: faixas decorativas COM TRANSPARÊNCIA que o
+// compositor desenha POR CIMA do encontro de dois terrenos (por isso nunca há
+// emenda). Cada orientação é uma peça própria — nada de girar.
+const ORIENT = [
+  ['reta-n',  'faixa HORIZONTAL no TOPO da imagem (a água/praça fica ACIMA da faixa)'],
+  ['reta-s',  'faixa HORIZONTAL na BASE da imagem (a água/praça fica ABAIXO da faixa)'],
+  ['reta-o',  'faixa VERTICAL na ESQUERDA da imagem (a água/praça fica À ESQUERDA)'],
+  ['reta-l',  'faixa VERTICAL na DIREITA da imagem (a água/praça fica À DIREITA)'],
+  ['curva-ext-no', 'curva de 90° no canto SUPERIOR-ESQUERDO (a água/praça ocupa o canto superior esquerdo)'],
+  ['curva-ext-ne', 'curva de 90° no canto SUPERIOR-DIREITO (a água/praça ocupa o canto superior direito)'],
+  ['curva-ext-so', 'curva de 90° no canto INFERIOR-ESQUERDO (a água/praça ocupa o canto inferior esquerdo)'],
+  ['curva-ext-se', 'curva de 90° no canto INFERIOR-DIREITO (a água/praça ocupa o canto inferior direito)'],
+  ['curva-int-no', 'quina INTERNA de 90°: a água/praça ocupa TUDO exceto o canto superior esquerdo'],
+  ['curva-int-ne', 'quina INTERNA de 90°: a água/praça ocupa TUDO exceto o canto superior direito'],
+  ['curva-int-so', 'quina INTERNA de 90°: a água/praça ocupa TUDO exceto o canto inferior esquerdo'],
+  ['curva-int-se', 'quina INTERNA de 90°: a água/praça ocupa TUDO exceto o canto inferior direito'],
+];
+const T_MARGEM = (o) => `Crie uma MOLDURA DE MARGEM DE RIO para tileset de RPG: apenas a faixa decorativa da beira d'água — pedras arredondadas, pedrinhas, um pouco de areia úmida e espuma sutil — em ${o[1]}.
+IMPORTANTE: a imagem é SÓ a faixa decorativa. Todo o resto (os dois lados da faixa) deve ser MAGENTA CHROMA #FF00FF puro, porque a faixa será sobreposta às texturas do jogo.
+Largura da faixa: ~20% da imagem. Imagem quadrada 512×512.
+Estilo: render 3D estilizado vibrante, vista de cima, iluminação do canto superior esquerdo. Use a imagem anexada como referência do estilo das margens. Sem texto, sem grade.`;
+const T_MEIOFIO = (o) => `Crie um MEIO-FIO DE PRAÇA para tileset de RPG: apenas a faixa de borda onde o piso de pedra da praça encontra a grama — pedras de acabamento lavradas, levemente elevadas — em ${o[1]}.
+IMPORTANTE: a imagem é SÓ a faixa de meio-fio. Todo o resto deve ser MAGENTA CHROMA #FF00FF puro (a faixa será sobreposta às texturas do jogo).
+Largura da faixa: ~14% da imagem. Imagem quadrada 512×512.
+Estilo: render 3D estilizado, vista de cima, iluminação do canto superior esquerdo, combinando com piso de praça de pedra clara. Sem texto, sem grade.`;
+ORIENT.forEach(o => REFS.push(['🌊 Margem ' + o[0], 'ref-rio-margem.png', 'margem-' + o[0] + '.png', null, 2, T_MARGEM(o)]));
+ORIENT.forEach(o => REFS.push(['⬜ Meio-fio ' + o[0], 'ref-praca-detalhes.png', 'meiofio-' + o[0] + '.png', null, 2, T_MEIOFIO(o)]));
+REFS.push(['🌱 Tufo de grama', 'ref-casa-marrom.png', 'det-tufo.png', 'Crie um pequeno TUFO de grama alta isolado, para espalhar pelo gramado.', 2]);
+REFS.push(['🌼 Flores soltas', 'ref-casa-marrom.png', 'det-flores.png', 'Crie um pequeno grupo de flores silvestres brancas e amarelas, isolado.', 2]);
+REFS.push(['🪨 Pedrinhas', 'ref-rio-margem.png', 'det-pedrinhas.png', 'Crie um pequeno grupo de 3-4 pedrinhas, isolado.', 2]);
+
 const CRIAS = [
   ['Ignivar','Fogo','comum','ok','Lobo vulcânico de rocha negra rachada com brasas nas fissuras, juba de fogo laranja'],
   ['Aerix','Ar','comum','todo','Drake aéreo azul-claro esguio, asas membranosas, trilhas de vento ao redor'],
@@ -343,14 +374,14 @@ AMBIENTE.forEach(([nome, arq, st, n, desc]) => {
 });
 
 const trefs = document.getElementById('refs');
-REFS.forEach(([nome, ref, out, hint, fase]) => {
+REFS.forEach(([nome, ref, out, hint, fase, promptCustom]) => {
   const tr = document.createElement('tr');
   tr.innerHTML = '<td><b>' + nome + '</b>' + (fase === 2 ? ' <span class="tag t-todo">fase 2</span>' : '') + '</td>' +
     '<td><a href="/map-ref/' + ref + '" download><button class="ghost">⬇ ref</button></a></td>' +
     '<td style="font-size:11px;color:var(--dim)">' + out + '</td>' +
     '<td class="rst"><span class="tag t-todo">falta</span></td>';
   const td = document.createElement('td');
-  td.appendChild(mkBtn(T_FIEL(hint)));
+  td.appendChild(mkBtn(promptCustom || T_FIEL(hint)));
   tr.appendChild(td);
   trefs.appendChild(tr);
   fetch('/map-kit/' + out, { method: 'HEAD' }).then(r => {

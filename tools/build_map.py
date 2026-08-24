@@ -91,11 +91,14 @@ tex = {
     'praca':  load_asset('tile-praca.png')  or placeholder_tex((148, 148, 158), 10),
     'agua':   load_asset('tile-agua.png')   or placeholder_tex((38, 84, 160), 14),
 }
+def _shrink(im, mx=320):
+    if im and max(im.size) > mx: im.thumbnail((mx, mx), Image.LANCZOS)
+    return im
 props = {
-    'arvore1': load_asset('prop-arvore-1.png', True),
-    'arvore2': load_asset('prop-arvore-2.png', True),
-    'pinheiro':load_asset('prop-pinheiro.png', True),
-    'pedra':   load_asset('prop-pedra.png', True),
+    'arvore1': _shrink(load_asset('prop-arvore-1.png', True)),
+    'arvore2': _shrink(load_asset('prop-arvore-2.png', True)),
+    'pinheiro':_shrink(load_asset('prop-pinheiro.png', True)),
+    'pedra':   _shrink(load_asset('prop-pedra.png', True)),
 }
 
 _rp = os.path.join(ROOT, 'public', 'mapa-atual.jpg')
@@ -171,9 +174,10 @@ for (x, y) in veg:
     cx_, cy_ = x * T + T // 2, y * T + T
     sd.ellipse([cx_ - T*0.55, cy_ - T*0.28, cx_ + T*0.55, cy_ + T*0.10], fill=70)
     if im:
-        s = T * (1.55 if kind != 'pedra' else 1.0)
+        var = 0.85 + (h2(x, y, 4) % 100) / 100 * 0.5   # 0.85..1.35 de variação
+        s = T * (1.9 if kind in ('arvore1', 'arvore2') else 1.7 if kind == 'pinheiro' else 1.05) * var
         w2 = int(s); h2_ = int(s * im.height / im.width)
-        canvas_rgba.alpha_composite(im.resize((w2, h2_), Image.LANCZOS), (cx_ - w2 // 2, cy_ - h2_))
+        canvas_rgba.alpha_composite(im.resize((w2, h2_), Image.LANCZOS), (cx_ - w2 // 2, cy_ + T // 3 - h2_))
     else:
         d = ImageDraw.Draw(canvas_rgba)
         rad = int(T * (0.74 if kind != 'pedra' else 0.42))
