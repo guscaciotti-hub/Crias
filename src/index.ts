@@ -151,6 +151,12 @@ app.get('/forge', (req, res) => {
   res.sendFile(path.join(publicDir, 'forge.html'))
 })
 
+// /design → database oficial do jogo (mecânica, crias, orbes, masmorra)
+app.get('/design', (req, res) => {
+  res.setHeader('Cache-Control', 'no-store, must-revalidate')
+  res.sendFile(path.join(publicDir, 'design.html'))
+})
+
 // /prompts → lista de prompts prontos (copiar e colar no ChatGPT)
 app.get('/prompts', (req, res) => {
   res.setHeader('Cache-Control', 'no-store, must-revalidate')

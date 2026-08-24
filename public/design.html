@@ -1,0 +1,190 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>CRIAS — Database Oficial</title>
+<style>
+  :root { --bg:#0a0e1a; --card:#131a2e; --line:#243250; --txt:#dce6f5; --dim:#8ab0dd; --acc:#4dc3ff;
+          --gold:#ffd700; --ok:#3ddc84; --warn:#ffa94d; --cut:#ff6b6b; }
+  * { box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
+  body { margin:0; background:var(--bg); color:var(--txt); font:15px/1.6 system-ui,sans-serif; padding:16px 14px 70px; max-width:900px; margin:0 auto; }
+  h1 { font-size:22px; margin:0 0 2px; } h1 span { color:var(--acc); }
+  .sub { color:var(--dim); font-size:13px; margin-bottom:6px; }
+  .ver { color:var(--dim); font-size:11px; margin-bottom:20px; }
+  h2 { font-size:12px; color:var(--acc); text-transform:uppercase; letter-spacing:.1em;
+       margin:30px 0 12px; padding-bottom:7px; border-bottom:1px solid var(--line); }
+  .card { background:var(--card); border:1px solid var(--line); border-radius:12px; padding:14px; margin-bottom:12px; }
+  .loop { font-size:14px; line-height:2.1; }
+  .loop b { color:var(--acc); }
+  .arrow { color:var(--dim); margin:0 5px; }
+  table { width:100%; border-collapse:collapse; font-size:13px; }
+  th { text-align:left; color:var(--dim); font-size:11px; text-transform:uppercase; letter-spacing:.06em; padding:6px 8px; border-bottom:1px solid var(--line); }
+  td { padding:9px 8px; border-bottom:1px solid rgba(255,255,255,.05); vertical-align:middle; }
+  .r-comum { color:#a8b8cc; } .r-raro { color:#4dc3ff; } .r-lend { color:var(--gold); }
+  .tag { font-size:10px; padding:2px 7px; border-radius:20px; white-space:nowrap; font-weight:700; }
+  .t-ok { background:rgba(61,220,132,.15); color:var(--ok); }
+  .t-todo { background:rgba(255,169,77,.15); color:var(--warn); }
+  .t-cut { background:rgba(255,107,107,.15); color:var(--cut); }
+  button { background:var(--acc); border:0; color:#04121f; border-radius:8px; padding:8px 12px;
+           font-size:12px; font-weight:800; cursor:pointer; white-space:nowrap; }
+  button.done { background:var(--ok); }
+  button.ghost { background:transparent; border:1px solid var(--line); color:var(--dim); }
+  .cut-item { color:var(--dim); font-size:13px; padding:7px 0; border-bottom:1px solid rgba(255,255,255,.05); }
+  .cut-item b { color:var(--cut); }
+  .note { font-size:12px; color:var(--dim); margin-top:8px; }
+  .q { background:rgba(77,195,255,.08); border-left:3px solid var(--acc); padding:10px 12px; border-radius:0 8px 8px 0; font-size:13px; margin-top:10px; }
+  ol { padding-left:20px; } li { margin:5px 0; }
+</style>
+</head>
+<body>
+<h1>CRIAS — <span>Database Oficial</span></h1>
+<div class="sub">Fonte única de verdade do MVP. Tudo que não está aqui, não entra no lançamento.</div>
+<div class="ver">v1 · sistema de masmorras · sem captura</div>
+
+<h2>1 · Loop principal</h2>
+<div class="card loop">
+  <b>Loga</b> <span class="arrow">→</span> <b>Ganha Orbe</b> <span class="arrow">→</span> <b>Invoca Cria</b>
+  <span class="arrow">→</span> <b>Masmorra</b> <span class="arrow">→</span> <b>Fragmentos</b>
+  <span class="arrow">→</span> <b>Troca por Orbe</b> <span class="arrow">→</span> <span style="color:var(--dim)">volta ao início, mais forte</span>
+  <div class="note">O jogador anda livre pelo mundo, mas o progresso acontece na masmorra. Sem captura: crias vêm de orbes.</div>
+</div>
+
+<h2>2 · Orbes (3 níveis)</h2>
+<div class="card">
+  <table>
+    <tr><th>Orbe</th><th>Custo</th><th>Entrega</th></tr>
+    <tr><td class="r-comum">🔵 Comum</td><td>30 frag</td><td>Cria Comum (85%) ou Rara (15%)</td></tr>
+    <tr><td class="r-raro">🟣 Raro</td><td>90 frag</td><td>Cria Rara (80%) ou Lendária (20%)</td></tr>
+    <tr><td class="r-lend">🟡 Lendário</td><td>250 frag</td><td>Cria Lendária garantida</td></tr>
+  </table>
+  <div class="note">Fragmentos vêm só da masmorra. O NPC troca fragmentos por orbes — não vende mais nada.</div>
+</div>
+
+<h2>3 · Crias do MVP (12)</h2>
+<div class="card">
+  <table id="mons"><tr><th>Cria</th><th>Elemento</th><th>Raridade</th><th>Arte</th><th></th></tr></table>
+  <div class="note">6 comuns · 4 raras · 2 lendárias. Cada uma precisa de 1 imagem (botão copia o prompt pronto).</div>
+</div>
+
+<h2>4 · Masmorra</h2>
+<div class="card">
+  <table>
+    <tr><th>Sala</th><th>Inimigos</th><th>Nível</th><th>Fragmentos</th></tr>
+    <tr><td>1</td><td>2 crias comuns</td><td>1–3</td><td>5</td></tr>
+    <tr><td>2</td><td>2 crias comuns</td><td>3–5</td><td>8</td></tr>
+    <tr><td>3</td><td>3 crias (1 rara)</td><td>5–8</td><td>12</td></tr>
+    <tr><td>4</td><td>3 crias (2 raras)</td><td>8–12</td><td>18</td></tr>
+    <tr><td>5</td><td>👑 Chefe</td><td>15</td><td>40 + Orbe Raro</td></tr>
+  </table>
+  <div class="note">Zerou a masmorra da Cidade 1 → abre o portal. Salas dão XP e fortalecem a cria a cada avanço.</div>
+</div>
+
+<h2>5 · Mundo</h2>
+<div class="card">
+  <table>
+    <tr><th>Local</th><th>O que tem</th></tr>
+    <tr><td><b>Cidade 1</b> (Nexus)</td><td>Guia · NPC Masmorra · NPC Troca · NPC PvP</td></tr>
+    <tr><td><b>Caverna</b></td><td>Passagem: entrou de um lado, sai na Cidade 2</td></tr>
+    <tr><td><b>Cidade 2</b></td><td>Desbloqueada ao zerar a masmorra 1 (conteúdo pós-MVP)</td></tr>
+  </table>
+</div>
+
+<h2>6 · NPCs</h2>
+<div class="card">
+  <table>
+    <tr><th>NPC</th><th>Função</th></tr>
+    <tr><td>🧙 <b>Guia</b></td><td>Explica o jogo. Entrega o primeiro orbe.</td></tr>
+    <tr><td>🚪 <b>Masmorra</b></td><td>Entrada das salas. Coração do jogo.</td></tr>
+    <tr><td>🔄 <b>Troca</b></td><td>Fragmentos → Orbes. Só isso.</td></tr>
+    <tr><td>⚔️ <b>PvP</b></td><td>Arena contra outros treinadores.</td></tr>
+  </table>
+</div>
+
+<h2>7 · Personagem oficial</h2>
+<div class="card">
+  <table>
+    <tr><th>ID</th><th>Status</th><th></th></tr>
+    <tr id="charRow"><td><b>char1</b> — o oficial</td><td><span class="tag t-todo">falta gerar</span></td><td></td></tr>
+  </table>
+  <div class="note">char2 · char3 · char4 · char5 → serão apagados quando o char1 entrar.</div>
+</div>
+
+<h2>8 · Fora do MVP</h2>
+<div class="card">
+  <div class="cut-item"><b>✕ Captura de crias</b> — copiava o PvP e inchava o escopo. Crias vêm de orbes.</div>
+  <div class="cut-item"><b>✕ Loja de itens</b> — vira só troca de fragmentos.</div>
+  <div class="cut-item"><b>✕ Encontros aleatórios no mundo</b> — batalha acontece na masmorra.</div>
+  <div class="cut-item"><b>✕ Mapa de passeio 3D</b> — depende de gerador de mapas; fica pós-MVP.</div>
+</div>
+
+<h2>9 · A decidir</h2>
+<div class="card">
+  <div class="q"><b>Chefe da masmorra:</b> uma cria lendária (Drakon) ou um monstro exclusivo de chefe?</div>
+  <div class="q"><b>Orbe diário:</b> o jogador ganha 1 orbe comum por dia ao logar? (é o gancho de retorno)</div>
+  <div class="q"><b>Limite de crias:</b> quantas o jogador pode ter ao mesmo tempo? (hoje: 6)</div>
+</div>
+
+<script>
+const P_MON = `Arte de criatura para jogo RPG estilo Pokémon, pixel art 16-bit detalhado e vibrante.
+Pose de batalha de corpo inteiro, vista 3/4, encarando levemente para a direita, centralizada.
+Fundo VERDE CHROMA #00FF00 sólido. Sem sombra no chão, sem borda, sem texto.
+A criatura ocupa ~80% da altura e nada (nem efeitos) toca as bordas.
+Criatura: `;
+
+const P_CHAR = `Spritesheet única, grade FIXA de 4 colunas × 3 linhas (12 células iguais).
+Cada célula: 256×256px (total 1024×768). Fundo VERDE CHROMA #00FF00 sólido.
+Personagem SEMPRE do mesmo tamanho, centralizado, pés na mesma altura em todas as células.
+Ordem: linha 1 = frente (parado, passo esquerdo, passo direito, extra) | linha 2 = costas (mesma ordem)
+| linha 3 = perfil esquerdo parado, perfil esquerdo andando, SENTADO no chão, perfil direito parado.
+Sem sombra no chão, sem borda, sem texto. Pixel art 16-bit detalhado.
+Personagem: jovem treinador de Crias, jaqueta escura com detalhes azuis brilhantes,
+calça resistente, botas de viagem, cabelo castanho bagunçado, expressão confiante.`;
+
+const CRIAS = [
+  ['Ignivar','Fogo','comum','ok','Lobo vulcânico de rocha negra rachada com brasas nas fissuras, juba de fogo laranja'],
+  ['Aerix','Ar','comum','todo','Drake aéreo azul-claro esguio, asas membranosas, trilhas de vento ao redor'],
+  ['Terron','Terra','comum','todo','Golem de pedra marrom, musgo nas juntas, punhos enormes, runas antigas'],
+  ['Florax','Natureza','comum','todo','Guardião de vinhas e madeira viva, folhas brotando, olhos verdes brilhantes'],
+  ['Toxyl','Veneno','comum','todo','Serpente verde-lima de escamas brilhantes, gotas de veneno, presas grandes'],
+  ['Aquafy','Água','comum','todo','Espírito aquático translúcido azul que brilha por dentro, formas fluidas'],
+  ['Voltalon','Elétrico','raro','todo','Falcão dourado com penas crepitando raios, olhos brancos brilhantes'],
+  ['Glacius','Gelo','raro','todo','Espírito de cristal azul-claro com vapor gelado saindo, presas de gelo'],
+  ['Ferrus','Metal','raro','todo','Golem de ferro cinza, placas de armadura, engrenagens visíveis, núcleo brilhante'],
+  ['Psychon','Psíquico','raro','todo','Ser etéreo rosa-magenta flutuante, orbes de energia mental orbitando'],
+  ['Drakon','Fogo','lend','todo','Dragão primordial laranja de escamas de lava, chifres grandes, fogo saindo da boca, imponente'],
+  ['Luminos','Luz','lend','todo','Guardião radiante dourado, halo de luz, asas de energia brilhante'],
+];
+
+const RLBL = { comum:['Comum','r-comum'], raro:['Raro','r-raro'], lend:['Lendário','r-lend'] };
+
+function mkBtn(texto, label) {
+  const b = document.createElement('button');
+  b.textContent = label || 'Copiar';
+  b.onclick = () => {
+    navigator.clipboard.writeText(texto);
+    const o = b.textContent;
+    b.textContent = '✓'; b.classList.add('done');
+    setTimeout(() => { b.textContent = o; b.classList.remove('done'); }, 1800);
+  };
+  return b;
+}
+
+const tb = document.getElementById('mons');
+CRIAS.forEach(([nome, el, rar, st, desc]) => {
+  const tr = document.createElement('tr');
+  const [rl, rc] = RLBL[rar];
+  tr.innerHTML = '<td><b>' + nome + '</b></td><td>' + el + '</td>' +
+    '<td class="' + rc + '">' + rl + '</td>' +
+    '<td>' + (st === 'ok' ? '<span class="tag t-ok">pronta</span>' : '<span class="tag t-todo">falta</span>') + '</td>';
+  const td = document.createElement('td');
+  if (st !== 'ok') td.appendChild(mkBtn(P_MON + desc + '.'));
+  tr.appendChild(td);
+  tb.appendChild(tr);
+});
+
+const cr = document.getElementById('charRow');
+cr.lastElementChild.appendChild(mkBtn(P_CHAR, 'Copiar prompt'));
+</script>
+</body>
+</html>
