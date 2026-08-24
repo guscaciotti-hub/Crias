@@ -56,6 +56,10 @@
 
   <div class="card">
     <h2>2 · Imagem</h2>
+    <div class="row" style="margin-bottom:10px;">
+      <label style="margin:0;"><input type="radio" name="tipo" value="monstro" checked> 🐺 Monstro</label>
+      <label style="margin:0;"><input type="radio" name="tipo" value="personagem"> 🧍 Personagem</label>
+    </div>
     <div id="drop">solta a imagem aqui (fundo verde ou qualquer fundo)<br><small>ou clica pra escolher</small></div>
     <input type="file" id="file" accept="image/*" style="display:none">
     <label><input type="checkbox" id="chroma" checked> remover fundo verde chroma (#00FF00)</label>
@@ -67,17 +71,10 @@
   </div>
 
   <div class="card" style="grid-column:1/-1;">
-    <h2>Personagem (spritesheet) — fluxo separado</h2>
-    <div class="sub">Personagens NÃO passam pelo 3D: são sheets 4×3 gerados no ChatGPT.
-    Copia o prompt, troca a descrição, gera, sobe o PNG no GitHub e avisa o Claude ("processa char6") — o pipeline corta, limpa e integra sozinho.</div>
-    <div class="snippet" id="charPrompt">Spritesheet única, grade FIXA de 4 colunas × 3 linhas (12 células iguais).
-Cada célula: 256×256px (total 1024×768). Fundo verde chroma #00FF00 sólido.
-Personagem SEMPRE do mesmo tamanho, centralizado, pés na mesma altura em todas as células.
-Ordem: linha 1 = frente (parado, passo A, passo B, extra) | linha 2 = costas (mesma ordem)
-| linha 3 = perfil esq. parado, perfil esq. andando, SENTADO, perfil direito parado.
-Sem sombra no chão, sem borda, sem texto. Estilo pixel art 16-bit detalhado.
-Personagem: [DESCREVA AQUI — ex: treinadora ruiva com jaqueta azul e mochila]</div>
-    <button class="ghost" onclick="navigator.clipboard.writeText(document.getElementById('charPrompt').textContent);this.textContent='✅ copiado!'">📋 copiar prompt de personagem</button>
+    <h2>Prompt para o ChatGPT (muda com o seletor acima)</h2>
+    <div class="sub">Copia, troca só a última linha (a descrição) e gera a imagem no GPT. Depois solta a imagem aqui em cima e clica Gerar.</div>
+    <div class="snippet" id="promptBox"></div>
+    <button class="ghost" id="btnCopyPrompt">📋 copiar prompt</button>
   </div>
 
   <div class="card" style="grid-column:1/-1;">
@@ -117,6 +114,44 @@ async function gfetch(host, path, opts) {
 }
 
 let cleanBlob = null, glbBlob = null;
+
+// ---- prompts 3D por tipo (as regras técnicas maximizam a qualidade do image-to-3D) ----
+const PROMPTS = {
+  monstro: `Criatura para jogo RPG de coleta de monstros, em estilo de render 3D estilizado
+(como os renders oficiais de Pokémon): volumétrica, materiais bem definidos,
+cores vibrantes e saturadas, fofo-mas-poderoso.
+Pose NEUTRA de corpo inteiro, em pé, vista frontal com leve ângulo 3/4,
+membros visíveis e SEPARADOS do corpo (nada cruzado ou sobreposto), silhueta clara.
+Iluminação SUAVE e uniforme, sem sombras duras, SEM sombra no chão.
+Fundo VERDE CHROMA #00FF00 sólido. Sem borda, sem texto, sem marca d'água.
+A criatura ocupa ~80% da altura, centralizada, e NENHUMA parte (nem chamas/efeitos)
+toca as bordas da imagem.
+Criatura: [DESCREVA AQUI — ex: falcão elétrico dourado com raios crepitando nas asas]`,
+  personagem: `Personagem humano para jogo RPG, em estilo de render 3D estilizado
+(proporções heroicas levemente estilizadas, cabeça um pouco maior, estilo Pokémon/Zelda).
+Corpo inteiro, em pé, POSE-A relaxada: braços levemente AFASTADOS do corpo,
+pernas ligeiramente separadas, vista frontal com leve 3/4, mãos visíveis, silhueta clara.
+Iluminação SUAVE e uniforme, sem sombras duras, SEM sombra no chão.
+Fundo VERDE CHROMA #00FF00 sólido. Sem borda, sem texto, sem marca d'água.
+O personagem ocupa ~85% da altura, centralizado, sem nenhuma parte (nem capa/cabelo)
+tocando as bordas da imagem.
+Personagem: [DESCREVA AQUI — ex: treinadora ruiva de jaqueta azul com mochila e luvas]`,
+};
+const tipoSel = () => document.querySelector('input[name=tipo]:checked').value;
+function refreshPrompt() {
+  $('promptBox').textContent = PROMPTS[tipoSel()];
+  const b = $('btnCopyPrompt'); if (b) b.textContent = '📋 copiar prompt de ' + tipoSel();
+}
+document.querySelectorAll('input[name=tipo]').forEach(r => r.addEventListener('change', refreshPrompt));
+document.addEventListener('DOMContentLoaded', refreshPrompt);
+setTimeout(refreshPrompt, 0);
+document.addEventListener('click', e => {
+  if (e.target.id === 'btnCopyPrompt') {
+    navigator.clipboard.writeText(PROMPTS[tipoSel()]);
+    e.target.textContent = '✅ copiado!';
+    setTimeout(refreshPrompt, 1500);
+  }
+});
 
 // ---- imagem + chroma (mesma lógica do pipeline do jogo) ----
 $('drop').onclick = () => $('file').click();
@@ -209,8 +244,10 @@ $('btnGen').onclick = async () => {
     const local = URL.createObjectURL(glbBlob);
     $('mv').src = local;
     $('btnGlb').disabled = false;
-    const sp = ($('sp').value || 'monstro').toLowerCase();
-    $('snip').textContent = sp + ": { url: '/" + sp + ".glb', center: 200, sway: 12 },";
+    const sp = ($('sp').value || 'asset').toLowerCase();
+    $('snip').textContent = tipoSel() === 'monstro'
+      ? sp + ": { url: '/" + sp + ".glb', center: 200, sway: 12 },"
+      : '// personagem 3D: suba ' + sp + '.glb no GitHub e avise o Claude — ele gera as vistas e integra no jogo';
     log('✅ pronto! confere o modelo acima (gira com o mouse pra achar o melhor ângulo)');
   } catch (e) {
     log('ERRO: ' + e.message);
