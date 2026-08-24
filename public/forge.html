@@ -42,11 +42,17 @@
     <input type="password" id="tok" placeholder="hf_...">
     <label>Space gerador</label>
     <select id="space">
+      <option value="custom">🔗 Meu motor (Colab) — recomendado</option>
       <option value="stabilityai/stable-fast-3d">stabilityai/stable-fast-3d</option>
       <option value="VAST-AI/TripoSR">VAST-AI/TripoSR</option>
       <option value="TencentARC/InstantMesh">TencentARC/InstantMesh</option>
       <option value="JeffreyXiang/TRELLIS">JeffreyXiang/TRELLIS</option>
     </select>
+    <div id="customBox">
+      <label>URL do motor (aparece no final do Colab, ex: https://abc123.gradio.live)</label>
+      <input type="text" id="customUrl" placeholder="https://xxxxx.gradio.live">
+      <div class="sub" style="margin-top:4px;">Liga o motor 1x por sessão: <a href="https://colab.research.google.com/github/guscaciotti-hub/Crias/blob/claude/crias-rpg-dev-Aj0Fd/tools/forge_colab.ipynb" target="_blank">abrir Colab</a> → Executar tudo → copiar o link .gradio.live</div>
+    </div>
     <div class="row">
       <button class="ghost" id="btnInfo">🔎 Descobrir APIs do space</button>
       <label style="margin:10px 0 0;">API: <input type="text" id="api" value="/run_button" style="width:160px;display:inline-block;"></label>
@@ -102,11 +108,27 @@ const $ = id => document.getElementById(id);
 const log = m => { const l = $('log'); l.textContent += '\n' + m; l.scrollTop = l.scrollHeight; };
 $('tok').value = localStorage.getItem('hf_tok') || '';
 $('tok').addEventListener('change', () => localStorage.setItem('hf_tok', $('tok').value.trim()));
-const hostOf = s => s.replace('/', '-').toLowerCase() + '.hf.space';
+$('customUrl').value = localStorage.getItem('forge_engine') ? 'https://' + localStorage.getItem('forge_engine') : '';
+function syncCustomBox() { $('customBox').style.display = $('space').value === 'custom' ? '' : 'none'; }
+document.addEventListener('DOMContentLoaded', syncCustomBox);
+setTimeout(syncCustomBox, 0);
+const hostOf = v => {
+  if (v === 'custom') {
+    const u = ($('customUrl').value || '').trim().replace(/^https?:\/\//, '').replace(/\/.*$/, '');
+    if (!u) throw new Error('cola a URL do motor (.gradio.live) — liga pelo link do Colab');
+    localStorage.setItem('forge_engine', u);
+    return u;
+  }
+  return v.replace('/', '-').toLowerCase() + '.hf.space';
+};
 document.addEventListener('change', e => {
-  if (e.target && e.target.id === 'space') { gBase = null; epInfo = {}; log('space trocado — base e APIs resetadas; clica em Descobrir APIs'); }
+  if (e.target && e.target.id === 'space') { gBase = null; epInfo = {}; syncCustomBox(); log('space trocado — base e APIs resetadas; clica em Descobrir APIs'); }
+  if (e.target && e.target.id === 'customUrl') { gBase = null; epInfo = {}; }
 });
-const auth = () => { const t = $('tok').value.trim(); return t ? { Authorization: 'Bearer ' + t } : {}; };
+const auth = () => {
+  if ($('space').value === 'custom') return {};  // motor próprio: sem token
+  const t = $('tok').value.trim(); return t ? { Authorization: 'Bearer ' + t } : {};
+};
 // Spaces variam de versão do gradio: v5 usa /gradio_api/*, v4 usa as rotas na
 // raiz. Tenta as duas e memoriza a que respondeu.
 let gBase = null;
