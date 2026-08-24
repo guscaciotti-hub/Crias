@@ -151,6 +151,12 @@ app.get('/forge', (req, res) => {
   res.sendFile(path.join(publicDir, 'forge.html'))
 })
 
+// /prompts → lista de prompts prontos (copiar e colar no ChatGPT)
+app.get('/prompts', (req, res) => {
+  res.setHeader('Cache-Control', 'no-store, must-revalidate')
+  res.sendFile(path.join(publicDir, 'prompts.html'))
+})
+
 // /collision-editor → collision editor tool
 app.get('/collision-editor', (req, res) => {
   res.sendFile(path.join(publicDir, 'collision-editor.html'))
