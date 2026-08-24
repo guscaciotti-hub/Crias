@@ -98,6 +98,9 @@ props = {
     'pedra':   load_asset('prop-pedra.png', True),
 }
 
+_rp = os.path.join(ROOT, 'public', 'mapa-atual.jpg')
+REMASTER = Image.open(_rp).convert('RGB') if os.path.exists(_rp) else None
+
 canvas = pano(tex['grama']) if tex['grama'] else Image.new('RGB', (W, H), (74, 128, 60))
 
 # máscaras de terreno
@@ -138,10 +141,19 @@ for b in sorted(layout['edificios'], key=lambda e: e['y'] + e['h']):
     if im:
         im = im.resize((pw, ph), Image.LANCZOS)
         canvas_rgba.alpha_composite(im, (px0, py0))
+    elif REMASTER:
+        # provisório: recorta o edifício do remaster na mesma posição, borda esfumada
+        rw, rh = REMASTER.size
+        crop = REMASTER.crop((int(b['x']/48*rw), int(b['y']/48*rh),
+                              int((b['x']+b['w'])/48*rw), int((b['y']+b['h'])/48*rh)))
+        crop = crop.resize((pw, ph), Image.LANCZOS).convert('RGBA')
+        fm = Image.new('L', (pw, ph), 0)
+        ImageDraw.Draw(fm).rectangle([10, 10, pw-10, ph-10], fill=255)
+        crop.putalpha(fm.filter(ImageFilter.GaussianBlur(9)))
+        canvas_rgba.alpha_composite(crop, (px0, py0))
     else:
         d = ImageDraw.Draw(canvas_rgba)
         d.rounded_rectangle([px0+4, py0+4, px0+pw-4, py0+ph-4], 18, fill=(120, 96, 150, 255), outline=(60, 45, 80, 255), width=5)
-        d.text((px0 + 14, py0 + 12), b['id'], fill=(255, 255, 255, 255))
 
 # ── vegetação automática: bloqueado & ¬água & ¬edifício & fora da zona do orbe ──
 oz = layout['orbe_zona']
@@ -164,9 +176,30 @@ for (x, y) in veg:
         canvas_rgba.alpha_composite(im.resize((w2, h2_), Image.LANCZOS), (cx_ - w2 // 2, cy_ - h2_))
     else:
         d = ImageDraw.Draw(canvas_rgba)
-        col = {'pedra': (130,130,135,255), 'pinheiro': (30,92,48,255), 'arvore1': (52,120,58,255), 'arvore2': (70,134,52,255)}[kind]
-        rad = int(T * (0.72 if kind != 'pedra' else 0.42))
-        d.ellipse([cx_-rad, cy_-T//2-rad, cx_+rad, cy_-T//2+rad], fill=col, outline=(25,60,30,255), width=3)
+        rad = int(T * (0.74 if kind != 'pedra' else 0.42))
+        cy2 = cy_ - T // 2
+        rr = h2(x, y, 9)
+        if kind == 'pedra':
+            d.ellipse([cx_-rad, cy2-rad+6, cx_+rad, cy2+rad], fill=(122,122,128,255), outline=(70,70,78,255), width=3)
+            d.ellipse([cx_-rad//2, cy2-rad//2, cx_+rad//4, cy2], fill=(160,160,166,255))
+        elif kind == 'pinheiro':
+            base, mid, top = (22,74,40,255), (34,102,52,255), (66,140,70,255)
+            for i, (ry, rw2, col) in enumerate([(0, 1.0, base), (-0.42, 0.78, mid), (-0.8, 0.52, top)]):
+                r2 = int(rad * rw2)
+                d.ellipse([cx_-r2, cy2+int(ry*rad)-r2, cx_+r2, cy2+int(ry*rad)+r2], fill=col)
+            d.ellipse([cx_-rad//3, cy2-int(0.95*rad)-rad//3, cx_, cy2-int(0.95*rad)], fill=(96,170,96,255))
+        else:
+            tone = 10 if kind == 'arvore1' else -6
+            dark  = (40+tone, 104+tone, 48, 255)
+            midc  = (58+tone, 128+tone, 58, 255)
+            light = (86+tone, 158+tone, 74, 255)
+            d.ellipse([cx_-rad, cy2-rad+4, cx_+rad, cy2+rad+4], fill=dark)
+            for k in range(5):
+                a = (rr >> (k*3)) % 360
+                import math as _m
+                ox2 = int(_m.cos(a) * rad * 0.34); oy2 = int(_m.sin(a) * rad * 0.34)
+                d.ellipse([cx_-rad//2+ox2, cy2-rad//2+oy2, cx_+rad//2+ox2, cy2+rad//2+oy2], fill=midc)
+            d.ellipse([cx_-rad//2-3, cy2-rad//2-5, cx_+rad//6, cy2-2], fill=light)
 
 # aplica sombras (multiply simples)
 shadow = shadow.filter(ImageFilter.GaussianBlur(T // 5))
