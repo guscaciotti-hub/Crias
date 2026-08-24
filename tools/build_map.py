@@ -113,28 +113,46 @@ REMASTER = Image.open(_rp).convert('RGB') if os.path.exists(_rp) else None
 
 canvas = pano(tex['grama']) if tex['grama'] else Image.new('RGB', (W, H), (74, 128, 60))
 
-# máscaras de terreno
+# ── terreno REAL extraído do mapa de referência (tools/terreno_ref.json) ──
+# Substitui as máscaras retangulares: rio serpenteante, praça octogonal,
+# caminhos radiais e penhascos exatamente como no mapa original.
+_tref = os.path.join(ROOT, 'tools', 'terreno_ref.json')
+TERR = json.load(open(_tref)) if os.path.exists(_tref) else None
+
 water_cells, praca_cells, path_cells = set(), set(), set()
-for w_ in layout['water']:
-    for y in range(w_['y0'], w_['y1'] + 1):
-        for x in range(w_['x0'], w_['x1'] + 1): water_cells.add((x, y))
-pc = layout['praca']
-for y in range(N):
-    for x in range(N):
-        if math.hypot(x + .5 - pc['cx'], y + .5 - pc['cy']) <= pc['raio']: praca_cells.add((x, y))
-for c in layout['caminhos']:
-    (x0, y0), (x1, y1) = c['de'], c['para']; lw = c['largura']
-    steps = max(abs(x1 - x0), abs(y1 - y0)) * 2 + 1
-    for i in range(steps + 1):
-        fx, fy = x0 + (x1 - x0) * i / steps, y0 + (y1 - y0) * i / steps
-        for dy in range(-(lw // 2), lw - lw // 2):
-            for dx in range(-(lw // 2), lw - lw // 2):
-                cx_, cy_ = int(fx + dx), int(fy + dy)
-                if 0 <= cx_ < N and 0 <= cy_ < N: path_cells.add((cx_, cy_))
-path_cells -= water_cells | praca_cells
+cliff_cells = set()
+if TERR:
+    for k, t in TERR.items():
+        x, y = map(int, k.split(','))
+        if   t == 'agua':     water_cells.add((x, y))
+        elif t == 'praca':    praca_cells.add((x, y))
+        elif t == 'caminho':  path_cells.add((x, y))
+        elif t == 'penhasco': cliff_cells.add((x, y))
+if not TERR:
+    pass
+if not TERR:   # fallback: layout declarativo (usado só se faltar a referência)
+    for w_ in layout['water']:
+        for y in range(w_['y0'], w_['y1'] + 1):
+            for x in range(w_['x0'], w_['x1'] + 1): water_cells.add((x, y))
+    pc = layout['praca']
+    for y in range(N):
+        for x in range(N):
+            if math.hypot(x + .5 - pc['cx'], y + .5 - pc['cy']) <= pc['raio']: praca_cells.add((x, y))
+    for c in layout['caminhos']:
+        (x0, y0), (x1, y1) = c['de'], c['para']; lw = c['largura']
+        steps = max(abs(x1 - x0), abs(y1 - y0)) * 2 + 1
+        for i in range(steps + 1):
+            fx, fy = x0 + (x1 - x0) * i / steps, y0 + (y1 - y0) * i / steps
+            for dy in range(-(lw // 2), lw - lw // 2):
+                for dx in range(-(lw // 2), lw - lw // 2):
+                    cx_, cy_ = int(fx + dx), int(fy + dy)
+                    if 0 <= cx_ < N and 0 <= cy_ < N: path_cells.add((cx_, cy_))
+    path_cells -= water_cells | praca_cells
 canvas = compor_terreno(canvas, tex['caminho'], sorted(path_cells), feather=7)
 canvas = compor_terreno(canvas, tex['praca'], sorted(praca_cells - water_cells), feather=5)
 canvas = compor_terreno(canvas, tex['agua'], sorted(water_cells), feather=4)
+tex['penhasco'] = load_asset('tile-penhasco.png')
+if cliff_cells: canvas = compor_terreno(canvas, tex['penhasco'], sorted(cliff_cells), feather=5)
 
 # ── molduras de fronteira (leva 2): margens de rio e meio-fio da praça ──
 # Para cada tile do terreno na fronteira, a vizinhança define a peça:
@@ -235,6 +253,7 @@ for y in range(1, N - 1):
     for x in range(1, N - 1):
         if GRID[y][x] != 1: continue
         if (x, y) in water_cells or (x, y) in building_cells: continue
+        if (x, y) in praca_cells or (x, y) in path_cells or (x, y) in cliff_cells: continue
         if oz['x0'] <= x <= oz['x1'] and oz['y0'] <= y <= oz['y1']: continue
         veg.append((x, y))
 for (x, y) in veg:
@@ -285,7 +304,19 @@ aplicar_molduras(final_ground, praca_cells, 'meiofio', escala=1.8)
 final = final_ground
 final.alpha_composite(dark)        # sombras entre o chão e os props
 final.alpha_composite(prop_layer)  # edifícios e vegetação por cima
-final.convert('RGB').save(out_path, quality=90, optimize=True)
+# ── clima: o mapa de referência é NOTURNO/místico, não dia claro ──
+# escurece, tira saturação do verde e injeta azul nas sombras
+rgb = final.convert('RGB')
+px_ = rgb.load()
+for yy in range(H):
+    for xx in range(W):
+        r, g, b = px_[xx, yy]
+        lum = (r * 0.3 + g * 0.55 + b * 0.15)
+        r = int(r * 0.60 + lum * 0.06)
+        g = int(g * 0.62 + lum * 0.05)
+        b = int(b * 0.78 + lum * 0.14) + 12
+        px_[xx, yy] = (min(255, r), min(255, g), min(255, b))
+rgb.save(out_path, quality=90, optimize=True)
 print('mapa composto:', out_path, f'{W}x{H}')
 print(f'terreno: agua={len(water_cells)} praca={len(praca_cells)} caminho={len(path_cells)}')
 print(f'edificios={len(layout["edificios"])} vegetacao={len(veg)} tiles')
