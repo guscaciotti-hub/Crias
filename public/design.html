@@ -137,7 +137,20 @@
   </div>
 </div>
 
-<h2>9 · Ambiente vivo (camada sobre o mapa)</h2>
+<h2>9 · Kit do Mapa Oficial (montado por peças)</h2>
+<div class="card">
+  <div style="font-size:13px;margin-bottom:10px;">
+    O mapa novo é <b>montado por peças</b>: você gera cada peça no GPT, sobe em
+    <code>public/map-kit/</code> com o nome exato, e o compositor monta o mapa com a
+    <b>colisão já casada</b> (cada árvore nasce onde o jogo bloqueia). Pode subir
+    aos poucos — o que faltar usa um provisório.
+  </div>
+  <table id="kit"><tr><th>Peça</th><th>Arquivo</th><th>Status</th><th></th></tr></table>
+  <div class="note">Chão = textura que repete (seamless). Construções e árvores = fundo MAGENTA #FF00FF
+  (magenta porque árvore verde sumiria no fundo verde).</div>
+</div>
+
+<h2>10 · Ambiente vivo (camada sobre o mapa)</h2>
 <div class="card">
   <div style="font-size:13px;margin-bottom:10px;">
     Nada disso está desenhado no mapa — é vida gerada pelo jogo por cima dele.
@@ -150,7 +163,7 @@
   </div>
 </div>
 
-<h2>10 · Fora do MVP</h2>
+<h2>11 · Fora do MVP</h2>
 <div class="card">
   <div class="cut-item"><b>✕ Captura de crias</b> — copiava o PvP e inchava o escopo. Crias vêm de orbes.</div>
   <div class="cut-item"><b>✕ Loja de itens</b> — vira só troca de fragmentos.</div>
@@ -158,7 +171,7 @@
   <div class="cut-item"><b>✕ Mapa de passeio 3D</b> — depende de gerador de mapas; fica pós-MVP.</div>
 </div>
 
-<h2>11 · A decidir</h2>
+<h2>12 · A decidir</h2>
 <div class="card">
   <div class="q"><b>Chefe da masmorra:</b> uma cria lendária (Drakon) ou um monstro exclusivo de chefe?</div>
   <div class="q"><b>Orbe diário:</b> o jogador ganha 1 orbe comum por dia ao logar? (é o gancho de retorno)</div>
@@ -222,6 +235,36 @@ const AMBIENTE = [
    `Elementos: 1 halo de luz quente redondo (amarelo-alaranjado), bem suave, forte no centro e desaparecendo nas bordas — é o brilho de um poste aceso à noite visto de cima.`],
 ];
 
+const T_TILE = (desc) => `Textura SEAMLESS (tileable: repete perfeitamente nas 4 bordas, sem emenda visível) vista DE CIMA, 512×512 pixels, estilo pixel art 16-bit rico e detalhado, iluminação neutra e uniforme, sem sombras direcionais, sem objetos grandes, sem texto, sem marca d'água.
+Textura: ${desc}`;
+
+const T_VEG = (desc) => `${desc}, vista DE CIMA (top-down) com volume: iluminação vinda do canto superior esquerdo e sombras suaves na própria copa — SEM sombra projetada no chão.
+Estilo pixel art 16-bit detalhado. Imagem única, elemento centralizado ocupando ~85% da área.
+Fundo MAGENTA CHROMA #FF00FF sólido. Sem borda, sem texto, nada tocando as bordas.`;
+
+const T_BLD = (desc, prop) => `${desc}
+Vista TOP-DOWN 3/4 de RPG: telhado dominante visto de cima + fachada frontal estreita visível na parte de baixo (com porta e janelas). Volumétrico, iluminação do canto superior esquerdo, sombras suaves internas — SEM sombra projetada no chão.
+Estilo pixel art 16-bit rico e detalhado, janelas com luz acesa aconchegante.
+Proporção da imagem: ${prop} (largura:altura). Fundo MAGENTA CHROMA #FF00FF sólido.
+Sem borda, sem texto, nada tocando as bordas.`;
+
+const KIT = [
+  ['🌿 Grama', 'tile-grama.png', T_TILE('grama verde viva com variações sutis de tom, tufos e florzinhas minúsculas espalhadas')],
+  ['🪨 Caminho', 'tile-caminho.png', T_TILE('caminho de pedras irregulares bege e marrom assentadas em terra batida, juntas visíveis')],
+  ['⬜ Piso da praça', 'tile-praca.png', T_TILE('piso de pedra lavrada cinza-clara de praça mágica medieval, lajes grandes com runas azuis MUITO sutis')],
+  ['🌊 Água', 'tile-agua.png', T_TILE('água azul profunda de rio com leve ondulação e reflexos suaves de luz')],
+  ['🌳 Árvore 1', 'prop-arvore-1.png', T_VEG('Árvore frondosa de copa redonda verde-média, galhos aparecendo nas bordas da copa')],
+  ['🌳 Árvore 2', 'prop-arvore-2.png', T_VEG('Árvore frondosa de copa irregular verde com tons levemente amarelados')],
+  ['🌲 Pinheiro', 'prop-pinheiro.png', T_VEG('Pinheiro cônico verde-escuro visto de cima, camadas de galhos visíveis')],
+  ['🗿 Pedra', 'prop-pedra.png', T_VEG('Rocha cinza grande com musgo nas laterais')],
+  ['🏠 Casa azul', 'prop-casa-azul.png', T_BLD('Casa grande de dois andares com telhado AZUL vibrante, paredes de madeira clara e pedra.', '13:10')],
+  ['🏡 Casa da curandeira', 'prop-casa-marrom.png', T_BLD('Casa acolhedora com telhado verde-musgo e chaminé fumegante, jardim de ervas na frente.', '11:9')],
+  ['🏟️ Coliseu', 'prop-arena.png', T_BLD('Arena/coliseu de pedra clara com bandeiras azuis e entrada imponente em arco.', '13:8')],
+  ['🏢 Prédio místico', 'prop-predio-roxo.png', T_BLD('Prédio místico de telhado ROXO com símbolos arcanos brilhando discretos.', '11:8')],
+  ['🏪 Loja de trocas', 'prop-shop.png', T_BLD('Loja pequena e charmosa com toldo listrado e balcão na frente.', '9:6')],
+  ['🔮 Cúpula PvP', 'prop-cupula.png', T_BLD('Cúpula arcana ROXA com anel de energia azul pulsando no topo.', '11:8')],
+];
+
 const CRIAS = [
   ['Ignivar','Fogo','comum','ok','Lobo vulcânico de rocha negra rachada com brasas nas fissuras, juba de fogo laranja'],
   ['Aerix','Ar','comum','todo','Drake aéreo azul-claro esguio, asas membranosas, trilhas de vento ao redor'],
@@ -273,6 +316,20 @@ AMBIENTE.forEach(([nome, arq, st, n, desc]) => {
   td.appendChild(mkBtn(BASE_AMB.replace('{N}', n).replace('{DESC}', desc)));
   tr.appendChild(td);
   tamb.appendChild(tr);
+});
+
+const tkit = document.getElementById('kit');
+KIT.forEach(([nome, arq, prompt]) => {
+  const tr = document.createElement('tr');
+  tr.innerHTML = '<td><b>' + nome + '</b></td><td style="font-size:12px;color:var(--dim)">' + arq + '</td>' +
+    '<td class="kst"><span class="tag t-todo">falta</span></td>';
+  const td = document.createElement('td');
+  td.appendChild(mkBtn(prompt));
+  tr.appendChild(td);
+  tkit.appendChild(tr);
+  fetch('/map-kit/' + arq, { method: 'HEAD' }).then(r => {
+    if (r.ok) tr.querySelector('.kst').innerHTML = '<span class="tag t-ok">recebida</span>';
+  }).catch(() => {});
 });
 
 document.getElementById('mapBtn').appendChild(mkBtn(P_MAPA, '📋 copiar prompt do mapa'));

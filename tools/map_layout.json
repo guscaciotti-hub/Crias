@@ -1,0 +1,27 @@
+{
+  "comment": "Layout declarativo do mapa oficial. Posições em tiles (grid 48x48). A COLLISION do jogo é a fonte da verdade: tiles bloqueados sem edifício/água viram vegetação automaticamente.",
+  "tile_px": 64,
+  "water": [
+    { "x0": 0, "y0": 1, "x1": 3, "y1": 46, "nome": "rio oeste" },
+    { "x0": 3, "y0": 1, "x1": 15, "y1": 3, "nome": "rio norte" },
+    { "x0": 14, "y0": 44, "x1": 22, "y1": 47, "nome": "cachoeira sul" }
+  ],
+  "praca": { "cx": 23.5, "cy": 22, "raio": 8.5 },
+  "caminhos": [
+    { "de": [23, 6],  "para": [23, 44], "largura": 3 },
+    { "de": [4, 21],  "para": [44, 21], "largura": 3 },
+    { "de": [30, 21], "para": [37, 30], "largura": 2 },
+    { "de": [36, 30], "para": [36, 41], "largura": 2 },
+    { "de": [23, 8],  "para": [23, 4],  "largura": 2 },
+    { "de": [8, 21],  "para": [8, 32],  "largura": 2 }
+  ],
+  "edificios": [
+    { "id": "casa-marrom", "asset": "prop-casa-marrom.png", "x": 3,  "y": 13, "w": 11, "h": 9,  "nome": "Casa da Mãe Lyra (cura)" },
+    { "id": "arena",       "asset": "prop-arena.png",       "x": 16, "y": 1,  "w": 13, "h": 8,  "nome": "Coliseu (arena)" },
+    { "id": "predio-roxo", "asset": "prop-predio-roxo.png", "x": 29, "y": 6,  "w": 11, "h": 8,  "nome": "Prédio NE" },
+    { "id": "shop",        "asset": "prop-shop.png",        "x": 33, "y": 14, "w": 9,  "h": 6,  "nome": "Loja de trocas" },
+    { "id": "cupula",      "asset": "prop-cupula.png",      "x": 32, "y": 22, "w": 11, "h": 8,  "nome": "Cúpula PvP" },
+    { "id": "casa-azul",   "asset": "prop-casa-azul.png",   "x": 32, "y": 31, "w": 13, "h": 10, "nome": "Casa azul (pass-behind)" }
+  ],
+  "orbe_zona": { "x0": 18, "y0": 17, "x1": 27, "y1": 27, "comment": "INTOCÁVEL: praça lisa, sem props" }
+}
