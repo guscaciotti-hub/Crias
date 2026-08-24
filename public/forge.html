@@ -67,6 +67,20 @@
   </div>
 
   <div class="card" style="grid-column:1/-1;">
+    <h2>Personagem (spritesheet) — fluxo separado</h2>
+    <div class="sub">Personagens NÃO passam pelo 3D: são sheets 4×3 gerados no ChatGPT.
+    Copia o prompt, troca a descrição, gera, sobe o PNG no GitHub e avisa o Claude ("processa char6") — o pipeline corta, limpa e integra sozinho.</div>
+    <div class="snippet" id="charPrompt">Spritesheet única, grade FIXA de 4 colunas × 3 linhas (12 células iguais).
+Cada célula: 256×256px (total 1024×768). Fundo verde chroma #00FF00 sólido.
+Personagem SEMPRE do mesmo tamanho, centralizado, pés na mesma altura em todas as células.
+Ordem: linha 1 = frente (parado, passo A, passo B, extra) | linha 2 = costas (mesma ordem)
+| linha 3 = perfil esq. parado, perfil esq. andando, SENTADO, perfil direito parado.
+Sem sombra no chão, sem borda, sem texto. Estilo pixel art 16-bit detalhado.
+Personagem: [DESCREVA AQUI — ex: treinadora ruiva com jaqueta azul e mochila]</div>
+    <button class="ghost" onclick="navigator.clipboard.writeText(document.getElementById('charPrompt').textContent);this.textContent='✅ copiado!'">📋 copiar prompt de personagem</button>
+  </div>
+
+  <div class="card" style="grid-column:1/-1;">
     <h2>3 · Resultado</h2>
     <model-viewer id="mv" camera-controls auto-rotate exposure="1.15" shadow-intensity="0.9"></model-viewer>
     <div class="row">
@@ -85,6 +99,22 @@ $('tok').value = localStorage.getItem('hf_tok') || '';
 $('tok').addEventListener('change', () => localStorage.setItem('hf_tok', $('tok').value.trim()));
 const hostOf = s => s.replace('/', '-').toLowerCase() + '.hf.space';
 const auth = () => { const t = $('tok').value.trim(); return t ? { Authorization: 'Bearer ' + t } : {}; };
+// Spaces variam de versão do gradio: v5 usa /gradio_api/*, v4 usa as rotas na
+// raiz. Tenta as duas e memoriza a que respondeu.
+let gBase = null;
+async function gfetch(host, path, opts) {
+  const bases = gBase !== null ? [gBase] : ['/gradio_api', ''];
+  let last = null;
+  for (const b of bases) {
+    try {
+      const r = await fetch('https://' + host + b + path, opts);
+      if (r.status === 404 && gBase === null) { last = r; continue; }
+      gBase = b;
+      return r;
+    } catch (e) { last = e; }
+  }
+  throw new Error('sem resposta em ' + path + (last && last.status ? ' (HTTP ' + last.status + ')' : ''));
+}
 
 let cleanBlob = null, glbBlob = null;
 
@@ -124,8 +154,10 @@ $('btnInfo').onclick = async () => {
   const host = hostOf($('space').value);
   log('consultando https://' + host + '/gradio_api/info …');
   try {
-    const r = await fetch('https://' + host + '/gradio_api/info', { headers: auth() });
+    const r = await gfetch(host, '/info', { headers: auth() });
+    if (!r.ok) throw new Error('HTTP ' + r.status + ': ' + (await r.text()).slice(0, 150));
     const j = await r.json();
+    log('api base: "' + (gBase || '(raiz)') + '"');
     const eps = Object.keys(j.named_endpoints || {});
     log('endpoints: ' + (eps.join('  ') || '(nenhum nomeado)'));
     for (const e of eps) {
@@ -144,26 +176,31 @@ $('btnGen').onclick = async () => {
     log('subindo imagem para o space…');
     const fd = new FormData();
     fd.append('files', cleanBlob, 'input.png');
-    const up = await fetch('https://' + host + '/gradio_api/upload?upload_id=' + Date.now(), { method: 'POST', headers: auth(), body: fd });
-    const [path] = await up.json();
+    const up = await gfetch(host, '/upload?upload_id=' + Date.now(), { method: 'POST', headers: auth(), body: fd });
+    if (!up.ok) throw new Error('upload HTTP ' + up.status + ': ' + (await up.text()).slice(0, 200));
+    const uj = await up.json();
+    const path = Array.isArray(uj) ? uj[0] : (uj.files ? uj.files[0] : null);
+    if (!path) throw new Error('upload sem path: ' + JSON.stringify(uj).slice(0, 200));
     log('upload ok: ' + path);
 
     const fileRef = { path, meta: { _type: 'gradio.FileData' } };
     // parâmetros extras comuns (foreground ratio etc.) ficam com default do space
-    const call = await fetch('https://' + host + '/gradio_api/call' + api, {
+    const call = await gfetch(host, '/call' + api, {
       method: 'POST', headers: { 'Content-Type': 'application/json', ...auth() },
       body: JSON.stringify({ data: [fileRef] }),
     });
+    if (!call.ok) throw new Error('call HTTP ' + call.status + ': ' + (await call.text()).slice(0, 250));
     const cj = await call.json();
     if (!cj.event_id) throw new Error('resposta sem event_id: ' + JSON.stringify(cj).slice(0, 200));
     log('gerando (event ' + cj.event_id + ')… isso leva 10-60s');
 
-    const es = await fetch('https://' + host + '/gradio_api/call' + api + '/' + cj.event_id, { headers: auth() });
+    const es = await gfetch(host, '/call' + api + '/' + cj.event_id, { headers: auth() });
     const text = await es.text();
+    if (/event:\s*error/.test(text)) log('⚠ o space reportou erro no stream');
     log('stream recebido (' + text.length + ' bytes)');
     // pega a última URL de arquivo .glb no SSE
     const urls = [...text.matchAll(/"(https?:[^"]+?\.glb[^"]*)"|"path":\s*"([^"]+?\.glb)"/g)]
-      .map(m => m[1] || ('https://' + host + '/gradio_api/file=' + m[2]));
+      .map(m => m[1] || ('https://' + host + (gBase || '') + '/file=' + m[2]));
     if (!urls.length) throw new Error('nenhum .glb no resultado — tenta outro endpoint (Descobrir APIs) ou outro space. Trecho: ' + text.slice(-300));
     const glbUrl = urls[urls.length - 1];
     log('baixando ' + glbUrl.slice(0, 90) + '…');
