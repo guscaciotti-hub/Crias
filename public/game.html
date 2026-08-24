@@ -3390,16 +3390,33 @@ const MONSTER_3D = {
   ignivar: { url: '/ignivar.glb', center: 200, sway: 12 },
 };
 
+// Vistas direcionais pré-renderizadas do modelo 3D (tools/render_views.js) —
+// usadas no mapa (canvas 2D), onde não dá pra embutir um <model-viewer>.
+// O companion passa a virar para o lado em que anda.
+const MONSTER_VIEWS = {
+  ignivar: { down: '/ignivar-down.png', up: '/ignivar-up.png',
+             left: '/ignivar-left.png', right: '/ignivar-right.png' },
+};
+const _viewImgCache = {};
+function getMonsterView(species, dir) {
+  const set = MONSTER_VIEWS[species];
+  if (!set) return null;
+  const url = set[dir] || set.down;
+  let im = _viewImgCache[url];
+  if (!im) { im = new Image(); im.src = url; _viewImgCache[url] = im; }
+  return (im.complete && im.naturalWidth > 0) ? im : null;
+}
+
 // Balanço suave dos modelos em batalha (parallax 3D sem expor geometria ruim)
 let _mv3dRaf = null;
 function start3DSway() {
   if (_mv3dRaf) return;
   const tick = () => {
-    const battle = document.getElementById('battle');
-    const views = document.querySelectorAll('#battle model-viewer[data-center]');
-    if (!battle || !battle.classList.contains('active') || !views.length) {
-      _mv3dRaf = null; return;
-    }
+    // Anima só os viewers realmente visíveis (batalha OU arena PvP);
+    // offsetParent === null quando o overlay está fechado.
+    const views = [...document.querySelectorAll('model-viewer[data-center]')]
+      .filter(mv => mv.offsetParent !== null);
+    if (!views.length) { _mv3dRaf = null; return; }
     const t = performance.now() / 1000;
     views.forEach((mv, i) => {
       const c = parseFloat(mv.dataset.center), s = parseFloat(mv.dataset.sway);
@@ -3412,10 +3429,11 @@ function start3DSway() {
   _mv3dRaf = requestAnimationFrame(tick);
 }
 
-// Define a arte de uma criatura na batalha: 3D quando disponível, senão 2D.
-// side: 'enemy' | 'player' (o inimigo encara o jogador, então roda espelhado)
-function setBattleCreatureArt(side, monster, spriteImg) {
-  const el = document.getElementById(side === 'enemy' ? 'battleEnemySprite' : 'battlePlayerSprite');
+// Define a arte de uma criatura numa cena DOM (batalha ou arena PvP):
+// 3D quando há modelo, senão o sprite 2D. side: 'enemy' | 'player'.
+function setBattleCreatureArt(side, monster, spriteImg, elId) {
+  const el = document.getElementById(elId ||
+    (side === 'enemy' ? 'battleEnemySprite' : 'battlePlayerSprite'));
   if (!el) return;
   const m3d = monster && MONSTER_3D[monster.species];
   if (m3d && customElements.get('model-viewer')) {
@@ -4765,7 +4783,7 @@ async function pvpSummonNext(side) {
   const def  = MONSTERS[cria.species];
   const sprId = side === 'player' ? 'pvpPlayerSprite' : 'pvpEnemySprite';
   const img   = monsterSprite(cria, 'idle_0');
-  document.getElementById(sprId).style.backgroundImage = img ? `url(${img.src})` : '';
+  setBattleCreatureArt(side === 'player' ? 'player' : 'enemy', cria, img, sprId);
   document.getElementById(side === 'player' ? 'pvpPName' : 'pvpEName').textContent = def.name + ' Lv' + PVP_LVL;
 
   if (side === 'player') {
@@ -5186,8 +5204,8 @@ function pvpSetupUI() {
   // cria sprites
   const pImg  = monsterSprite(ps.pCria,  'idle_0');
   const aImg  = monsterSprite(ps.aiCria, 'idle_0');
-  document.getElementById('pvpPlayerSprite').style.backgroundImage = pImg  ? `url(${pImg.src})`  : '';
-  document.getElementById('pvpEnemySprite').style.backgroundImage  = aImg  ? `url(${aImg.src})`  : '';
+  setBattleCreatureArt('player', ps.pCria, pImg, 'pvpPlayerSprite');
+  setBattleCreatureArt('enemy', ps.aiCria, aImg, 'pvpEnemySprite');
 
   // trainer character sprites — use player's selected combo, AI gets char1/char2 default
   const pCombo = (state && state.appearance && state.appearance.comboId) ? state.appearance.comboId : 'char1';
@@ -7987,7 +8005,8 @@ function render(now) {
     if (wy < camY - margin || wy > camY + ch + margin) continue;
     renderables.push({ type: 'npc', npc, x: wx, y: wy });
   }
-  if (state.cria) renderables.push({ type: 'cria', x: cX, y: cY });
+  if (state.cria) renderables.push({ type: 'cria', x: cX, y: cY,
+    dir: (craPosHistory[0] && craPosHistory[0].dir) || state.player.dir });
   renderables.push({ type: 'player', x: pX, y: pY });
 
   renderables.sort((a, b) => a.y - b.y);
@@ -8038,7 +8057,7 @@ function render(now) {
       ctx.clip();
     }
     if (r.type === 'npc') drawNPC(r.npc, sx, sy, now);
-    else if (r.type === 'cria') drawCriaSprite(sx, sy, now);
+    else if (r.type === 'cria') drawCriaSprite(sx, sy, now, r.dir);
     else if (r.type === 'player') drawPlayer(sx, sy, now);
     if (_inPassZone) ctx.restore();
   }
@@ -8550,8 +8569,23 @@ function drawDebugCollision(camX, camY, cw, ch) {
   ctx.restore();
 }
 
-function drawCriaSprite(px, py, now) {
+function drawCriaSprite(px, py, now, dir) {
   const bob = Math.sin(now / 300) * 1.5;
+  // 1ª opção: vista direcional do modelo 3D — o companion vira para o lado
+  // em que anda, com leve balanço ao caminhar (parallax barato no canvas).
+  const view = getMonsterView(state.cria.species, dir || 'down');
+  if (view) {
+    ctx.fillStyle = 'rgba(0,0,0,0.45)';
+    ctx.beginPath();
+    ctx.ellipse(px + TILE/2, py + TILE - 6, 15, 4.5, 0, 0, Math.PI * 2);
+    ctx.fill();
+    const h = 48;
+    const w = h * (view.naturalWidth / view.naturalHeight);
+    ctx.imageSmoothingEnabled = true;
+    ctx.drawImage(view, px + TILE/2 - w/2, py + TILE - h - 2 + bob, w, h);
+    ctx.imageSmoothingEnabled = false;
+    return;
+  }
   // Arte 3D externa (pre-rendered) tem prioridade — companion estilo Pokopia:
   // sombra elíptica + flutuação, desenhada com a proporção real da imagem.
   const art = MONSTER_ART_IMG[state.cria.species];
@@ -9190,7 +9224,7 @@ function renderCave1(now) {
   for (const r of renderables) {
     const sx = r.x - camX, sy = r.y - camY;
     if (r.type === 'npc') drawNPC(r.npc, sx, sy, now);
-    else if (r.type === 'cria') drawCriaSprite(sx, sy, now);
+    else if (r.type === 'cria') drawCriaSprite(sx, sy, now, r.dir);
     else if (r.type === 'player') drawPlayer(sx, sy, now);
   }
 
