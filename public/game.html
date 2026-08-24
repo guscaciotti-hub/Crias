@@ -445,6 +445,32 @@
   }
   .battle-creature.enemy { top: 20px; right: 30px; }
   .battle-creature.player { bottom: 10px; left: 30px; transform: scale(1.15); }
+  /* === "ALIVE FX" — respiração, brasas e brilho vivo nas criaturas === */
+  @keyframes aliveBreath {
+    0%,100% { transform: scaleY(1) scaleX(1) translateY(0); }
+    50%     { transform: scaleY(1.045) scaleX(0.985) translateY(-2px); }
+  }
+  .alive-breath { animation: aliveBreath 2.4s ease-in-out infinite; transform-origin: 50% 100%; }
+  @keyframes aliveGlowPulse {
+    0%,100% { opacity: .62; transform: translate(-50%,-50%) scale(0.94); }
+    35%     { opacity: 1;   transform: translate(-50%,-50%) scale(1.10); }
+    62%     { opacity: .78; transform: translate(-50%,-50%) scale(1.0); }
+  }
+  .alive-glow {
+    position: absolute; left: 50%; top: 58%; width: 150%; height: 120%;
+    border-radius: 50%; pointer-events: none; z-index: 0; filter: blur(6px);
+    animation: aliveGlowPulse 1.9s ease-in-out infinite; mix-blend-mode: screen;
+  }
+  @keyframes emberRise {
+    0%   { opacity: 0; transform: translate(0,0) scale(0.5); }
+    12%  { opacity: 1; }
+    70%  { opacity: .85; }
+    100% { opacity: 0; transform: translate(var(--ex), var(--ey)) scale(0.25); }
+  }
+  .alive-ember {
+    position: absolute; border-radius: 50%; pointer-events: none; z-index: 3;
+    animation: emberRise var(--edur) ease-out forwards;
+  }
   .battle-creature .info {
     background: linear-gradient(180deg, #f8f8f8 0%, #d0d0d0 100%);
     color: #1a1f2e;
@@ -3387,7 +3413,7 @@ function loadGame() {
 // balanço. Modelos gerados de 1 imagem têm as costas "inventadas" pela IA, então
 // oscilamos dentro do arco bom em vez de girar 360°.
 const MONSTER_3D = {
-  ignivar: { url: '/ignivar.glb', center: 200, sway: 12 },
+  ignivar: { url: '/ignivar.glb', center: 200, sway: 5 },
 };
 
 // Vistas direcionais pré-renderizadas do modelo 3D (tools/render_views.js) —
@@ -3420,13 +3446,88 @@ function start3DSway() {
     const t = performance.now() / 1000;
     views.forEach((mv, i) => {
       const c = parseFloat(mv.dataset.center), s = parseFloat(mv.dataset.sway);
-      const theta = c + Math.sin(t * 0.5 + i * 1.7) * s;
+      const theta = c + Math.sin(t * 0.28 + i * 1.7) * s;
       const phi = 80 + Math.sin(t * 0.33 + i) * 3;
       mv.cameraOrbit = `${theta}deg ${phi}deg 88%`;
     });
     _mv3dRaf = requestAnimationFrame(tick);
   };
   _mv3dRaf = requestAnimationFrame(tick);
+}
+
+// ============================================================================
+// ALIVE FX — o que faz a criatura parecer VIVA (não uma estátua girando):
+// brasas subindo continuamente, respiração e brilho pulsando na cor do elemento.
+// ============================================================================
+const ELEMENT_FX = {
+  fire:     { colors: ['#ff6b35','#ffa500','#ffe066','#ff3b00'], rate: 55,  rise: 1,  glow: 'rgba(255,107,53,0.55)' },
+  ice:      { colors: ['#bfe9ff','#ffffff','#7ec8ff'],            rate: 200, rise: -1, glow: 'rgba(147,197,253,0.5)' },
+  water:    { colors: ['#4dc3ff','#88e0ff','#c8f0ff'],            rate: 190, rise: -1, glow: 'rgba(42,159,217,0.5)' },
+  electric: { colors: ['#ffd700','#fff7a0','#ffffff'],            rate: 110, rise: 1,  glow: 'rgba(255,215,0,0.5)' },
+  nature:   { colors: ['#4ade80','#a7f3c0','#22c55e'],            rate: 210, rise: -1, glow: 'rgba(74,222,128,0.45)' },
+  shadow:   { colors: ['#8b5cf6','#c4b5fd','#4c1d95'],            rate: 150, rise: 1,  glow: 'rgba(139,92,246,0.5)' },
+  poison:   { colors: ['#a3e635','#d9f99d','#65a30d'],            rate: 170, rise: 1,  glow: 'rgba(163,230,53,0.45)' },
+  light:    { colors: ['#fef08a','#ffffff','#fde047'],            rate: 140, rise: -1, glow: 'rgba(254,240,138,0.55)' },
+  mind:     { colors: ['#e879f9','#f5d0fe','#c026d3'],            rate: 170, rise: -1, glow: 'rgba(232,121,249,0.5)' },
+  metal:    { colors: ['#cbd5e1','#ffffff','#94a3b8'],            rate: 240, rise: 1,  glow: 'rgba(148,163,184,0.4)' },
+  earth:    { colors: ['#c0a060','#8b6b3a','#e0c890'],            rate: 230, rise: 1,  glow: 'rgba(139,107,58,0.4)' },
+  air:      { colors: ['#e0f0ff','#ffffff','#a0c0e0'],            rate: 210, rise: -1, glow: 'rgba(224,240,255,0.45)' },
+};
+
+const _aliveTimers = new WeakMap();
+
+// Liga o efeito de "vivo" num elemento de criatura (batalha ou arena PvP).
+function attachAliveFX(el, monster) {
+  if (!el || !monster) return;
+  const def = MONSTERS[monster.species];
+  const fx = ELEMENT_FX[def && def.element] || ELEMENT_FX.fire;
+  detachAliveFX(el);
+  el.style.position = 'relative';
+  el.style.overflow = 'visible';
+
+  // Halo pulsante na cor do elemento (o "calor" da criatura)
+  const glow = document.createElement('div');
+  glow.className = 'alive-glow';
+  glow.style.background = `radial-gradient(ellipse at center, ${fx.glow} 0%, transparent 68%)`;
+  el.appendChild(glow);
+
+  // Respiração: aplicada ao conteúdo (model-viewer ou sprite), não ao halo
+  const breathTarget = el.querySelector('model-viewer') || el;
+  breathTarget.classList.add('alive-breath');
+
+  // Emissor contínuo de brasas/partículas
+  const spawn = () => {
+    if (!el.isConnected || el.offsetParent === null) return;
+    const p = document.createElement('div');
+    const size = 4 + Math.random() * 7;
+    const c = fx.colors[(Math.random() * fx.colors.length) | 0];
+    const dur = (0.9 + Math.random() * 0.9).toFixed(2) + 's';
+    // brasas sobem (fogo) ou flutuam para baixo/lados (gelo, água)
+    const ey = fx.rise > 0 ? -(62 + Math.random() * 70) : (14 + Math.random() * 30);
+    const ex = (Math.random() - 0.5) * 42;
+    p.className = 'alive-ember';
+    p.style.cssText =
+      `width:${size}px;height:${size}px;background:${c};box-shadow:0 0 ${size * 3.2}px ${c}, 0 0 ${size * 6}px ${c};` +
+      'mix-blend-mode:screen;' +
+      `left:${16 + Math.random() * 68}%;top:${26 + Math.random() * 52}%;` +
+      `--ex:${ex}px;--ey:${ey}px;--edur:${dur};`;
+    el.appendChild(p);
+    setTimeout(() => p.remove(), 2000);
+  };
+  // ritmo irregular = mais orgânico que intervalo fixo
+  const timer = setInterval(() => { spawn(); if (Math.random() < 0.7) setTimeout(spawn, 45); },
+                            fx.rate + Math.random() * 60);
+  _aliveTimers.set(el, timer);
+}
+
+function detachAliveFX(el) {
+  if (!el) return;
+  const t = _aliveTimers.get(el);
+  if (t) { clearInterval(t); _aliveTimers.delete(el); }
+  el.querySelectorAll('.alive-glow, .alive-ember').forEach(n => n.remove());
+  el.classList.remove('alive-breath');
+  const mv = el.querySelector('model-viewer');
+  if (mv) mv.classList.remove('alive-breath');
 }
 
 // Define a arte de uma criatura numa cena DOM (batalha ou arena PvP):
@@ -3464,11 +3565,13 @@ function setBattleCreatureArt(side, monster, spriteImg, elId) {
     mv.setAttribute('camera-orbit', `${center}deg 80deg 88%`);
     if (mv.getAttribute('src') !== m3d.url) mv.setAttribute('src', m3d.url);
     start3DSway();
+    attachAliveFX(el, monster);
     return;
   }
   const mvOld = el.querySelector('model-viewer');
   if (mvOld) el.innerHTML = '';
   el.style.backgroundImage = spriteImg ? `url(${spriteImg.src})` : '';
+  attachAliveFX(el, monster);
 }
 
 // ============================================================================
@@ -8569,21 +8672,77 @@ function drawDebugCollision(camX, camY, cw, ch) {
   ctx.restore();
 }
 
+// Brasas do companion no mapa — partículas em canvas, vida própria da criatura.
+const _criaEmbers = [];
+let _lastEmberSpawn = 0;
+function drawCriaEmbers(cx, baseY, now, fx) {
+  if (now - _lastEmberSpawn > 70) {
+    _lastEmberSpawn = now;
+    if (_criaEmbers.length < 26) {
+      _criaEmbers.push({
+        x: cx + (Math.random() - 0.5) * 22,
+        y: baseY - 12 - Math.random() * 22,
+        vx: (Math.random() - 0.5) * 0.22,
+        vy: fx.rise > 0 ? -(0.28 + Math.random() * 0.34) : (0.12 + Math.random() * 0.18),
+        life: 0, max: 620 + Math.random() * 520,
+        r: 1 + Math.random() * 2.2,
+        c: fx.colors[(Math.random() * fx.colors.length) | 0],
+        born: now,
+      });
+    }
+  }
+  ctx.save();
+  for (let i = _criaEmbers.length - 1; i >= 0; i--) {
+    const e = _criaEmbers[i];
+    const age = now - e.born;
+    if (age > e.max) { _criaEmbers.splice(i, 1); continue; }
+    const t = age / e.max;
+    // sobe com leve serpenteio, some no fim
+    const x = e.x + e.vx * age * 0.06 + Math.sin(age / 130 + i) * 1.6;
+    const y = e.y + e.vy * age * 0.06;
+    ctx.globalAlpha = (t < 0.15 ? t / 0.15 : 1 - (t - 0.15) / 0.85) * 0.95;
+    ctx.fillStyle = e.c;
+    ctx.shadowBlur = 6; ctx.shadowColor = e.c;
+    ctx.beginPath();
+    ctx.arc(x, y, e.r * (1 - t * 0.55), 0, Math.PI * 2);
+    ctx.fill();
+  }
+  ctx.restore();
+}
+
 function drawCriaSprite(px, py, now, dir) {
   const bob = Math.sin(now / 300) * 1.5;
   // 1ª opção: vista direcional do modelo 3D — o companion vira para o lado
   // em que anda, com leve balanço ao caminhar (parallax barato no canvas).
   const view = getMonsterView(state.cria.species, dir || 'down');
   if (view) {
+    const cx = px + TILE/2, baseY = py + TILE;
+    // Halo do elemento pulsando no chão (a criatura "irradia")
+    const def = MONSTERS[state.cria.species];
+    const fx = ELEMENT_FX[def && def.element] || ELEMENT_FX.fire;
+    const pulse = 0.55 + Math.sin(now / 260) * 0.18;
+    const g = ctx.createRadialGradient(cx, baseY - 18, 2, cx, baseY - 18, 30);
+    g.addColorStop(0, fx.glow);
+    g.addColorStop(1, 'rgba(0,0,0,0)');
+    ctx.save();
+    ctx.globalAlpha = pulse * 0.7;
+    ctx.fillStyle = g;
+    ctx.fillRect(cx - 32, baseY - 50, 64, 64);
+    ctx.restore();
+
     ctx.fillStyle = 'rgba(0,0,0,0.45)';
     ctx.beginPath();
-    ctx.ellipse(px + TILE/2, py + TILE - 6, 15, 4.5, 0, 0, Math.PI * 2);
+    ctx.ellipse(cx, baseY - 6, 15, 4.5, 0, 0, Math.PI * 2);
     ctx.fill();
-    const h = 48;
-    const w = h * (view.naturalWidth / view.naturalHeight);
-    ctx.imageSmoothingEnabled = true;
-    ctx.drawImage(view, px + TILE/2 - w/2, py + TILE - h - 2 + bob, w, h);
-    ctx.imageSmoothingEnabled = false;
+
+    // Respiração: a criatura infla/desinfla levemente (ancorada nos pés)
+    const breath = 1 + Math.sin(now / 620) * 0.045;
+    const h = 48 * breath;
+    const w = (48 * (view.naturalWidth / view.naturalHeight)) * (2 - breath);
+    ctx.imageSmoothingEnabled = false;  // pixel art: mantém as bordas duras
+    ctx.drawImage(view, cx - w/2, baseY - h - 2 + bob, w, h);
+
+    drawCriaEmbers(cx, baseY, now, fx);
     return;
   }
   // Arte 3D externa (pre-rendered) tem prioridade — companion estilo Pokopia:
@@ -8733,6 +8892,13 @@ function _migrateProfile(s){
   if(!s.items) s.items = {};
   if(s.items.orbeCriacao === undefined) s.items.orbeCriacao = 0;
   if(s.items.orbeComum === undefined) s.items.orbeComum = 3;
+  // Errante (char4) anda sempre com o Ignivar: se um save antigo dele estiver
+  // sem cria, entrega a companheira em vez de exigir o ritual do Core Orb.
+  if(!s.cria && s.appearance && s.appearance.comboId === 'char4' &&
+     typeof generateMonster === 'function') {
+    s.cria = generateMonster('ignivar', 1);
+    if(s.items.orbeCriacao) s.items.orbeCriacao = 0;
+  }
   return s;
 }
 
