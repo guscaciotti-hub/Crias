@@ -256,9 +256,22 @@ for y in range(1, N - 1):
         if (x, y) in praca_cells or (x, y) in path_cells or (x, y) in cliff_cells: continue
         if oz['x0'] <= x <= oz['x1'] and oz['y0'] <= y <= oz['y1']: continue
         veg.append((x, y))
+veg_set = set(veg)
 for (x, y) in veg:
     r = h2(x, y) % 100
     kind = 'pedra' if r < 7 else 'pinheiro' if r < 40 else 'arvore1' if r < 72 else 'arvore2'
+    # miolo de floresta (>=3 vizinhos vegetados): copa extra deslocada fecha a massa
+    if kind != 'pedra' and sum(1 for nb in ((x-1,y),(x+1,y),(x,y-1),(x,y+1)) if nb in veg_set) >= 3:
+        k2 = 'pinheiro' if (h2(x, y, 21) % 2) else 'arvore1'
+        im2 = props[k2]
+        if im2:
+            var2 = 0.8 + (h2(x, y, 22) % 100) / 100 * 0.4
+            s2 = T * 1.7 * var2
+            w3 = int(s2); h3 = int(s2 * im2.height / im2.width)
+            ox2 = (h2(x, y, 23) % T) - T // 2
+            oy2 = (h2(x, y, 24) % T) - T // 2
+            canvas_rgba.alpha_composite(im2.resize((w3, h3), Image.LANCZOS),
+                (x * T + T // 2 - w3 // 2 + ox2, y * T + T // 3 - h3 + oy2))
     im = props[kind] if props[kind] else None
     cx_, cy_ = x * T + T // 2, y * T + T
     sd.ellipse([cx_ - T*0.55, cy_ - T*0.28, cx_ + T*0.55, cy_ + T*0.10], fill=70)
@@ -293,6 +306,60 @@ for (x, y) in veg:
                 ox2 = int(_m.cos(a) * rad * 0.34); oy2 = int(_m.sin(a) * rad * 0.34)
                 d.ellipse([cx_-rad//2+ox2, cy2-rad//2+oy2, cx_+rad//2+ox2, cy2+rad//2+oy2], fill=midc)
             d.ellipse([cx_-rad//2-3, cy2-rad//2-5, cx_+rad//6, cy2-2], fill=light)
+
+# ── decoração curada (lampiões, cercas, canteiros, ponte, pedras) ──────────
+DECOR = layout.get('decor', {})
+def plantar(asset_name, tx, ty, alt_tiles, anchor_bottom=True):
+    im = _shrink(load_asset(asset_name, True), 420)
+    if im is None: return False
+    hpx = int(T * alt_tiles)
+    wpx = int(hpx * im.width / im.height)
+    im = im.resize((wpx, hpx), Image.LANCZOS)
+    px0 = int(tx * T + T/2 - wpx/2)
+    py0 = int((ty + 1) * T - hpx) if anchor_bottom else int(ty * T)
+    prop_layer.alpha_composite(im, (px0, py0))
+    return True
+
+for p_ in DECOR.get('ponte', []):
+    im = load_asset('prop-ponte.png', True)
+    if im:
+        im = im.resize((p_['w'] * T, p_['h'] * T), Image.LANCZOS)
+        prop_layer.alpha_composite(im, (p_['x'] * T, p_['y'] * T))
+for (tx, ty) in DECOR.get('poste', []):
+    plantar('prop-poste.png', tx, ty, 1.9)
+for (tx, ty) in DECOR.get('canteiro', []):
+    plantar('det-flores.png', tx, ty, 1.1)
+for (tx, ty) in DECOR.get('pedra', []):
+    plantar('prop-pedra.png', tx, ty, 0.9)
+_cerca_img = _shrink(load_asset('prop-cerca.png', True), 300)
+for seg in DECOR.get('cerca', []):
+    (x0_, y0_), (x1_, y1_) = seg['de'], seg['para']
+    if _cerca_img:
+        horiz = abs(x1_ - x0_) >= abs(y1_ - y0_)
+        im = _cerca_img if horiz else _cerca_img.rotate(90, expand=True)
+        hpx = int(T * 0.85)
+        wpx = int(hpx * im.width / im.height)
+        n_ = max(abs(x1_ - x0_), abs(y1_ - y0_)) + 1
+        for i in range(n_):
+            fx = x0_ + (1 if horiz else 0) * i
+            fy = y0_ + (0 if horiz else 1) * i
+            seg_im = im.resize((wpx, hpx) if horiz else (int(T*0.5), T), Image.LANCZOS)
+            prop_layer.alpha_composite(seg_im, (int(fx*T + (T-seg_im.width)/2), int(fy*T + T - seg_im.height)))
+# tapete de micro-detalhe: tufos e pedrinhas espalhados pela grama
+_tufo = _shrink(load_asset('det-tufo.png', True), 200)
+_pedr = _shrink(load_asset('det-pedrinhas.png', True), 200)
+if _tufo or _pedr:
+    livres = [(x, y) for y in range(1, N-1) for x in range(1, N-1)
+              if GRID[y][x] == 0 and (x, y) not in water_cells and (x, y) not in praca_cells
+              and (x, y) not in path_cells and (x, y) not in building_cells and (x, y) not in cliff_cells]
+    for (x, y) in livres:
+        r_ = h2(x, y, 11) % 1000
+        if r_ < 70 and _tufo:
+            sz = int(T * 0.5); im2 = _tufo.resize((sz, int(sz*_tufo.height/_tufo.width)))
+            prop_layer.alpha_composite(im2, (x*T + (h2(x,y,12) % (T-sz)), y*T + (h2(x,y,13) % (T-sz))))
+        elif r_ < 100 and _pedr:
+            sz = int(T * 0.42); im2 = _pedr.resize((sz, int(sz*_pedr.height/_pedr.width)))
+            prop_layer.alpha_composite(im2, (x*T + (h2(x,y,14) % (T-sz)), y*T + (h2(x,y,15) % (T-sz))))
 
 # aplica sombras (multiply simples)
 shadow = shadow.filter(ImageFilter.GaussianBlur(T // 5))
