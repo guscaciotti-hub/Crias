@@ -172,11 +172,13 @@ Fundo VERDE CHROMA #00FF00 sólido. Sem sombra no chão, sem borda, sem texto.
 A criatura ocupa ~80% da altura e nada (nem efeitos) toca as bordas.
 Criatura: `;
 
-const P_CHAR = `Spritesheet única, grade FIXA de 4 colunas × 3 linhas (12 células iguais).
-Cada célula: 256×256px (total 1024×768). Fundo VERDE CHROMA #00FF00 sólido.
+const P_CHAR = `Spritesheet única, grade FIXA de 4 colunas × 4 linhas (16 células iguais).
+Cada célula: 256×256px (total 1024×1024). Fundo VERDE CHROMA #00FF00 sólido.
 Personagem SEMPRE do mesmo tamanho, centralizado, pés na mesma altura em todas as células.
-Ordem: linha 1 = frente (parado, passo esquerdo, passo direito, extra) | linha 2 = costas (mesma ordem)
-| linha 3 = perfil esquerdo parado, perfil esquerdo andando, SENTADO no chão, perfil direito parado.
+Ordem: linha 1 = frente (parado, passo esquerdo, passo direito, extra)
+| linha 2 = costas (parado, passo esquerdo, passo direito, extra)
+| linha 3 = perfil esquerdo parado, perfil esquerdo andando, perfil direito parado, perfil direito andando
+| linha 4 = SENTADO no chão em 4 ângulos: de frente, de costas, perfil esquerdo, perfil direito.
 Sem sombra no chão, sem borda, sem texto. Pixel art 16-bit detalhado.
 Personagem: jovem treinador de Crias, jaqueta escura com detalhes azuis brilhantes,
 calça resistente, botas de viagem, cabelo castanho bagunçado, expressão confiante.`;
