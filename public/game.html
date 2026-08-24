@@ -3412,6 +3412,9 @@ function loadGame() {
 // center: ângulo (deg) que mostra a criatura de frente; sway: amplitude do
 // balanço. Modelos gerados de 1 imagem têm as costas "inventadas" pela IA, então
 // oscilamos dentro do arco bom em vez de girar 360°.
+// Combos que já nascem com o Ignivar acoplado (personagens novos, sem ritual)
+const STARTER_IGNIVAR_COMBOS = ['char4', 'char5'];
+
 const MONSTER_3D = {
   ignivar: { url: '/ignivar.glb', center: 200, sway: 5 },
 };
@@ -4148,6 +4151,8 @@ document.addEventListener('keydown', (e) => {
   if (e.key === 'ArrowLeft' || e.key === 'a') { keys.left = true; }
   if (e.key === 'ArrowRight' || e.key === 'd') { keys.right = true; }
   if (e.key === ' ' || e.key === 'Enter' || e.key.toLowerCase() === 'e') keys.action = true;
+  // R: senta / levanta (só onde há sprite de pose sentada para o combo)
+  if (e.key.toLowerCase() === 'r' && !movingTo) toggleSit();
 });
 document.addEventListener('keyup', (e) => {
   if (e.key === 'ArrowUp' || e.key === 'w') keys.up = false;
@@ -4181,8 +4186,19 @@ function canWalkTo(x, y) {
   return true;
 }
 
+// Sentar/levantar (tecla R) — só quando o combo tem sprite de pose sentada
+function toggleSit() {
+  if (!state || inBattle || inDialog || inMenu) return;
+  const combo = (state.appearance && state.appearance.comboId) || selectedCombo;
+  const c = spriteImageCache[combo];
+  if (!c || !c.sit || !c.sit[0]) return;
+  state._sitting = !state._sitting;
+  if (FX.sfx && FX.sfx.ui) FX.sfx.ui();
+}
+
 function tryMove(dir) {
   if (movingTo) return;
+  if (state && state._sitting) state._sitting = false; // andar levanta
   const dx = dir === 'left' ? -1 : dir === 'right' ? 1 : 0;
   const dy = dir === 'up' ? -1 : dir === 'down' ? 1 : 0;
   lastFacing = dir;
@@ -7238,13 +7254,15 @@ const EXTERNAL_COMBO_SPRITES = {
     down:  ['/char4-down-0.png?v=3', '/char4-down-1.png?v=3', '/char4-down-2.png?v=3'],
     up:    ['/char4-up-0.png?v=3', '/char4-up-1.png?v=3', '/char4-up-2.png?v=3'],
     left:  ['/char4-left-0.png?v=3', '/char4-left-1.png?v=3'],
-    right: ['/char4-right-0.png?v=3']  // right-1 vem do espelho automático do left-1
+    right: ['/char4-right-0.png?v=3'],
+    sit:   ['/char4-sit-0.png?v=3']  // right-1 vem do espelho automático do left-1
   },
   char5: {
     down:  ['/char5-down-0.png?v=3', '/char5-down-1.png?v=3', '/char5-down-2.png?v=3'],
     up:    ['/char5-up-0.png?v=3', '/char5-up-1.png?v=3', '/char5-up-2.png?v=3'],
     left:  ['/char5-left-0.png?v=3', '/char5-left-1.png?v=3'],
-    right: ['/char5-right-0.png?v=3']  // right-1 vem do espelho automático do left-1
+    right: ['/char5-right-0.png?v=3'],
+    sit:   ['/char5-sit-0.png?v=3']  // right-1 vem do espelho automático do left-1
   }
 };
 
@@ -7467,7 +7485,11 @@ window.selectCombo = selectCombo;
 let _lastMovingTo = null;
 let _stepCount = 0;
 function drawComposedPlayer(px, py, now) {
-  const dir = (state && state.scene === 'cave1') ? (state.cavePlayer.dir || 'down') : ((state && state.player.dir) || 'down');
+  let dir = (state && state.scene === 'cave1') ? (state.cavePlayer.dir || 'down') : ((state && state.player.dir) || 'down');
+  if (state && state._sitting && !movingTo) {
+    const _sc = spriteImageCache[(state.appearance && state.appearance.comboId) || selectedCombo];
+    if (_sc && _sc.sit && _sc.sit[0]) dir = 'sit';
+  }
   // idle: frame 0 para todas as direções.
   //  • down/up → frame 0 = parado de frente/costas
   //  • left/right → frame 0 = perfil lateral LIMPO (claramente virado de lado).
@@ -7541,11 +7563,14 @@ document.getElementById('obConfirm').addEventListener('click', async () => {
     // Prepare state first
     state = newGameState(name, null);
     state.appearance = { comboId: combo };
-    // Errante (char4) já começa com o Ignivar acoplado — companion no mapa
-    // desde o primeiro passo, sem precisar do ritual do Core Orb.
-    if (combo === 'char4') {
+    // Personagens novos (Errante/char4 e Caçador/char5) já começam com o
+    // Ignivar acoplado — companion no mapa desde o primeiro passo, sem o
+    // ritual do Core Orb.
+    if (STARTER_IGNIVAR_COMBOS.includes(combo)) {
       state.cria = generateMonster('ignivar', 1);
       state.items.orbeCriacao = 0;
+      const q1 = (state.quests || []).find(q => q.id === 'q1');
+      if (q1) { q1.progress = q1.total; q1.done = true; }
     }
     await preloadComboSprites(combo);
 
@@ -8894,7 +8919,7 @@ function _migrateProfile(s){
   if(s.items.orbeComum === undefined) s.items.orbeComum = 3;
   // Errante (char4) anda sempre com o Ignivar: se um save antigo dele estiver
   // sem cria, entrega a companheira em vez de exigir o ritual do Core Orb.
-  if(!s.cria && s.appearance && s.appearance.comboId === 'char4' &&
+  if(!s.cria && s.appearance && STARTER_IGNIVAR_COMBOS.includes(s.appearance.comboId) &&
      typeof generateMonster === 'function') {
     s.cria = generateMonster('ignivar', 1);
     if(s.items.orbeCriacao) s.items.orbeCriacao = 0;

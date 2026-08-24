@@ -28,13 +28,16 @@ TARGET_H, BOTTOM_PAD = 760, 6
 MAPPING = {
     (1, 1): 'down-0', (1, 2): 'down-1', (1, 3): 'down-2',
     (2, 1): 'up-0',   (2, 2): 'up-1',   (2, 3): 'up-2',
-    (3, 1): 'left-0', (3, 2): 'left-1', (3, 4): 'right-0',
+    (3, 1): 'left-0', (3, 2): 'left-1', (3, 3): 'sit-0', (3, 4): 'right-0',
 }
 DIRS = {
     'down':  ['down-0', 'down-1', 'down-2'],
     'up':    ['up-0', 'up-1', 'up-2'],
     'left':  ['left-0', 'left-1'],
     'right': ['right-0'],
+    # 'sit' usa a escala da vista frontal: a pose é naturalmente mais baixa,
+    # então não pode ditar a própria escala (senão fica gigante em pé)
+    'sit':   ['sit-0'],
 }
 # passo A <-> passo B (para mirror fix automático quando um deles vem cortado)
 STEP_TWIN = {'down-1': 'down-2', 'down-2': 'down-1', 'up-1': 'up-2', 'up-2': 'up-1'}
@@ -80,20 +83,25 @@ for suffix, cell in cells.items():
             broken.add(suffix)
             print(f'{suffix}: conteúdo cortado na borda -> será espelho de {twin}')
 
-# 3) normalizar por direção
+# 3) normalizar por direção ('down' primeiro: define a escala usada por 'sit')
 os.makedirs(outdir, exist_ok=True)
+DOWN_SCALE = [1.0]
 out_paths = {}
 for d, suffixes in DIRS.items():
     boxes = {s: robust_bbox(cells[s]) for s in suffixes}
     h0 = boxes[suffixes[0]][3] - boxes[suffixes[0]][1]
     scale = TARGET_H / h0
+    if d == 'sit':
+        scale = DOWN_SCALE[0]  # mesma escala do personagem em pé
     for s in suffixes:
         if s in broken:
             continue
         bb = boxes[s]
         crop = cells[s].crop(bb)
         w, h = crop.size
-        fscale = scale if abs(h - h0) / h0 <= 0.08 else TARGET_H / h
+        fscale = scale if (d == 'sit' or abs(h - h0) / h0 <= 0.08) else TARGET_H / h
+        if d == 'down' and s == suffixes[0]:
+            DOWN_SCALE[0] = fscale
         nw, nh = round(w * fscale), round(h * fscale)
         crop = crop.resize((nw, nh), Image.LANCZOS)
         # Âncora horizontal = centro dos PÉS (12% inferiores), não da imagem:
