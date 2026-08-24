@@ -3274,6 +3274,230 @@ function loadImage(src, timeout) {
 
 // Draws dark socket + blue neon aura around Core Orb each frame,
 // with dynamic viewport-aspect correction so it stays circular on any screen.
+// ============================================================================
+// AMBIENTE VIVO — camada de vida sobre o mapa (nada disso está na imagem).
+// As máscaras de água/grama são lidas do próprio mapa uma vez, então os
+// efeitos caem exatamente sobre rio, cachoeira e gramado do desenho.
+// ============================================================================
+const AMBIENT = {
+  ready: false, water: [], grass: [], MW: 0, MH: 0,
+  clouds: [], birds: [], sparks: [], flies: [], leaves: [], drops: [],
+  weather: 'clear',        // 'clear' | 'rain'
+  timeOfDay: 'day',        // 'day' | 'dusk' | 'night'
+  _last: 0, _birdTimer: 0,
+
+  init(mapImg) {
+    if (this.ready || !mapImg || !mapImg.complete || !mapImg.naturalWidth) return;
+    const S = 96;  // resolução da análise
+    try {
+      const c = document.createElement('canvas'); c.width = S; c.height = S;
+      const x = c.getContext('2d', { willReadFrequently: true });
+      x.drawImage(mapImg, 0, 0, S, S);
+      const d = x.getImageData(0, 0, S, S).data;
+      this.MW = S; this.MH = S;
+      for (let i = 0; i < S * S; i++) {
+        const r = d[i*4], g = d[i*4+1], b = d[i*4+2];
+        const px = (i % S) / S * MAP_W_PX, py = ((i / S) | 0) / S * MAP_H_PX;
+        if (b > 70 && b > r * 1.45 && b > g * 1.12) this.water.push({ x: px, y: py });
+        else if (g > 60 && g > r * 1.25 && g > b * 1.25) this.grass.push({ x: px, y: py });
+      }
+    } catch (e) { /* CORS: segue sem máscaras */ }
+    for (let i = 0; i < 7; i++) this.clouds.push(this._newCloud(true));
+    this.ready = true;
+  },
+
+  _newCloud(spread) {
+    return {
+      x: (spread ? Math.random() : -0.25) * MAP_W_PX * 1.5 - MAP_W_PX * 0.25,
+      y: Math.random() * MAP_H_PX,
+      w: 260 + Math.random() * 420, h: 130 + Math.random() * 200,
+      v: 5 + Math.random() * 9, a: 0.05 + Math.random() * 0.08,
+    };
+  },
+
+  _spawnFlock(camX, camY, cw, ch) {
+    const n = 3 + ((Math.random() * 4) | 0);
+    const dir = Math.random() < 0.5 ? 1 : -1;
+    const y0 = camY + Math.random() * ch * 0.55;
+    const x0 = dir > 0 ? camX - 60 : camX + cw + 60;
+    for (let i = 0; i < n; i++) {
+      this.birds.push({
+        x: x0 - dir * i * (22 + Math.random() * 16),
+        y: y0 + (Math.random() - 0.5) * 46 + i * 5,
+        v: dir * (34 + Math.random() * 22),
+        ph: Math.random() * 6.28, s: 0.75 + Math.random() * 0.5,
+      });
+    }
+  },
+
+  // Horário segue o relógio real do jogador; a chuva vai e vem sozinha.
+  _autoCycle(now) {
+    if (this._forced) return;                     // dev pode fixar manualmente
+    if (now - (this._cycleAt || 0) < 20000) return;
+    this._cycleAt = now;
+    const h = new Date().getHours();
+    this.timeOfDay = (h >= 6 && h < 17) ? 'day' : (h >= 17 && h < 19) ? 'dusk' : 'night';
+    if (this.weather === 'rain') {
+      if (now - (this._rainStart || 0) > 90000) this.weather = 'clear';   // chove ~1,5 min
+    } else if (Math.random() < 0.06) {                                    // ~6% a cada 20s
+      this.weather = 'rain'; this._rainStart = now;
+    }
+  },
+
+  update(dt, camX, camY, cw, ch, now) {
+    if (!this.ready) return;
+    this._autoCycle(now);
+    const inView = (o, m) => o.x > camX - m && o.x < camX + cw + m && o.y > camY - m && o.y < camY + ch + m;
+
+    for (const c of this.clouds) {
+      c.x += c.v * dt;
+      if (c.x > MAP_W_PX + 500) Object.assign(c, this._newCloud(false));
+    }
+
+    this._birdTimer -= dt;
+    if (this._birdTimer <= 0 && this.birds.length < 14) {
+      this._birdTimer = 7 + Math.random() * 11;
+      this._spawnFlock(camX, camY, cw, ch);
+    }
+    for (let i = this.birds.length - 1; i >= 0; i--) {
+      const b = this.birds[i];
+      b.x += b.v * dt; b.y += Math.sin(now / 700 + b.ph) * 0.25;
+      if (b.x < camX - 400 || b.x > camX + cw + 400) this.birds.splice(i, 1);
+    }
+
+    // brilhos na água (só nos pontos visíveis)
+    if (this.water.length && this.sparks.length < 42) {
+      for (let k = 0; k < 3; k++) {
+        const w = this.water[(Math.random() * this.water.length) | 0];
+        if (inView(w, 0)) this.sparks.push({ x: w.x + Math.random() * 18, y: w.y + Math.random() * 18, t: 0, max: 0.9 + Math.random() * 0.8 });
+      }
+    }
+    for (let i = this.sparks.length - 1; i >= 0; i--) {
+      const s = this.sparks[i]; s.t += dt;
+      if (s.t > s.max) this.sparks.splice(i, 1);
+    }
+
+    // vaga-lumes ao anoitecer
+    const wantFlies = (this.timeOfDay !== 'day') ? 26 : 0;
+    if (this.grass.length && this.flies.length < wantFlies) {
+      const g = this.grass[(Math.random() * this.grass.length) | 0];
+      if (inView(g, 120)) this.flies.push({ x: g.x, y: g.y, ph: Math.random() * 6.28, t: 0, max: 6 + Math.random() * 8 });
+    }
+    for (let i = this.flies.length - 1; i >= 0; i--) {
+      const f = this.flies[i]; f.t += dt;
+      if (f.t > f.max || this.timeOfDay === 'day') this.flies.splice(i, 1);
+    }
+
+    // folhas ao vento
+    if (this.grass.length && this.leaves.length < 14 && Math.random() < dt * 2.2) {
+      const g = this.grass[(Math.random() * this.grass.length) | 0];
+      if (inView(g, 60)) this.leaves.push({ x: g.x, y: g.y - 30, vx: 16 + Math.random() * 26, ph: Math.random() * 6.28, t: 0, max: 4 + Math.random() * 3 });
+    }
+    for (let i = this.leaves.length - 1; i >= 0; i--) {
+      const l = this.leaves[i]; l.t += dt; l.x += l.vx * dt; l.y += Math.sin(l.t * 2 + l.ph) * 12 * dt + 8 * dt;
+      if (l.t > l.max) this.leaves.splice(i, 1);
+    }
+
+    // chuva
+    if (this.weather === 'rain') {
+      const want = 150;
+      while (this.drops.length < want) {
+        this.drops.push({ x: camX + Math.random() * cw, y: camY + Math.random() * ch, v: 620 + Math.random() * 320, len: 9 + Math.random() * 12, sp: 0 });
+      }
+      for (const d of this.drops) {
+        d.y += d.v * dt; d.x += 120 * dt;
+        if (d.y > camY + ch || d.x > camX + cw) { d.y = camY - 20; d.x = camX + Math.random() * cw; }
+      }
+    } else if (this.drops.length) this.drops.length = 0;
+  },
+
+  // camada sobre o chão (abaixo dos personagens)
+  drawGround(ctx, camX, camY, cw, ch, now) {
+    if (!this.ready) return;
+    ctx.save();
+    // brilho da água
+    for (const s of this.sparks) {
+      const k = s.t / s.max, a = Math.sin(k * Math.PI);
+      ctx.globalAlpha = a * 0.75;
+      ctx.fillStyle = '#eaf6ff';
+      const r = 1 + a * 2.1;
+      ctx.beginPath(); ctx.arc(s.x - camX, s.y - camY, r, 0, 6.283); ctx.fill();
+    }
+    // sombra das nuvens
+    ctx.globalAlpha = 1;
+    for (const c of this.clouds) {
+      const sx = c.x - camX, sy = c.y - camY;
+      if (sx + c.w < -50 || sx > cw + 50 || sy + c.h < -50 || sy > ch + 50) continue;
+      const g = ctx.createRadialGradient(sx + c.w/2, sy + c.h/2, 10, sx + c.w/2, sy + c.h/2, c.w/2);
+      g.addColorStop(0, `rgba(10,16,32,${c.a})`);
+      g.addColorStop(1, 'rgba(10,16,32,0)');
+      ctx.fillStyle = g;
+      ctx.fillRect(sx, sy, c.w, c.h);
+    }
+    ctx.restore();
+  },
+
+  // camada acima de tudo (céu, clima, luz)
+  drawSky(ctx, camX, camY, cw, ch, now) {
+    if (!this.ready) return;
+    ctx.save();
+    // folhas
+    for (const l of this.leaves) {
+      const k = 1 - l.t / l.max;
+      ctx.globalAlpha = Math.min(1, k * 1.6) * 0.85;
+      ctx.fillStyle = ['#8fbf5a','#c9a227','#d9853b'][(l.ph * 3 | 0) % 3];
+      ctx.save();
+      ctx.translate(l.x - camX, l.y - camY);
+      ctx.rotate(l.t * 3 + l.ph);
+      ctx.fillRect(-2.5, -1.5, 5, 3);
+      ctx.restore();
+    }
+    // vaga-lumes
+    for (const f of this.flies) {
+      const k = f.t / f.max;
+      const a = Math.sin(k * Math.PI) * (0.55 + 0.45 * Math.sin(now / 220 + f.ph));
+      if (a <= 0) continue;
+      const x = f.x - camX + Math.sin(now / 900 + f.ph) * 16;
+      const y = f.y - camY + Math.cos(now / 1100 + f.ph) * 12;
+      ctx.globalAlpha = a * 0.9;
+      ctx.fillStyle = '#ffe98a'; ctx.shadowBlur = 8; ctx.shadowColor = '#ffd54a';
+      ctx.beginPath(); ctx.arc(x, y, 1.7, 0, 6.283); ctx.fill();
+    }
+    ctx.shadowBlur = 0;
+    // pássaros (silhueta em V + sombra no chão)
+    for (const b of this.birds) {
+      const sx = b.x - camX, sy = b.y - camY;
+      if (sx < -60 || sx > cw + 60) continue;
+      const flap = Math.sin(now / 130 + b.ph);
+      ctx.globalAlpha = 0.16;
+      ctx.fillStyle = '#0a1020';
+      ctx.beginPath(); ctx.ellipse(sx + 6, sy + 44, 5 * b.s, 1.6 * b.s, 0, 0, 6.283); ctx.fill();
+      ctx.globalAlpha = 0.82;
+      ctx.strokeStyle = '#20293d'; ctx.lineWidth = 1.6 * b.s; ctx.lineCap = 'round';
+      const w = 6 * b.s, up = flap * 3.4 * b.s;
+      ctx.beginPath();
+      ctx.moveTo(sx - w, sy - up); ctx.quadraticCurveTo(sx, sy + 1.5 * b.s, sx + w, sy - up);
+      ctx.stroke();
+    }
+    // chuva
+    if (this.weather === 'rain') {
+      ctx.globalAlpha = 0.42; ctx.strokeStyle = '#cfe6ff'; ctx.lineWidth = 1.1;
+      ctx.beginPath();
+      for (const d of this.drops) {
+        const sx = d.x - camX, sy = d.y - camY;
+        ctx.moveTo(sx, sy); ctx.lineTo(sx - 3.5, sy + d.len);
+      }
+      ctx.stroke();
+      ctx.globalAlpha = 0.10; ctx.fillStyle = '#4a6f9c'; ctx.fillRect(0, 0, cw, ch);
+    }
+    // tinta do horário
+    if (this.timeOfDay === 'dusk') { ctx.globalAlpha = 0.20; ctx.fillStyle = '#ff8a3d'; ctx.fillRect(0, 0, cw, ch); }
+    else if (this.timeOfDay === 'night') { ctx.globalAlpha = 0.34; ctx.fillStyle = '#0d1b45'; ctx.fillRect(0, 0, cw, ch); }
+    ctx.restore();
+  },
+};
+window.AMBIENT = AMBIENT;
+
 function drawOrbGroundFX(camX, camY, now) {
   const orbCX = 24 * TILE - camX;
   const orbCY = 22 * TILE - camY;
@@ -3689,6 +3913,8 @@ if (['localhost', '127.0.0.1'].includes(location.hostname)) {
   window.__dev = {
     battle: (sp = 'ignivar', lv = 3) => startBattle(generateMonster(sp, lv), { wild: true }),
     state: () => state,
+    // clima/horário manual: __dev.amb('night','rain') | __dev.amb(null) volta ao automático
+    amb: (t, w) => { AMBIENT._forced = !!t; if (t) AMBIENT.timeOfDay = t; if (w) AMBIENT.weather = w; },
   };
 }
 
@@ -8101,6 +8327,12 @@ function render(now) {
     Math.round(cw   * _scaleX), Math.round(ch   * _scaleY),
     0, 0, cw, ch);
 
+  // Ambiente vivo: brilho da água e sombra das nuvens sobre o chão
+  AMBIENT.init(assets.map);
+  AMBIENT.update(Math.min(0.05, (now - (AMBIENT._last || now)) / 1000), camX, camY, cw, ch, now);
+  AMBIENT._last = now;
+  AMBIENT.drawGround(ctx, camX, camY, cw, ch, now);
+
   // Draw dark socket + blue neon aura (drawn live each frame with aspect correction).
   drawOrbGroundFX(camX, camY, now);
 
@@ -8205,6 +8437,9 @@ function render(now) {
 
   // === Draw particles in world space ===
   FX.draw(ctx, camX, camY);
+
+  // Ambiente vivo: pássaros, folhas, vaga-lumes, chuva e luz do horário
+  AMBIENT.drawSky(ctx, camX, camY, cw, ch, now);
 
   // === Orb top-half foreground: always in front of player ===
   // Draws the upper half of the orb sprite after entities so lattice edges cover characters.
