@@ -124,12 +124,13 @@
     <tr><td>Layout</td><td>Idêntico ao atual, elemento por elemento</td></tr>
   </table>
   <div style="margin-top:12px;display:flex;gap:8px;flex-wrap:wrap;">
-    <a href="/mapa-atual.jpg" download><button class="ghost">⬇ baixar mapa atual (anexar no GPT)</button></a>
+    <a href="/mapa-planta.jpg" download><button>⬇ 1. baixar a PLANTA (anexar no GPT)</button></a>
     <span id="mapBtn"></span>
   </div>
   <div class="q" style="margin-top:12px;">
-    <b>Como fazer:</b> anexa o mapa atual no ChatGPT <b>junto</b> com o prompt.
-    Sem a imagem de referência ele inventa outro layout.
+    <b>Fluxo:</b> baixa a planta → anexa no ChatGPT junto com o prompt → ele repinta como
+    cena única rica em detalhes <b>sem mover nada</b> (a planta trava o layout, que é o que
+    casa com a colisão) → sobe a imagem e o Claude confere o alinhamento e instala.
   </div>
   <div class="note">
     Se mesmo assim o layout sair diferente, me avisa — eu regenero o mapa de colisão
@@ -196,22 +197,26 @@ Sem sombra no chão, sem borda, sem texto. Pixel art 16-bit detalhado.
 Personagem: jovem treinador de Crias, jaqueta escura com detalhes azuis brilhantes,
 calça resistente, botas de viagem, cabelo castanho bagunçado, expressão confiante.`;
 
-const P_MAPA = `Recrie ESTE MAPA (imagem anexada) com qualidade visual muito superior:
-mais nítido, com iluminação volumétrica, sombras suaves, profundidade e materiais ricos —
-como um mapa de RPG moderno renderizado em alta qualidade.
+const P_MAPA = `Repinte este mapa de RPG (imagem anexada — é a PLANTA oficial) como uma cena única, rica e orgânica.
 
-REGRAS ABSOLUTAS (não quebrar nenhuma):
-1. VISTA DE CIMA (top-down, câmera perpendicular ao chão). NÃO use perspectiva isométrica,
-   NÃO incline a câmera, NÃO mostre laterais dos prédios.
-2. Mantenha EXATAMENTE o mesmo layout da imagem anexada: cada casa, árvore, rio, cachoeira,
-   ponte, cerca, poste, caminho de pedra e o orbe azul central devem ficar na MESMA posição,
-   mesmo tamanho e mesma proporção. É uma remasterização, não um redesenho.
-3. Imagem quadrada 1:1, 4000x4000 pixels.
-4. Sem grade visível, sem texto, sem marca d'água, sem bordas ou moldura.
-5. Preservar a paleta: grama verde, água azul, pedra cinza, telhados coloridos,
-   e o brilho azul mágico do orbe central.
+REGRA ABSOLUTA — LAYOUT TRAVADO:
+cada construção, árvore, caminho, rio, praça e clareira deve permanecer EXATAMENTE na mesma
+posição, tamanho e proporção da planta. A planta é a verdade do posicionamento; seu trabalho
+é só o acabamento artístico.
 
-Objetivo: a mesma cidade, no mesmo lugar, com acabamento de jogo AAA.`;
+ACABAMENTO (onde você deve caprichar):
+- transições orgânicas entre grama/caminho/água (nada de bordas retas)
+- margens do rio com pedras, juncos e umidade; espuma discreta nas quedas
+- florestas com copas variadas se tocando naturalmente, sub-bosque com flores e cogumelos
+- sombras suaves e coerentes (luz vinda do canto superior esquerdo em TUDO)
+- pequenos detalhes de vida: canteiros, cercas curtas, lampiões, pedrinhas no caminho
+- a praça central de pedra com lajes ricas; NÃO desenhe nada dentro do círculo central vazio
+
+ESTILO: render 3D estilizado de jogo moderno, volumétrico, cores vibrantes, acabamento
+aconchegante — NÃO pixel art.
+
+TÉCNICO: vista DE CIMA (top-down, sem perspectiva isométrica), imagem quadrada 1:1,
+4000×4000, sem grade visível, sem texto, sem bordas.`;
 
 const BASE_AMB = `Sprite sheet para jogo RPG 2D visto DE CIMA (top-down).
 Formato: uma tira horizontal com {N} elementos lado a lado, todos do mesmo tamanho,
