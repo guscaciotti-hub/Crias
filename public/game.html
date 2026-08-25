@@ -3592,25 +3592,45 @@ function construirMascaraFrente() {
     g.putImageData(id, 0, 0); window._maskCanvas = c; return;
   }
 
-  // cor do chão = média dos pixels NÃO marcados vizinhos da região marcada
-  let sr = 0, sg = 0, sb = 0, n = 0;
-  for (let y = 1; y < N_ - 1; y++) for (let x = 1; x < N_ - 1; x++) {
-    const i = y * N_ + x;
-    if (marc[i]) continue;
-    if (!(marc[i-1] || marc[i+1] || marc[i-N_] || marc[i+N_])) continue;
-    const k = i * 4; sr += px[k]; sg += px[k+1]; sb += px[k+2]; n++;
-  }
-  const gr = n ? sr / n : 0, gg2 = n ? sg / n : 0, gb = n ? sb / n : 0;
-  const LIMITE = 46;   // distância de cor a partir da qual o pixel é "objeto"
-
+  // A cor do chão é medida POR REGIÃO marcada: uma árvore no gramado e uma
+  // casa sobre o calçamento têm chões diferentes, e uma média única erraria.
+  const LIMITE = 46;
+  const visto = new Uint8Array(marc.length);
+  const fila = new Int32Array(marc.length);
   let mantidos = 0;
-  for (let i = 0; i < marc.length; i++) {
-    if (!marc[i]) continue;
-    const k = i * 4;
-    const d = Math.abs(px[k] - gr) + Math.abs(px[k+1] - gg2) + Math.abs(px[k+2] - gb);
-    if (n && d < LIMITE) continue;          // parecido com o chão: jogador passa por cima
-    id.data[k] = id.data[k+1] = id.data[k+2] = id.data[k+3] = 255;
-    mantidos++;
+
+  for (let ini = 0; ini < marc.length; ini++) {
+    if (!marc[ini] || visto[ini]) continue;
+    // 1) coleta a região conectada
+    let ini_f = 0, fim_f = 0;
+    fila[fim_f++] = ini; visto[ini] = 1;
+    const regiao = [];
+    while (ini_f < fim_f) {
+      const i = fila[ini_f++]; regiao.push(i);
+      const x = i % N_, y = (i / N_) | 0;
+      if (x > 0        && marc[i-1]  && !visto[i-1])  { visto[i-1]  = 1; fila[fim_f++] = i-1; }
+      if (x < N_ - 1   && marc[i+1]  && !visto[i+1])  { visto[i+1]  = 1; fila[fim_f++] = i+1; }
+      if (y > 0        && marc[i-N_] && !visto[i-N_]) { visto[i-N_] = 1; fila[fim_f++] = i-N_; }
+      if (y < N_ - 1   && marc[i+N_] && !visto[i+N_]) { visto[i+N_] = 1; fila[fim_f++] = i+N_; }
+    }
+    // 2) chão desta região = média dos vizinhos não marcados
+    let sr = 0, sg = 0, sb = 0, n = 0;
+    for (const i of regiao) {
+      const x = i % N_, y = (i / N_) | 0;
+      for (const j of [x>0?i-1:-1, x<N_-1?i+1:-1, y>0?i-N_:-1, y<N_-1?i+N_:-1]) {
+        if (j < 0 || marc[j]) continue;
+        const k = j * 4; sr += px[k]; sg += px[k+1]; sb += px[k+2]; n++;
+      }
+    }
+    const gr = n ? sr/n : 0, gg2 = n ? sg/n : 0, gb = n ? sb/n : 0;
+    // 3) mantém só o que destoa do chão local
+    for (const i of regiao) {
+      const k = i * 4;
+      const d = Math.abs(px[k]-gr) + Math.abs(px[k+1]-gg2) + Math.abs(px[k+2]-gb);
+      if (n && d < LIMITE) continue;
+      id.data[k] = id.data[k+1] = id.data[k+2] = id.data[k+3] = 255;
+      mantidos++;
+    }
   }
   g.putImageData(id, 0, 0);
   window._maskCanvas = c;

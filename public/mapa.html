@@ -68,6 +68,7 @@
       <div class="row2"><button class="gh" id="fit">🔍 Ver tudo</button><button class="gh" id="auto">✨ Auto-colisão</button></div>
       <div class="row2"><button class="gh" id="undo">↶ Desfazer</button><button class="gh" id="limpa">🧹 Limpar</button></div>
       <div class="row2"><button class="gh" id="recarrega">↻ recarregar colisão do jogo</button></div>
+      <div class="row2"><button class="gh" id="extrai">✂ extrair marcado como peça</button></div>
     </div>
 
     <div class="sec" id="secPecas" style="display:none">
@@ -170,6 +171,54 @@ buscaColisaoJogo().then(col=>{
   }
   carregar(); desenhaMarcas();
 });
+// Recorta do mapa tudo que está marcado de amarelo, remove o chão em volta
+// e devolve como TILE transparente — vira peça da camada 2.
+$('extrai').onclick=()=>{
+  if(!(mapa.complete&&mapa.naturalWidth)) return msg('mapa ainda carregando');
+  const F=N*4;
+  let x0=F,y0=F,x1=-1,y1=-1;
+  for(let y=0;y<F;y++){ const ln=st.frente[y]; if(!ln) continue;
+    for(let x=0;x<F;x++) if(ln[x]){ if(x<x0)x0=x; if(x>x1)x1=x; if(y<y0)y0=y; if(y>y1)y1=y; } }
+  if(x1<0) return msg('marque algo de amarelo primeiro');
+  const w=x1-x0+1, h=y1-y0+1;
+  const esc=Math.min(4, 900/Math.max(w,h));            // resolução do recorte
+  const cw=Math.round(w*esc), ch=Math.round(h*esc);
+  const c=document.createElement('canvas'); c.width=cw; c.height=ch;
+  const g=c.getContext('2d');
+  g.drawImage(mapa, x0/F*mapa.width, y0/F*mapa.height, w/F*mapa.width, h/F*mapa.height, 0,0,cw,ch);
+  try{
+    const d=g.getImageData(0,0,cw,ch), px=d.data;
+    // chão = média dos pixels não marcados na borda da região
+    let sr=0,sg=0,sb=0,n=0;
+    for(let y=y0;y<=y1;y++) for(let x=x0;x<=x1;x++){
+      const ln=st.frente[y]; if(!ln||ln[x]) continue;
+      const viz = (st.frente[y][x-1]||st.frente[y][x+1]||(st.frente[y-1]&&st.frente[y-1][x])||(st.frente[y+1]&&st.frente[y+1][x]));
+      if(!viz) continue;
+      const cx=Math.round((x-x0)*esc), cy=Math.round((y-y0)*esc);
+      if(cx<0||cy<0||cx>=cw||cy>=ch) continue;
+      const k=(cy*cw+cx)*4; sr+=px[k]; sg+=px[k+1]; sb+=px[k+2]; n++;
+    }
+    const gr=n?sr/n:0, gg=n?sg/n:0, gb=n?sb/n:0;
+    for(let cy=0;cy<ch;cy++) for(let cx=0;cx<cw;cx++){
+      const mx=Math.floor(x0+cx/esc), my=Math.floor(y0+cy/esc);
+      const k=(cy*cw+cx)*4;
+      const dentro = st.frente[my] && st.frente[my][mx];
+      if(!dentro){ px[k+3]=0; continue; }              // fora da marcação: transparente
+      const dist=Math.abs(px[k]-gr)+Math.abs(px[k+1]-gg)+Math.abs(px[k+2]-gb);
+      if(n && dist < 46) px[k+3]=0;                     // parecido com o chão: some
+    }
+    g.putImageData(d,0,0);
+  }catch(e){ return msg('não consegui recortar: '+e.message); }
+  const nome='up-recorte-'+Date.now().toString(36)+'.png';
+  UP[nome]=c.toDataURL('image/png');
+  // já entra como peça na camada da frente, no lugar de onde foi recortada
+  snap();
+  st.pecas.push({ t:nome, x:(x0+x1)/2/4, y:(y0+y1)/2/4, s:h/4, rot:0, frente:true });
+  st.sel=st.pecas.length-1;
+  paleta(); desenhaMarcas(); salvar();
+  msg('peça extraída do mapa ('+cw+'x'+ch+') e posta na camada da frente');
+};
+
 $('recarrega').onclick=async()=>{
   const col = COL_JOGO || await buscaColisaoJogo();
   if(!col) return msg('não consegui ler a colisão do jogo');
