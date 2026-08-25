@@ -8617,9 +8617,6 @@ function render(now) {
     drawPlayer(pX - camX, pY - camY, now);
   }
 
-  // Peças marcadas para cobrir o jogador
-  if (state && window.MAPA_PECAS) desenhaPecasMapa(camX, camY, true);
-
   // === ZONAS DE PASSA-ATRÁS ===
   // A marcação vem em resolução 4x, então o recorte acompanha o contorno real
   // (a silhueta do orbe, a copa da árvore) em vez de apagar tiles quadrados.
@@ -8648,6 +8645,10 @@ function render(now) {
       ctx.drawImage(tmp, 0, 0);
     }
   }
+
+  // Peças que cobrem o jogador — depois da máscara, senão o redesenho do
+  // mapa passaria por cima delas e as cortaria pela metade
+  if (state && window.MAPA_PECAS) desenhaPecasMapa(camX, camY, true);
 
   // === ORBE do editor: metade de baixo já foi desenhada; aqui vai a de cima,
   // que cobre o jogador (efeito de passar por trás do cristal) ===
