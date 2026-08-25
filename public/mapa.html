@@ -55,7 +55,8 @@
         <button data-m="gerar"><span class="dot" style="background:var(--acc)"></span>Gerar tile novo</button>
       </div>
       <label>Pincel <input type="range" id="brush" min="1" max="8" value="2"><b id="brushv" style="color:var(--acc)">2</b></label>
-      <div class="hint" style="margin:6px 0 0;padding:0">Clique pinta · <b>Shift+clique</b> apaga · arrasta desenha livre</div>
+      <div class="hint" style="margin:6px 0 0;padding:0">Clique pinta · <b>Shift+clique</b> apaga · arrasta desenha livre.
+      No modo <b>Passa atrás</b> o pincel é fino e redondo: contorne só a forma (ex: o orbe), sem pegar o que está em volta.</div>
     </div>
 
     <div class="sec">
@@ -91,7 +92,8 @@
     <div class="sec" id="secOrbe">
       <h2>Orbe</h2>
       <label>Tamanho <input type="range" id="orbT" min="2" max="16" value="9"><b id="orbTv" style="color:var(--orb)">9</b></label>
-      <div class="hint" style="margin:0;padding:0">Metade de cima cobre o jogador automaticamente.</div>
+      <button class="gh" id="orbAuto" style="margin-top:6px">✨ marcar passa-atrás do orbe</button>
+      <div class="hint" style="margin:6px 0 0;padding:0">Marca automaticamente a silhueta do orbe (só onde ele é opaco).</div>
     </div>
 
     <div class="sec">
@@ -115,7 +117,9 @@
 const N=48, TP=40, $=i=>document.getElementById(i);
 const st = {
   colisao: Array.from({length:N},()=>Array(N).fill(0)),
-  frente:  Array.from({length:N},()=>Array(N).fill(0)),
+  // passa-atrás em resolução fina (4x): permite acompanhar o contorno real
+  // do orbe/telhado em vez de apagar o tile quadrado inteiro
+  frente:  Array.from({length:N*4},()=>Array(N*4).fill(0)),
   orbe: {x:23.5, y:21.5, tam:9},
   modo:'colisao', brush:2, zoom:1, panX:0, panY:0,
   pecas: [],          // {t,x,y,s,rot,frente}
@@ -153,7 +157,8 @@ function desenhaMarcas(){
   gK.fillStyle='#ff3b3b';
   for(let y=0;y<N;y++)for(let x=0;x<N;x++) if(st.colisao[y][x]) gK.fillRect(x*TP,y*TP,TP,TP);
   gK.fillStyle='#ffd54a';
-  for(let y=0;y<N;y++)for(let x=0;x<N;x++) if(st.frente[y][x]) gK.fillRect(x*TP,y*TP,TP,TP);
+  const F=N*4, sub=TP/4;
+  for(let y=0;y<F;y++)for(let x=0;x<F;x++) if(st.frente[y][x]) gK.fillRect(x*sub,y*sub,sub,sub);
   gK.globalAlpha=1;
   // peças colocadas (atrás e na frente marcadas por cor)
   st.pecas.forEach((p,i)=>{
@@ -191,8 +196,9 @@ function desenhaMarcas(){
       gK.beginPath();gK.moveTo(0,i*TP);gK.lineTo(N*TP,i*TP);gK.stroke();
     }
   }
-  const nc=st.colisao.flat().filter(Boolean).length, nf=st.frente.flat().filter(Boolean).length;
-  $('stats').textContent = `${nc} bloqueados · ${nf} passa-atrás`;
+  const nc=st.colisao.flat().filter(Boolean).length;
+  const nf=st.frente.flat().filter(Boolean).length;
+  $('stats').textContent = `${nc} bloqueados · ${Math.round(nf/16)} tiles de passa-atrás`;
 }
 $('grade').onchange=$('opac').oninput=desenhaMarcas;
 $('brush').oninput=e=>{st.brush=+e.target.value;$('brushv').textContent=e.target.value;};
@@ -215,7 +221,8 @@ function snap(){ HIST.push(JSON.stringify({c:st.colisao,f:st.frente,o:st.orbe}))
 $('undo').onclick=()=>{ if(!HIST.length) return msg('nada para desfazer');
   const j=JSON.parse(HIST.pop()); st.colisao=j.c; st.frente=j.f; st.orbe=j.o; desenhaMarcas(); salvar(); };
 $('limpa').onclick=()=>{ if(!confirm('Apagar todas as marcações?'))return; snap();
-  for(let y=0;y<N;y++)for(let x=0;x<N;x++){st.colisao[y][x]=0;st.frente[y][x]=0;} desenhaMarcas(); salvar(); };
+  for(let y=0;y<N;y++)for(let x=0;x<N;x++) st.colisao[y][x]=0;
+  for(let y=0;y<N*4;y++)for(let x=0;x<N*4;x++) st.frente[y][x]=0; desenhaMarcas(); salvar(); };
 
 // auto-colisão pelas cores do mapa (água, rocha, construções)
 $('auto').onclick=()=>{
@@ -257,11 +264,21 @@ function alcaPeca(fx,fy){
 }
 function marca(fx,fy,apagar){
   if(st.modo==='orbe'){ st.orbe.x=fx; st.orbe.y=fy; desenhaMarcas(); return; }
+  if(st.modo==='frente'){
+    // pincel redondo em resolução fina (4 sub-células por tile)
+    const F=N*4, cx=fx*4, cy=fy*4, r=st.brush*0.7;
+    for(let dy=-Math.ceil(r);dy<=Math.ceil(r);dy++)
+      for(let dx=-Math.ceil(r);dx<=Math.ceil(r);dx++){
+        if(dx*dx+dy*dy > r*r) continue;
+        const X=Math.floor(cx+dx), Y=Math.floor(cy+dy);
+        if(X>=0&&Y>=0&&X<F&&Y<F) st.frente[Y][X]= apagar?0:1;
+      }
+    desenhaMarcas(); return;
+  }
   const x=Math.floor(fx), y=Math.floor(fy), b=st.brush, m=Math.floor(b/2);
-  const alvo = st.modo==='colisao' ? st.colisao : st.frente;
   for(let dy=0;dy<b;dy++)for(let dx=0;dx<b;dx++){
     const X=x+dx-m, Y=y+dy-m;
-    if(X>=0&&Y>=0&&X<N&&Y<N) alvo[Y][X]= apagar?0:1;
+    if(X>=0&&Y>=0&&X<N&&Y<N) st.colisao[Y][X]= apagar?0:1;
   }
   desenhaMarcas();
 }
@@ -361,6 +378,23 @@ $('pub').onclick=async()=>{
     if(r.error) throw r.error;
     msg('✅ publicado! Abra o jogo e recarregue.');
   }catch(e){ msg('erro: '+(e.message||e)); }
+};
+$('orbAuto').onclick=()=>{
+  if(!(orbeImg.complete&&orbeImg.naturalWidth)) return msg('orbe ainda carregando');
+  snap();
+  const o=st.orbe, F=N*4;
+  const oh=o.tam, ow=oh*(orbeImg.naturalWidth/orbeImg.naturalHeight);
+  const c=document.createElement('canvas'); c.width=Math.round(ow*4); c.height=Math.round(oh*4);
+  const g=c.getContext('2d'); g.drawImage(orbeImg,0,0,c.width,c.height);
+  const d=g.getImageData(0,0,c.width,c.height).data; let n=0;
+  const x0=Math.round((o.x-ow/2)*4), y0=Math.round((o.y-oh/2)*4);
+  for(let yy=0; yy<c.height; yy++) for(let xx=0; xx<c.width; xx++){
+    if(d[(yy*c.width+xx)*4+3] < 60) continue;
+    if(yy > c.height*0.62) continue;          // só a metade de cima cobre o jogador
+    const X=x0+xx, Y=y0+yy;
+    if(X>=0&&Y>=0&&X<F&&Y<F){ st.frente[Y][X]=1; n++; }
+  }
+  desenhaMarcas(); salvar(); msg('silhueta do orbe marcada ('+Math.round(n/16)+' tiles)');
 };
 $('bkp').onclick=()=>{
   const b=new Blob([JSON.stringify({colisao:st.colisao,frente:st.frente,orbe:st.orbe})],{type:'application/json'});
