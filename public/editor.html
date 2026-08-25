@@ -12,7 +12,8 @@
   #side{width:262px;background:var(--pan);border-right:1px solid var(--line);display:flex;flex-direction:column}
   #side h1{font-size:15px;margin:12px 12px 2px}#side h1 span{color:var(--acc)}
   .hint{font-size:11px;color:var(--dim);margin:0 12px 8px}
-  .tabs{display:flex;border-bottom:1px solid var(--line)}
+  .tabs{display:flex;flex-wrap:wrap;border-bottom:1px solid var(--line)}
+  .tabs button{min-width:33.33%}
   .tabs button{flex:1;background:none;border:0;color:var(--dim);padding:9px 2px;font-size:11px;font-weight:700;cursor:pointer;border-bottom:2px solid transparent}
   .tabs button.on{color:var(--acc);border-bottom-color:var(--acc)}
   #pal{flex:1;overflow-y:auto;padding:8px;display:grid;grid-template-columns:repeat(3,1fr);gap:6px;align-content:start}
@@ -42,17 +43,17 @@
   <div id="side">
     <h1>CRIAS — <span>Construtor</span></h1>
     <div class="hint">Pinte por cima do mapa original (fantasma) para reproduzi-lo tile a tile.</div>
-    <div class="tabs">
-      <button data-l="terreno" class="on">Terreno</button>
-      <button data-l="objeto">Objetos</button>
-      <button data-l="colisao">Colisão</button>
-    </div>
+    <div class="tabs" id="tabs"></div>
     <div id="pal"></div>
     <div id="ctrl">
       <label>Fantasma <input type="range" id="ghost" min="0" max="100" value="55"></label>
       <label>Grade <input type="checkbox" id="grid" checked></label>
       <label>Colisão <input type="checkbox" id="showcol"></label>
       <label>Pincel <input type="range" id="brush" min="1" max="6" value="1"></label>
+      <div class="row2">
+        <button class="gh" id="undo">↶ Desfazer</button>
+        <button class="gh" id="redo">↷ Refazer</button>
+      </div>
       <div class="row2">
         <button class="gh" id="up">+ tiles</button>
         <button class="gh" id="auto">Auto-colisão</button>
@@ -73,7 +74,7 @@
       <button class="tool" data-t="conta">💧 Conta-gotas</button>
       <span id="pos">—</span>
     </div>
-    <div id="msg">Escolha um tile e comece a pintar. Botão do meio (ou espaço) arrasta o mapa; roda dá zoom.</div>
+    <div id="msg">Ctrl+Z desfaz · espaço arrasta · roda dá zoom. Escolha uma seção e um tile para pintar.</div>
     <div id="wrap">
       <canvas id="cGhost"></canvas>
       <canvas id="cTer"></canvas>
@@ -109,9 +110,34 @@ $('ghost').oninput = e => { $('cGhost').style.opacity = e.target.value/100; };
 $('cGhost').style.opacity = .55;
 
 // ── paleta ──────────────────────────────────────────────────────────────
-const GRUPOS = { terreno:['terreno','margem','detalhe'], objeto:['prop'], colisao:[] };
+// Seções da paleta: cada aba tem sua própria lista e a camada em que pinta.
+// 'match' filtra os arquivos do manifest/uploads que pertencem à seção.
+const SECOES = [
+  { id:'chao',    nome:'Chão',     camada:'terreno', match:f=>f.startsWith('tile-') },
+  { id:'bordas',  nome:'Bordas',   camada:'terreno', match:f=>f.startsWith('margem-')||f.startsWith('meiofio-') },
+  { id:'arvores', nome:'Árvores',  camada:'objeto',  match:f=>/^prop-(arvore|pinheiro|arbusto|mato)/.test(f) },
+  { id:'casas',   nome:'Casas',    camada:'objeto',  match:f=>/^prop-(casa|arena|predio|shop|cupula|loja|torre)/.test(f) },
+  { id:'objetos', nome:'Objetos',  camada:'objeto',  match:f=>f.startsWith('prop-')&&!/^prop-(arvore|pinheiro|arbusto|mato|casa|arena|predio|shop|cupula|loja|torre)/.test(f) },
+  { id:'detalhes',nome:'Detalhes', camada:'terreno', match:f=>f.startsWith('det-') },
+  { id:'colisao', nome:'Colisão',  camada:'colisao', match:()=>false },
+];
+state.secao = 'chao';
 let manifest = {};
-fetch('/map-kit/manifest.json').then(r=>r.json()).then(m=>{ manifest=m; paleta(); });
+let TODOS = [];   // todos os arquivos disponíveis (manifest + uploads)
+function atualizaTodos(){
+  TODOS = [...new Set([].concat(...Object.values(manifest)), ...Object.keys(UPLOADS))];
+}
+function montaTabs(){
+  const t = $('tabs'); t.innerHTML = '';
+  for(const sec of SECOES){
+    const b = document.createElement('button');
+    b.textContent = sec.nome;
+    b.className = state.secao === sec.id ? 'on' : '';
+    b.onclick = () => { state.secao = sec.id; state.layer = sec.camada; montaTabs(); paleta(); pintaGrid(); };
+    t.appendChild(b);
+  }
+}
+fetch('/map-kit/manifest.json').then(r=>r.json()).then(m=>{ manifest=m; atualizaTodos(); montaTabs(); paleta(); });
 
 function nomeCurto(f){ return f.replace(/^(tile|prop|det|margem|meiofio)-/,'').replace('.png',''); }
 function imgDe(nome){
@@ -121,27 +147,23 @@ function imgDe(nome){
 }
 function paleta(){
   const p = $('pal'); p.innerHTML='';
-  if(state.layer==='colisao'){
-    p.innerHTML = '<div class="grp" style="line-height:1.6">Clique = bloquear (vermelho)<br>Shift+clique = liberar<br><br>Use “Auto-colisão” para marcar tudo que tem objeto.</div>';
+  const sec = SECOES.find(s=>s.id===state.secao);
+  if(sec.camada==='colisao'){
+    p.innerHTML = '<div class="grp" style="line-height:1.7">Clique = bloquear (vermelho)<br>Shift+clique = liberar<br>Ctrl+Z desfaz<br><br>“Auto-colisão” marca objetos, água e penhasco de uma vez.</div>';
     return;
   }
-  const grupos = GRUPOS[state.layer];
-  for(const g of grupos){
-    const lista = (manifest[g]||[]).concat(Object.keys(UPLOADS).filter(u=>u.startsWith(g==='prop'?'prop-':g==='terreno'?'tile-':g+'-')));
-    if(!lista.length) continue;
-    const h=document.createElement('div'); h.className='grp'; h.textContent=g; p.appendChild(h);
-    for(const f of lista){
-      const d=document.createElement('div'); d.className='tile'+(state.sel===f?' on':'');
-      d.innerHTML='<img src="'+(UPLOADS[f]||('/map-kit/'+f))+'"><b>'+nomeCurto(f)+'</b>';
-      d.onclick=()=>{ state.sel=f; paleta(); };
-      p.appendChild(d);
-    }
+  const lista = TODOS.filter(sec.match).sort();
+  if(!lista.length){
+    p.innerHTML = '<div class="grp" style="line-height:1.6">Nenhum tile nesta seção.<br>Use “+ tiles” para enviar.</div>';
+    return;
+  }
+  for(const f of lista){
+    const d=document.createElement('div'); d.className='tile'+(state.sel===f?' on':'');
+    d.innerHTML='<img src="'+(UPLOADS[f]||('/map-kit/'+f))+'"><b>'+nomeCurto(f)+'</b>';
+    d.onclick=()=>{ state.sel=f; paleta(); };
+    p.appendChild(d);
   }
 }
-document.querySelectorAll('.tabs button').forEach(b=>b.onclick=()=>{
-  document.querySelectorAll('.tabs button').forEach(x=>x.classList.remove('on'));
-  b.classList.add('on'); state.layer=b.dataset.l; paleta(); pintaGrid();
-});
 document.querySelectorAll('.tool').forEach(b=>b.onclick=()=>{
   document.querySelectorAll('.tool').forEach(x=>x.classList.remove('on'));
   b.classList.add('on'); state.tool=b.dataset.t;
@@ -183,6 +205,36 @@ function pintaGrid(){
 $('grid').onchange=$('showcol').onchange=pintaGrid;
 $('brush').oninput=e=>state.brush=+e.target.value;
 
+// ── histórico (Ctrl+Z / Ctrl+Y) ─────────────────────────────────────────
+const HIST = [], REDO = [];
+function snapshot(){
+  HIST.push(JSON.stringify({t:state.terreno,o:state.objeto,c:state.colisao}));
+  if(HIST.length>60) HIST.shift();
+  REDO.length = 0;
+}
+function restaura(json){
+  const j = JSON.parse(json);
+  state.terreno=j.t; state.objeto=j.o; state.colisao=j.c;
+  pintaTer(); pintaObj(); pintaGrid();
+}
+function desfazer(){
+  if(!HIST.length) return msg('nada para desfazer');
+  REDO.push(JSON.stringify({t:state.terreno,o:state.objeto,c:state.colisao}));
+  restaura(HIST.pop());
+  msg('desfeito ('+HIST.length+' passos restantes)');
+}
+function refazer(){
+  if(!REDO.length) return msg('nada para refazer');
+  HIST.push(JSON.stringify({t:state.terreno,o:state.objeto,c:state.colisao}));
+  restaura(REDO.pop());
+  msg('refeito');
+}
+window.addEventListener('keydown',e=>{
+  const k = e.key.toLowerCase();
+  if((e.ctrlKey||e.metaKey) && k==='z' && !e.shiftKey){ e.preventDefault(); desfazer(); }
+  else if((e.ctrlKey||e.metaKey) && (k==='y' || (k==='z'&&e.shiftKey))){ e.preventDefault(); refazer(); }
+});
+
 // ── interação ───────────────────────────────────────────────────────────
 let pintando=false, arrastando=false, lx=0, ly=0, espaco=false;
 const stage=$('stage'), wrap=$('wrap');
@@ -219,6 +271,8 @@ function balde(x,y){
 stage.addEventListener('mousedown',e=>{
   if(e.button===1||espaco){ arrastando=true; lx=e.clientX; ly=e.clientY; e.preventDefault(); return; }
   const [x,y]=tileDe(e); if(x<0||y<0||x>=N||y>=N) return;
+  if(state.tool==='conta'){ aplica(x,y); return; }
+  snapshot();
   if(state.tool==='balde'&&state.layer!=='colisao'){ balde(x,y); pintaGrid(); return; }
   pintando=true; aplica(x,y);
 });
@@ -241,6 +295,7 @@ stage.addEventListener('wheel',e=>{
 },{passive:false});
 
 // ── upload de tiles ─────────────────────────────────────────────────────
+$('undo').onclick=desfazer; $('redo').onclick=refazer;
 $('up').onclick=()=>$('file').click();
 $('file').onchange=e=>{
   const fs=[...e.target.files]; let n=0;
@@ -249,7 +304,7 @@ $('file').onchange=e=>{
     r.onload=()=>{
       let nome=f.name.replace(/\s*\(\d+\)/,'').replace(/(\.png)+$/,'.png');
       if(!/^(tile|prop|det|margem|meiofio)-/.test(nome)) nome = (state.layer==='objeto'?'prop-':'tile-')+nome;
-      UPLOADS[nome]=r.result; if(++n===fs.length){ paleta(); msg(fs.length+' tile(s) adicionados'); }
+      UPLOADS[nome]=r.result; if(++n===fs.length){ atualizaTodos(); paleta(); msg(fs.length+' tile(s) adicionados'); }
     };
     r.readAsDataURL(f);
   });
@@ -258,6 +313,7 @@ function msg(t){ $('msg').textContent=t; }
 
 // ── auto-colisão + exportar + salvar ────────────────────────────────────
 $('auto').onclick=()=>{
+  snapshot();
   let n=0;
   for(let y=0;y<N;y++)for(let x=0;x<N;x++){
     const t=state.terreno[y][x]||'';
@@ -293,7 +349,7 @@ $('load').onclick=()=>{
   const d=localStorage.getItem('crias_editor'); if(!d) return msg('nenhum projeto salvo');
   const j=JSON.parse(d);
   state.terreno=j.t; state.objeto=j.o; state.colisao=j.c;
-  Object.assign(UPLOADS,j.u||{});
+  Object.assign(UPLOADS,j.u||{}); atualizaTodos();
   paleta(); pintaTer(); pintaObj(); pintaGrid(); msg('projeto carregado');
 };
 pintaGrid(); aplicaTransform();
