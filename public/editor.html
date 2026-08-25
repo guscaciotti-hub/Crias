@@ -142,7 +142,7 @@
       <span id="pos">—</span>
     </div>
     <div id="selbox"></div>
-    <div id="msg">Clique seleciona · arrasta move · alça redimensiona · Ctrl+C/Ctrl+V copia com o MESMO tamanho · Ctrl+D duplica.</div>
+    <div id="msg">Alças: amarela proporcional · azuis largura/altura · roxa gira (tecla R, Shift trava 15°) · Ctrl+C/V copia tudo.</div>
     <div id="fab">
       <button id="fabFrente" title="Alterna se este objeto cobre o personagem">⬆ vem pra frente</button>
       <button id="fabDup" title="Duplicar com o mesmo tamanho (Ctrl+D)">⧉</button>
@@ -284,7 +284,14 @@ fetch('/map-kit/manifest.json').then(r=>r.json()).then(async m=>{
 
 // Uma célula de objeto é 'arquivo.png' (simples) ou {t,dx,dy,s} quando o
 // usuário ajusta posição/tamanho livremente com a ferramenta ✥.
-function oInfo(c){ return !c ? null : (typeof c === 'string' ? {t:c,dx:0,dy:0,s:1} : c); }
+function oInfo(c){
+  if(!c) return null;
+  const o = (typeof c === 'string') ? {t:c,dx:0,dy:0,s:1} : c;
+  if(o.sx === undefined) o.sx = 1;   // esticar só a largura
+  if(o.sy === undefined) o.sy = 1;   // esticar só a altura
+  if(o.rot === undefined) o.rot = 0; // ângulo em graus
+  return o;
+}
 function oNome(c){ const i=oInfo(c); return i ? i.t : null; }
 
 function nomeCurto(f){ return f.replace(/^(tile|prop|det|margem|meiofio)-/,'').replace('.png',''); }
@@ -445,18 +452,27 @@ function pintaObj(){
   for(let y=0;y<N;y++)for(let x=0;x<N;x++) if(state.objeto[y][x]) ordem.push([x,y,state.objeto[y][x]]);
   for(const [x,y,c] of ordem){
     const o=oInfo(c), im=imgH(o.t); if(!(im.complete&&im.naturalWidth)) continue;
-    const esc=(o.t.startsWith('prop-')?2.0:1)*o.s;
-    const h=TP*esc, w=h*(im.naturalWidth/im.naturalHeight);
-    desenhaPeca(gObj, o, im, x*TP+TP/2-w/2+o.dx*TP, y*TP+TP-h+o.dy*TP, w, h);
+    const bb=caixaDe('objeto',x,y); if(!bb) continue;
+    const w=bb.w, h=bb.h;
+    desenhaPeca(gObj, o, im, bb.x, bb.y, w, h);
     if(selObj && selObj.l==='objeto' && selObj.x===x && selObj.y===y){
       const bx=x*TP+TP/2-w/2+o.dx*TP, by=y*TP+TP-h+o.dy*TP;
       gObj.strokeStyle='#ffd54a'; gObj.lineWidth=2; gObj.setLineDash([5,3]);
       gObj.strokeRect(bx, by, w, h); gObj.setLineDash([]);
-      // alça de redimensionar no canto inferior direito
+      // alças: canto = proporcional · direita = largura · base = altura
       const s2=Math.max(9, 13/state.zoom);
-      gObj.fillStyle='#ffd54a'; gObj.fillRect(bx+w-s2/2, by+h-s2/2, s2, s2);
-      gObj.strokeStyle='#3a2c00'; gObj.lineWidth=1.5; gObj.setLineDash([]);
-      gObj.strokeRect(bx+w-s2/2, by+h-s2/2, s2, s2);
+      const marca=(mx,my,cor)=>{ gObj.fillStyle=cor; gObj.fillRect(mx-s2/2,my-s2/2,s2,s2);
+        gObj.strokeStyle='#20180a'; gObj.lineWidth=1.5; gObj.setLineDash([]);
+        gObj.strokeRect(mx-s2/2,my-s2/2,s2,s2); };
+      marca(bx+w, by+h, '#ffd54a');          // proporcional
+      marca(bx+w, by+h/2, '#7ee0ff');        // largura
+      marca(bx+w/2, by+h, '#7ee0ff');        // altura
+      // alça de girar, acima do topo
+      const gy = by - Math.max(18, 22/state.zoom);
+      gObj.strokeStyle='#ffd54a'; gObj.lineWidth=1.5; gObj.setLineDash([3,3]);
+      gObj.beginPath(); gObj.moveTo(bx+w/2, by); gObj.lineTo(bx+w/2, gy); gObj.stroke(); gObj.setLineDash([]);
+      gObj.fillStyle='#a78bfa'; gObj.beginPath(); gObj.arc(bx+w/2, gy, s2*0.6, 0, 6.283); gObj.fill();
+      gObj.strokeStyle='#241a45'; gObj.stroke();
     }
   }
 }
@@ -465,9 +481,9 @@ function pintaFre(){
   for(let y=0;y<N;y++)for(let x=0;x<N;x++){
     const c=state.frente[y][x]; if(!c) continue;
     const o=oInfo(c), im=imgH(o.t); if(!(im.complete&&im.naturalWidth)) continue;
-    const esc=2.0*o.s, h=TP*esc, w=h*(im.naturalWidth/im.naturalHeight);
-    const bx=x*TP+TP/2-w/2+o.dx*TP, by=y*TP+TP-h+o.dy*TP;
-    gFre.drawImage(im, bx, by, w, h);
+    const bb=caixaDe('frente',x,y); if(!bb) continue;
+    const w=bb.w, h=bb.h, bx=bb.x, by=bb.y;
+    desenhaPeca(gFre, o, im, bx, by, w, h);
     if(selObj && selObj.l==='frente' && selObj.x===x && selObj.y===y){
       gFre.strokeStyle='#ffd54a'; gFre.lineWidth=2; gFre.setLineDash([5,3]);
       gFre.strokeRect(bx,by,w,h); gFre.setLineDash([]);
@@ -676,9 +692,9 @@ stage.addEventListener('mousedown',e=>{
   if(state.tool==='pincel' || state.tool==='ajustar'){
     const naAlca = selObj && alcaHit(e);
     if(naAlca){
-      snapshot(); redimensionando=true;
+      snapshot(); redimensionando=naAlca;
       const o=oInfo(state[selObj.l][selObj.y][selObj.x]);
-      escBase={mx:e.clientX,my:e.clientY,s:o.s};
+      escBase={mx:e.clientX,my:e.clientY,s:o.s,sx:o.sx,sy:o.sy,rot:o.rot};
       return;
     }
     // REGRA: com um tile escolhido na paleta, o clique PINTA (mesmo por cima).
@@ -720,14 +736,31 @@ window.addEventListener('mousemove',e=>{
   $('pos').textContent = (x>=0&&y>=0&&x<N&&y<N) ? `${x}, ${y}` : '—';
   if(x>=0&&y>=0&&x<N&&y<N) ultimoTile={x,y};   // destino do Ctrl+V
   if(redimensionando&&selObj&&escBase){
-    const d=((e.clientX-escBase.mx)+(e.clientY-escBase.my))/2;
-    setObj(o=>o.s=Math.max(0.3, Math.min(20, escBase.s + d/60)));
-    const v=Math.round(oInfo(state[selObj.l][selObj.y][selObj.x]).s*100);
-    if($('tam')){ $('tam').value=v; $('tamv').textContent=v+'%'; }
+    const z=TP*state.zoom;
+    const dx2=(e.clientX-escBase.mx)/z, dy2=(e.clientY-escBase.my)/z;
+    if(redimensionando==='girar'){
+      // ângulo entre o centro da peça e o cursor
+      const b2=caixaSel(), r=wrap.getBoundingClientRect(), z=state.zoom;
+      const cx2=r.left+(b2.x+b2.w/2)*z, cy2=r.top+(b2.y+b2.h/2)*z;
+      let ang=Math.atan2(e.clientY-cy2, e.clientX-cx2)*180/Math.PI + 90;
+      if(e.shiftKey) ang=Math.round(ang/15)*15;      // Shift trava de 15 em 15
+      setObj(o=>o.rot=Math.round(ang));
+      return;
+    }
+    if(redimensionando==='larg')      setObj(o=>o.sx=Math.max(0.15, escBase.sx + dx2/3));
+    else if(redimensionando==='alt')  setObj(o=>o.sy=Math.max(0.15, escBase.sy + dy2/3));
+    else {
+      const d=((e.clientX-escBase.mx)+(e.clientY-escBase.my))/2;
+      setObj(o=>o.s=Math.max(0.3, Math.min(20, escBase.s + d/60)));
+      const v=Math.round(oInfo(state[selObj.l][selObj.y][selObj.x]).s*100);
+      if($('tam')){ $('tam').value=v; $('tamv').textContent=v+'%'; }
+    }
     return;
   }
   if(!pintando&&!movendo&&!redimensionando&&!arrastando){
-    if(selObj && alcaHit(e)) stage.style.cursor='nwse-resize';
+    const a=selObj && alcaHit(e);
+    if(a) stage.style.cursor = a==='larg' ? 'ew-resize' : a==='alt' ? 'ns-resize'
+                              : a==='girar' ? 'grab' : 'nwse-resize';
     else if(!state.sel && x>=0&&y>=0&&x<N&&y<N && !achaObj(x,y)) stage.style.cursor='grab';
     else stage.style.cursor='default';
   }
@@ -785,6 +818,9 @@ window.addEventListener('keydown',e=>{
     if(e.key==='ArrowUp'){ setObj(o=>o.dy-=f); e.preventDefault(); return; }
     if(e.key==='ArrowDown'){ setObj(o=>o.dy+=f); e.preventDefault(); return; }
     if(e.key==='Delete'){ $('adjdel').click(); return; }
+  }
+  if(selObj && (e.key==='r'||e.key==='R') && !e.ctrlKey && !e.metaKey){
+    setObj(o=>o.rot=((o.rot||0) + (e.shiftKey?-15:15))%360); return;
   }
   if(selObj && e.key==='Delete'){ $('adjdel').click(); return; }
   const passo = 90;
@@ -940,7 +976,7 @@ let ultimoTile = {x:24, y:24};
 function copiarPeca(){
   if(!selObj){ msg('selecione uma peça primeiro (clique nela)'); return; }
   const o = oInfo(state[selObj.l][selObj.y][selObj.x]);
-  areaTransf = {t:o.t, dx:o.dx, dy:o.dy, s:o.s, l:selObj.l};
+  areaTransf = {t:o.t, dx:o.dx, dy:o.dy, s:o.s, sx:o.sx, sy:o.sy, rot:o.rot, l:selObj.l};
   msg('copiado: ' + nomeCurto(o.t) + ' em ' + Math.round(o.s*100) + '% — Ctrl+V cola com o mesmo tamanho');
 }
 function colarPeca(){
@@ -949,7 +985,7 @@ function colarPeca(){
   if(x<0||y<0||x>=N||y>=N) return;
   snapshot();
   const alvo = areaTransf.l==='frente' ? 'frente' : 'objeto';
-  state[alvo][y][x] = {t:areaTransf.t, dx:areaTransf.dx, dy:areaTransf.dy, s:areaTransf.s};
+  state[alvo][y][x] = {t:areaTransf.t, dx:areaTransf.dx, dy:areaTransf.dy, s:areaTransf.s, sx:areaTransf.sx, sy:areaTransf.sy, rot:areaTransf.rot};
   selObj = {l:alvo, x, y};
   // o tamanho copiado também vira o padrão do próximo clique
   if($('tam')){ $('tam').value=Math.round(areaTransf.s*100); $('tamv').textContent=Math.round(areaTransf.s*100)+'%'; }
@@ -998,15 +1034,31 @@ function jaSelecionado(a,x,y){
 }
 // retângulo do objeto selecionado na tela (para desenhar e testar a alça)
 function caixaSel(){ return selObj ? caixaDe(selObj.l, selObj.x, selObj.y) : null; }
+// devolve qual alça está sob o cursor: 'prop' | 'larg' | 'alt' | null
 function alcaHit(e){
-  const b=caixaSel(); if(!b) return false;
+  const b=caixaSel(); if(!b) return null;
   const r=wrap.getBoundingClientRect(), z=state.zoom;
-  const hx=r.left+(b.x+b.w)*z, hy=r.top+(b.y+b.h)*z;
-  return Math.hypot(e.clientX-hx, e.clientY-hy) < 16;
+  const perto=(px,py)=>Math.hypot(e.clientX-(r.left+px*z), e.clientY-(r.top+py*z))<16;
+  if(perto(b.x+b.w, b.y+b.h)) return 'prop';
+  if(perto(b.x+b.w, b.y+b.h/2)) return 'larg';
+  if(perto(b.x+b.w/2, b.y+b.h)) return 'alt';
+  if(perto(b.x+b.w/2, b.y - Math.max(18,22/state.zoom))) return 'girar';
+  return null;
 }
 // Tiles de chão colocados como peça livre são desenhados com a textura em
 // escala natural (recortada do padrão), não a imagem inteira espremida.
 function desenhaPeca(ctx2, o, im, bx, by, w, h){
+  if(o.rot){
+    ctx2.save();
+    ctx2.translate(bx + w/2, by + h/2);
+    ctx2.rotate(o.rot * Math.PI/180);
+    desenhaPecaBase(ctx2, o, im, -w/2, -h/2, w, h);
+    ctx2.restore();
+    return;
+  }
+  desenhaPecaBase(ctx2, o, im, bx, by, w, h);
+}
+function desenhaPecaBase(ctx2, o, im, bx, by, w, h){
   if(o.t.startsWith('tile-')){
     const lado = TP * TEX_TILES;
     const tmp = document.createElement('canvas'); tmp.width=Math.max(1,Math.round(w)); tmp.height=Math.max(1,Math.round(h));
@@ -1025,7 +1077,7 @@ function caixaDe(l,x,y){
   const o=oInfo(c), im=imgDe(o.t);
   if(!(im.complete&&im.naturalWidth)) return null;
   const esc=(o.t.startsWith('prop-')?2.0:1)*o.s;
-  const h=TP*esc, w=h*(im.naturalWidth/im.naturalHeight);
+  const h=TP*esc*o.sy, w=TP*esc*(im.naturalWidth/im.naturalHeight)*o.sx;
   return { x:x*TP+TP/2-w/2+o.dx*TP, y:y*TP+TP-h+o.dy*TP, w, h };
 }
 // Acerta o objeto pela ÁREA DESENHADA, não pela vizinhança da âncora: peças
@@ -1084,7 +1136,7 @@ function mostraAjuste(){
   const o=oInfo(state[selObj.l][selObj.y][selObj.x]);
   $('adjnome').textContent = nomeCurto(o.t) + '  ·  ' + (selObj.l==='frente'?'frente':'objeto');
   $('adjesc').value = Math.round(o.s*100);
-  $('adjinfo').textContent = `tamanho ${Math.round(o.s*100)}%  ·  deslocado ${o.dx.toFixed(2)}, ${o.dy.toFixed(2)} tile`;
+  $('adjinfo').textContent = `${Math.round(o.s*100)}%  ·  L ${Math.round(o.sx*100)}%  A ${Math.round(o.sy*100)}%  ·  ${o.rot||0}°`;
   $('gen').classList.remove('on');
   a.classList.add('on');
   posFab();
@@ -1102,7 +1154,7 @@ $('adjdel').onclick=()=>{ if(!selObj) return; snapshot();
   state[selObj.l][selObj.y][selObj.x]=null;
   if(selObj.l==='frente') pintaFre(); else pintaObj();
   selObj=null; mostraAjuste(); };
-$('adjreset').onclick=()=>setObj(o=>{o.dx=0;o.dy=0;o.s=1;});
+$('adjreset').onclick=()=>setObj(o=>{o.dx=0;o.dy=0;o.s=1;o.sx=1;o.sy=1;o.rot=0;});
 $('adjclose').onclick=()=>{ selObj=null; mostraAjuste(); pintaObj(); pintaFre(); };
 
 // ── upload de tiles ─────────────────────────────────────────────────────
@@ -1158,8 +1210,10 @@ function renderCamada(campo, transparente){
   for(let y=0;y<N;y++)for(let x=0;x<N;x++){
     const c=state[campo][y][x]; if(!c) continue;
     const o=oInfo(c), im=imgH(o.t); if(!im.complete) continue;
-    const esc=2.0*o.s, h=OUT*esc, w=h*(im.naturalWidth/im.naturalHeight);
-    g.drawImage(im,x*OUT+OUT/2-w/2+o.dx*OUT,y*OUT+OUT-h+o.dy*OUT,w,h);
+    const esc=2.0*o.s, h=OUT*esc*o.sy, w=OUT*esc*(im.naturalWidth/im.naturalHeight)*o.sx;
+    const bx=x*OUT+OUT/2-w/2+o.dx*OUT, by=y*OUT+OUT-h+o.dy*OUT;
+    if(o.rot){ g.save(); g.translate(bx+w/2,by+h/2); g.rotate(o.rot*Math.PI/180); g.drawImage(im,-w/2,-h/2,w,h); g.restore(); }
+    else g.drawImage(im,bx,by,w,h);
   }
   return c;
 }
@@ -1183,15 +1237,22 @@ function renderFinal(){
   for(let y=0;y<N;y++)for(let x=0;x<N;x++){
     const c=state.objeto[y][x]; if(!c) continue;
     const o=oInfo(c), im=imgH(o.t); if(!im.complete) continue;
-    const esc=(o.t.startsWith('prop-')?2.0:1)*o.s, h=OUT*esc, w=h*(im.naturalWidth/im.naturalHeight);
+    const esc=(o.t.startsWith('prop-')?2.0:1)*o.s;
+    const h=OUT*esc*o.sy, w=OUT*esc*(im.naturalWidth/im.naturalHeight)*o.sx;
     if(o.t.startsWith('tile-')){
       const lado=OUT*TEX_TILES;
       const pc=document.createElement('canvas'); pc.width=pc.height=lado;
       pc.getContext('2d').drawImage(im,0,0,lado,lado);
       const tmp=document.createElement('canvas'); tmp.width=Math.max(1,Math.round(w)); tmp.height=Math.max(1,Math.round(h));
       const tg=tmp.getContext('2d'); tg.fillStyle=tg.createPattern(pc,'repeat'); tg.fillRect(0,0,tmp.width,tmp.height);
-      g.drawImage(tmp, x*OUT+OUT/2-w/2+o.dx*OUT, y*OUT+OUT-h+o.dy*OUT);
-    } else g.drawImage(im,x*OUT+OUT/2-w/2+o.dx*OUT,y*OUT+OUT-h+o.dy*OUT,w,h);
+      const bx2=x*OUT+OUT/2-w/2+o.dx*OUT, by2=y*OUT+OUT-h+o.dy*OUT;
+      if(o.rot){ g.save(); g.translate(bx2+w/2,by2+h/2); g.rotate(o.rot*Math.PI/180); g.drawImage(tmp,-w/2,-h/2); g.restore(); }
+      else g.drawImage(tmp, bx2, by2);
+    } else {
+      const bx2=x*OUT+OUT/2-w/2+o.dx*OUT, by2=y*OUT+OUT-h+o.dy*OUT;
+      if(o.rot){ g.save(); g.translate(bx2+w/2,by2+h/2); g.rotate(o.rot*Math.PI/180); g.drawImage(im,-w/2,-h/2,w,h); g.restore(); }
+      else g.drawImage(im,bx2,by2,w,h);
+    }
   }
   return c;
 }
