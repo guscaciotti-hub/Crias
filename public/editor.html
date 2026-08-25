@@ -105,7 +105,7 @@
       <span id="pos">—</span>
     </div>
     <div id="selbox"></div>
-    <div id="msg">Ctrl+Z desfaz · ✋ move · 0 enquadra · roda dá zoom. Aba ⬆ Frente = o que cobre o personagem.</div>
+    <div id="msg">Coloque e arraste direto: clique no objeto move, a alça amarela redimensiona. Ctrl+Z desfaz · Esc solta · Del apaga.</div>
     <div id="adj">
       <div class="gh1">✥ Ajustar objeto</div>
       <div class="gsub" id="adjnome">—</div>
@@ -337,8 +337,14 @@ function pintaObj(){
     const h=TP*esc, w=h*(im.naturalWidth/im.naturalHeight);
     gObj.drawImage(im, x*TP+TP/2-w/2+o.dx*TP, y*TP+TP-h+o.dy*TP, w, h);
     if(selObj && selObj.l==='objeto' && selObj.x===x && selObj.y===y){
+      const bx=x*TP+TP/2-w/2+o.dx*TP, by=y*TP+TP-h+o.dy*TP;
       gObj.strokeStyle='#ffd54a'; gObj.lineWidth=2; gObj.setLineDash([5,3]);
-      gObj.strokeRect(x*TP+TP/2-w/2+o.dx*TP, y*TP+TP-h+o.dy*TP, w, h); gObj.setLineDash([]);
+      gObj.strokeRect(bx, by, w, h); gObj.setLineDash([]);
+      // alça de redimensionar no canto inferior direito
+      const s2=Math.max(9, 13/state.zoom);
+      gObj.fillStyle='#ffd54a'; gObj.fillRect(bx+w-s2/2, by+h-s2/2, s2, s2);
+      gObj.strokeStyle='#3a2c00'; gObj.lineWidth=1.5; gObj.setLineDash([]);
+      gObj.strokeRect(bx+w-s2/2, by+h-s2/2, s2, s2);
     }
   }
 }
@@ -428,8 +434,12 @@ function aplica(x,y){
       // objetos guardam posição/escala próprias desde o início — evita
       // depender de conversão posterior ao ajustar
       const escNova = (+($('tam')?.value || 100))/100;
-      state[state.layer][Y][X] = (state.layer==='terreno')
-        ? state.sel : {t:state.sel, dx:0, dy:0, s:escNova};
+      if(state.layer==='terreno') state[state.layer][Y][X] = state.sel;
+      else {
+        state[state.layer][Y][X] = {t:state.sel, dx:0, dy:0, s:escNova};
+        selObj = {l:state.layer, x:X, y:Y};   // já sai selecionado
+        mostraAjuste();
+      }
     }
   }
   if(state.layer==='terreno') pintaTer();
@@ -458,8 +468,35 @@ stage.addEventListener('mousedown',e=>{
   if(e.button===1||espaco||state.tool==='mao'){ arrastando=true; lx=e.clientX; ly=e.clientY; e.preventDefault(); return; }
   const [x,y]=tileDe(e); if(x<0||y<0||x>=N||y>=N) return;
   if(state.tool==='recorte'){ selA=[x,y]; selB=[x,y]; pintando=true; desenhaSel(); return; }
-  if(state.tool==='ajustar'){
-    const achou=achaObj(x,y);
+  // Pincel também manipula: clicar num objeto já colocado seleciona e arrasta;
+  // a alça na diagonal (canto inferior direito) redimensiona. Sem trocar de modo.
+  if(state.tool==='pincel' || state.tool==='ajustar'){
+    const naAlca = selObj && alcaHit(e);
+    if(naAlca){
+      snapshot(); redimensionando=true;
+      const o=oInfo(state[selObj.l][selObj.y][selObj.x]);
+      escBase={mx:e.clientX,my:e.clientY,s:o.s};
+      return;
+    }
+    const achouAgora = achaObj(x,y);
+    if(achouAgora && (state.tool==='ajustar' || jaSelecionado(achouAgora,x,y))){
+      selObj=achouAgora; snapshot(); movendo=true;
+      const o=oInfo(state[achouAgora.l][achouAgora.y][achouAgora.x]);
+      movBase={mx:e.clientX,my:e.clientY,dx:o.dx,dy:o.dy};
+      mostraAjuste(); pintaObj(); pintaFre();
+      return;
+    }
+    if(state.tool==='ajustar'){
+      if(achouAgora){ selObj=achouAgora; snapshot(); movendo=true;
+        const o=oInfo(state[achouAgora.l][achouAgora.y][achouAgora.x]);
+        movBase={mx:e.clientX,my:e.clientY,dx:o.dx,dy:o.dy};
+        mostraAjuste(); pintaObj(); pintaFre();
+      } else { selObj=null; mostraAjuste(); pintaObj(); pintaFre(); }
+      return;
+    }
+  }
+  if(false){
+    const achou=null;
     if(achou){ selObj=achou; snapshot(); movendo=true;
       const o=oInfo(state[achou.l][achou.y][achou.x]);
       movBase={mx:e.clientX,my:e.clientY,dx:o.dx,dy:o.dy};
@@ -476,6 +513,16 @@ window.addEventListener('mousemove',e=>{
   if(arrastando){ state.panX+=e.clientX-lx; state.panY+=e.clientY-ly; lx=e.clientX; ly=e.clientY; aplicaTransform(); return; }
   const [x,y]=tileDe(e);
   $('pos').textContent = (x>=0&&y>=0&&x<N&&y<N) ? `${x}, ${y}` : '—';
+  if(redimensionando&&selObj&&escBase){
+    const d=((e.clientX-escBase.mx)+(e.clientY-escBase.my))/2;
+    setObj(o=>o.s=Math.max(0.3, Math.min(20, escBase.s + d/60)));
+    const v=Math.round(oInfo(state[selObj.l][selObj.y][selObj.x]).s*100);
+    if($('tam')){ $('tam').value=v; $('tamv').textContent=v+'%'; }
+    return;
+  }
+  if(!pintando&&!movendo&&!redimensionando&&selObj){
+    stage.style.cursor = alcaHit(e) ? 'nwse-resize' : 'default';
+  }
   if(movendo&&selObj&&movBase){
     const z=TP*state.zoom;
     setObj(o=>{ o.dx=movBase.dx+(e.clientX-movBase.mx)/z; o.dy=movBase.dy+(e.clientY-movBase.my)/z; });
@@ -486,7 +533,7 @@ window.addEventListener('mousemove',e=>{
 });
 window.addEventListener('mouseup',()=>{
   if(pintando&&state.tool==='recorte') atualizaCrop();
-  pintando=false;arrastando=false;movendo=false;
+  pintando=false;arrastando=false;movendo=false;redimensionando=false;
 });
 function desenhaSel(){
   if(!selA||!selB) return;
@@ -509,6 +556,7 @@ function verTudo(){
 }
 $('fit').onclick = verTudo;
 window.addEventListener('keydown',e=>{
+  if(e.key==='Escape'&&selObj){ selObj=null; mostraAjuste(); pintaObj(); pintaFre(); return; }
   if(e.code==='Space'){espaco=true;e.preventDefault();}
   if(selObj && state.tool==='ajustar'){
     const f=e.shiftKey?0.25:0.05;
@@ -518,6 +566,7 @@ window.addEventListener('keydown',e=>{
     if(e.key==='ArrowDown'){ setObj(o=>o.dy+=f); e.preventDefault(); return; }
     if(e.key==='Delete'){ $('adjdel').click(); return; }
   }
+  if(selObj && e.key==='Delete'){ $('adjdel').click(); return; }
   const passo = 90;
   if(e.key==='ArrowLeft'){ state.panX+=passo; aplicaTransform(); e.preventDefault(); }
   if(e.key==='ArrowRight'){ state.panX-=passo; aplicaTransform(); e.preventDefault(); }
@@ -663,7 +712,28 @@ $('gdown').onclick=()=>{
 };
 
 // ── AJUSTAR: move e redimensiona um objeto já colocado ─────────────────
-let selObj=null, movendo=false, movBase=null;
+let selObj=null, movendo=false, movBase=null, redimensionando=false, escBase=null;
+// Um objeto recém-colocado já fica selecionado: o clique seguinte em cima
+// dele move em vez de pintar por cima.
+function jaSelecionado(a,x,y){
+  return selObj && a && selObj.l===a.l && selObj.x===a.x && selObj.y===a.y;
+}
+// retângulo do objeto selecionado na tela (para desenhar e testar a alça)
+function caixaSel(){
+  if(!selObj) return null;
+  const c=state[selObj.l][selObj.y][selObj.x]; if(!c) return null;
+  const o=oInfo(c), im=imgDe(o.t);
+  if(!(im.complete&&im.naturalWidth)) return null;
+  const esc=(o.t.startsWith('prop-')?2.0:1)*o.s;
+  const h=TP*esc, w=h*(im.naturalWidth/im.naturalHeight);
+  return { x:selObj.x*TP+TP/2-w/2+o.dx*TP, y:selObj.y*TP+TP-h+o.dy*TP, w, h };
+}
+function alcaHit(e){
+  const b=caixaSel(); if(!b) return false;
+  const r=wrap.getBoundingClientRect(), z=state.zoom;
+  const hx=r.left+(b.x+b.w)*z, hy=r.top+(b.y+b.h)*z;
+  return Math.hypot(e.clientX-hx, e.clientY-hy) < 16;
+}
 function achaObj(x,y){
   for(const l of ['frente','objeto']){
     for(let dy=0;dy<=2;dy++) for(let dx=-1;dx<=1;dx++){
