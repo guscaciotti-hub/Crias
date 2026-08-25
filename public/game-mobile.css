@@ -23,29 +23,12 @@ html, body {
     transform: none !important;
   }
 }
-/* Portrait: rotate #app 90deg so game always appears as landscape.
-   Must NOT set right/bottom so the rotation transform can position correctly. */
-@media (orientation: portrait) {
-  #rotatePrompt { display: none !important; }
-  #app {
-    position: fixed !important;
-    top: calc((100vh - 100vw) / 2) !important;
-    left: calc((100vw - 100vh) / 2) !important;
-    right: auto !important;
-    bottom: auto !important;
-    width: 100vh !important;
-    height: 100vw !important;
-    transform: rotate(90deg) !important;
-    transform-origin: center !important;
-  }
-}
 canvas#game {
   /* Nearest-neighbor scaling — keeps pixel art crisp on high-DPI screens */
   image-rendering: pixelated !important;
   image-rendering: -moz-crisp-edges !important;
   image-rendering: crisp-edges !important;
 }
-/* Portrait: rotatePrompt hidden — #app rotation handles orientation */
 
 /* ─── HUD: horizontal single-row layout ─── */
 #hud {
