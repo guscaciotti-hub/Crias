@@ -54,7 +54,7 @@
         <button data-m="pecas"><span class="dot" style="background:var(--ok)"></span>Peças — colocar coisas</button>
         <button data-m="gerar"><span class="dot" style="background:var(--acc)"></span>Gerar tile novo</button>
       </div>
-      <label>Pincel <input type="range" id="brush" min="1" max="8" value="2"><b id="brushv" style="color:var(--acc)">2</b></label>
+      <label>Pincel <input type="range" id="brush" min="1" max="8" value="1"><b id="brushv" style="color:var(--acc)">1</b></label>
       <div class="hint" style="margin:6px 0 0;padding:0">Clique pinta · <b>Shift+clique</b> apaga · arrasta desenha livre.
       No modo <b>Passa atrás</b> o pincel é fino e redondo: contorne só a forma (ex: o orbe), sem pegar o que está em volta.</div>
     </div>
@@ -92,7 +92,8 @@
     <div class="sec" id="secOrbe">
       <h2>Orbe</h2>
       <label>Tamanho <input type="range" id="orbT" min="2" max="16" value="9"><b id="orbTv" style="color:var(--orb)">9</b></label>
-      <button class="gh" id="orbAuto" style="margin-top:6px">✨ marcar passa-atrás do orbe</button>
+      <button class="gh" id="orbIr" style="margin-top:6px">🎯 ir até o orbe</button>
+      <button class="gh" id="orbAuto" style="margin-top:5px">✨ marcar passa-atrás do orbe</button>
       <div class="hint" style="margin:6px 0 0;padding:0">Marca automaticamente a silhueta do orbe (só onde ele é opaco).</div>
     </div>
 
@@ -121,7 +122,7 @@ const st = {
   // do orbe/telhado em vez de apagar o tile quadrado inteiro
   frente:  Array.from({length:N*4},()=>Array(N*4).fill(0)),
   orbe: {x:23.5, y:21.5, tam:9},
-  modo:'colisao', brush:2, zoom:1, panX:0, panY:0,
+  modo:'colisao', brush:1, zoom:1, panX:0, panY:0,
   pecas: [],          // {t,x,y,s,rot,frente}
   sel: null,          // índice da peça selecionada
   tile: null,         // tile escolhido na paleta
@@ -219,7 +220,11 @@ document.querySelectorAll('#modos button').forEach(b=>b.onclick=()=>{
 const HIST=[];
 function snap(){ HIST.push(JSON.stringify({c:st.colisao,f:st.frente,o:st.orbe})); if(HIST.length>40)HIST.shift(); }
 $('undo').onclick=()=>{ if(!HIST.length) return msg('nada para desfazer');
-  const j=JSON.parse(HIST.pop()); st.colisao=j.c; st.frente=j.f; st.orbe=j.o; desenhaMarcas(); salvar(); };
+  const j=JSON.parse(HIST.pop());
+  if(j.c) st.colisao=j.c;
+  if(Array.isArray(j.f) && j.f.length===N*4) st.frente=j.f;
+  if(j.o) st.orbe=j.o;
+  desenhaMarcas(); salvar(); };
 $('limpa').onclick=()=>{ if(!confirm('Apagar todas as marcações?'))return; snap();
   for(let y=0;y<N;y++)for(let x=0;x<N;x++) st.colisao[y][x]=0;
   for(let y=0;y<N*4;y++)for(let x=0;x<N*4;x++) st.frente[y][x]=0; desenhaMarcas(); salvar(); };
@@ -275,9 +280,12 @@ function marca(fx,fy,apagar){
       }
     desenhaMarcas(); return;
   }
-  const x=Math.floor(fx), y=Math.floor(fy), b=st.brush, m=Math.floor(b/2);
-  for(let dy=0;dy<b;dy++)for(let dx=0;dx<b;dx++){
-    const X=x+dx-m, Y=y+dy-m;
+  // pincel redondo: tamanho 1 marca exatamente a célula sob o cursor
+  const x=Math.floor(fx), y=Math.floor(fy), r=(st.brush-1)/2;
+  const R=Math.ceil(r);
+  for(let dy=-R;dy<=R;dy++)for(let dx=-R;dx<=R;dx++){
+    if(dx*dx+dy*dy > r*r + 0.3) continue;
+    const X=x+dx, Y=y+dy;
     if(X>=0&&Y>=0&&X<N&&Y<N) st.colisao[Y][X]= apagar?0:1;
   }
   desenhaMarcas();
@@ -362,8 +370,21 @@ function salvar(){ clearTimeout(_t); _t=setTimeout(()=>{
     $('auto2').textContent='salvo '+new Date().toLocaleTimeString('pt-BR').slice(0,5);
   }catch(e){ msg('não consegui salvar — use o Backup'); } },600); }
 function carregar(){ const d=localStorage.getItem('crias_mapa'); if(!d)return;
-  try{ const j=JSON.parse(d); st.colisao=j.c; st.frente=j.f; if(j.o)st.orbe=j.o;
-    $('orbT').value=st.orbe.tam; $('orbTv').textContent=st.orbe.tam; }catch(e){} }
+  try{
+    const j=JSON.parse(d);
+    if(Array.isArray(j.c) && j.c.length===N) st.colisao=j.c;
+    // marcação antiga era 48x48; agora é 192x192 (4x) — converte para não
+    // quebrar o desenho ao abrir um save anterior
+    if(Array.isArray(j.f) && j.f.length===N*4) st.frente=j.f;
+    else if(Array.isArray(j.f) && j.f.length===N){
+      for(let y=0;y<N;y++) for(let x=0;x<N;x++) if(j.f[y][x])
+        for(let dy=0;dy<4;dy++) for(let dx=0;dx<4;dx++) st.frente[y*4+dy][x*4+dx]=1;
+    }
+    if(j.o)st.orbe=j.o;
+    if(Array.isArray(j.p)) st.pecas=j.p;
+    Object.assign(UP, j.u||{});
+    $('orbT').value=st.orbe.tam; $('orbTv').textContent=st.orbe.tam;
+  }catch(e){ console.warn('save antigo ignorado', e); } }
 
 const SB='https://gmycqvvvglexbtbqkjzi.supabase.co', KEY='sb_publishable_N4DdqinjzjnMBWsik5qj2A_ksPBX9Av';
 let sb=null;
@@ -378,6 +399,13 @@ $('pub').onclick=async()=>{
     if(r.error) throw r.error;
     msg('✅ publicado! Abra o jogo e recarregue.');
   }catch(e){ msg('erro: '+(e.message||e)); }
+};
+$('orbIr').onclick=()=>{
+  const r=stage.getBoundingClientRect();
+  st.zoom=1.2;
+  st.panX=r.width/2 - st.orbe.x*TP*st.zoom;
+  st.panY=r.height/2 - st.orbe.y*TP*st.zoom;
+  T(); msg('orbe em '+st.orbe.x.toFixed(1)+', '+st.orbe.y.toFixed(1));
 };
 $('orbAuto').onclick=()=>{
   if(!(orbeImg.complete&&orbeImg.naturalWidth)) return msg('orbe ainda carregando');
@@ -405,7 +433,15 @@ $('bkp').onclick=()=>{
 $('rest').onclick=()=>$('bkpF').click();
 $('bkpF').onchange=e=>{ const f=e.target.files[0]; if(!f)return;
   const r=new FileReader(); r.onload=()=>{ try{ const j=JSON.parse(r.result);
-    snap(); st.colisao=j.colisao; st.frente=j.frente; if(j.orbe)st.orbe=j.orbe;
+    snap();
+    if(j.colisao) st.colisao=j.colisao;
+    if(Array.isArray(j.frente) && j.frente.length===N*4) st.frente=j.frente;
+    else if(Array.isArray(j.frente) && j.frente.length===N){
+      for(let y=0;y<N;y++) for(let x=0;x<N;x++) if(j.frente[y][x])
+        for(let dy=0;dy<4;dy++) for(let dx=0;dx<4;dx++) st.frente[y*4+dy][x*4+dx]=1;
+    }
+    if(j.orbe)st.orbe=j.orbe;
+    if(Array.isArray(j.pecas)) st.pecas=j.pecas;
     desenhaMarcas(); salvar(); msg('backup restaurado'); }catch(err){ msg('arquivo inválido'); } };
   r.readAsText(f); };
 

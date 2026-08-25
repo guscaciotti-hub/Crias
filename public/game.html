@@ -3658,7 +3658,8 @@ function loadAssets() {
   // Configuração do mapa publicada pelo editor /mapa: colisão, zonas de
   // passa-atrás e posição do orbe.
   window.MAPA_FRENTE = null;      // matriz 48x48: 1 = cobre o jogador
-  window.MAPA_ORBE = null;        // {x, y, tam} em tiles
+  // Posição padrão do orbe; o editor /mapa sobrescreve ao publicar.
+  window.MAPA_ORBE = { x: 23.5, y: 21.5, tam: 9 };
   fetch('https://gmycqvvvglexbtbqkjzi.supabase.co/storage/v1/object/public/mapas/mapa-config.json?t=' + Date.now())
     .then(r => r.ok ? r.json() : null)
     .then(cfg => {
@@ -8540,17 +8541,8 @@ function render(now) {
   const _orbDY = ORB_DY - (_orbDH - ORB_DH) * 0.5;
   const _orbSrcSplit = Math.round(512 * ORB_SPLIT); // ≈ 384 px
 
-  if (assets.orbSprite && !window.MAPA_ORBE) {
-    ctx.imageSmoothingEnabled = true;
-    // Bottom quarter: source y[(384-2)→512], starts 2px early to hide seam
-    const _bSrcY = _orbSrcSplit - _orbSeam;
-    const _bDstY = Math.round((_orbDY + ORB_SPLIT * _orbDH) * TILE - camY) - Math.round(_orbSeam / 512 * _orbDH * TILE);
-    ctx.drawImage(assets.orbSprite,
-      0, _bSrcY, 512, 512 - _bSrcY,
-      ORB_DX * TILE - camX, _bDstY,
-      ORB_DW * TILE,
-      Math.round((1 - ORB_SPLIT) * _orbDH * TILE) + Math.round(_orbSeam / 512 * _orbDH * TILE));
-  }
+  // (orbe legado removido: o sprite atual não é 512x512 e era fatiado errado)
+
 
   const _splitWorldY = (_orbDY + ORB_SPLIT * _orbDH) * TILE;
   const _splitScreenY = Math.round(_splitWorldY - camY);
@@ -8597,52 +8589,8 @@ function render(now) {
   // Draws the upper half of the orb sprite after entities so lattice edges cover characters.
   // Then redraws the blue aura glow clipped to the same upper region, because the orb
   // interior is transparent — without the glow, the player shows through the crystal faces.
-  if (state && state.scene !== 'cave1' && assets.orbSprite && !window.MAPA_ORBE) {
-    ctx.imageSmoothingEnabled = true;
-    ctx.save();
-    ctx.beginPath();
-    ctx.rect(ORB_DX * TILE - camX, 0, (28 - ORB_DX) * TILE, canvas.height);
-    ctx.clip();
-    ctx.drawImage(assets.orbSprite,
-      0, 0, 512, _orbSrcSplit,
-      ORB_DX * TILE - camX, Math.round(_orbDY * TILE - camY),
-      ORB_DW * TILE, Math.round(ORB_SPLIT * _orbDH * TILE));
-    ctx.restore();
+  // (aura legada do orbe removida — desenho unificado pelo editor /mapa)
 
-    // Foreground blue glow — clipped to the upper half so the player appears immersed
-    // in the orb's energy field rather than standing in front of it.
-    const _splitCanvasY = Math.round((_orbDY + ORB_SPLIT * _orbDH) * TILE - camY);
-    // Glow center = visual centre of orb content
-    const _fgCX = (ORB_DX + ORB_DW / 2) * TILE - camX;
-    const _fgCY = (ORB_DY + ORB_DH  / 2) * TILE - camY;
-    const _fgRX = viewportW / canvas.width;
-    const _fgRY = viewportH / canvas.height;
-    const _fgYS = (_fgRY > 0 && _fgRX > 0) ? _fgRX / _fgRY : 1;
-    const _pulse = 0.75 + 0.25 * Math.sin((now || 0) / 900);
-    // Foreground glow: only render when center is on-screen (same portrait-safe guard).
-    const _rFG = 4.2 * TILE;
-    const _fgMargin = TILE * 2;
-    if (_fgCX >= -_fgMargin && _fgCX <= canvas.width + _fgMargin &&
-        _fgCY >= -_fgMargin && _fgCY <= canvas.height + _fgMargin) {
-      ctx.save();
-      // Clip: vertical top-half split AND horizontal orb zone (tiles 19–28).
-      const _clipX1 = Math.max(0, 19 * TILE - camX);
-      const _clipX2 = Math.min(canvas.width, 28 * TILE - camX);
-      ctx.beginPath();
-      ctx.rect(_clipX1, 0, Math.max(0, _clipX2 - _clipX1), _splitCanvasY);
-      ctx.clip();
-      ctx.scale(1, _fgYS);
-      const _fgSY = _fgCY / _fgYS;
-      const _gFG = ctx.createRadialGradient(_fgCX, _fgSY, 0, _fgCX, _fgSY, _rFG);
-      _gFG.addColorStop(0.0,  `rgba(40,210,255,${+(0.35 * _pulse).toFixed(2)})`);
-      _gFG.addColorStop(0.40, `rgba(0,185,255,${+(0.28 * _pulse).toFixed(2)})`);
-      _gFG.addColorStop(0.72, `rgba(0,150,230,${+(0.16 * _pulse).toFixed(2)})`);
-      _gFG.addColorStop(1.0,  'rgba(0,100,200,0)');
-      ctx.fillStyle = _gFG;
-      ctx.beginPath(); ctx.arc(_fgCX, _fgSY, _rFG, 0, Math.PI * 2); ctx.fill();
-      ctx.restore();
-    }
-  }
 
   // Redraw player on top of the orb stone-platform wall borders (both sides).
   // Right border cols 27-28: opaque sprite pixels cover entity draw; redraw restores player.
