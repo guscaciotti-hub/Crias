@@ -95,6 +95,11 @@
         <button class="gh" id="load">Abrir</button>
       </div>
       <div class="row2">
+        <button class="gh" id="bkp" title="Baixa TUDO: projeto, tiles, mapa e colisão">💾 Backup completo</button>
+        <button class="gh" id="rest" title="Restaura um backup .json">♻ Restaurar</button>
+      </div>
+      <input type="file" id="bkpFile" accept=".json" hidden>
+      <div class="row2">
         <button class="gh" id="zerar" style="border-color:var(--warn);color:var(--warn)">🧹 Zerar mapa</button>
         <button class="gh" id="despub" style="border-color:var(--bad);color:var(--bad)">Despublicar</button>
       </div>
@@ -114,7 +119,7 @@
       <span id="pos">—</span>
     </div>
     <div id="selbox"></div>
-    <div id="msg">Clique num objeto = seleciona e move (nunca pinta por cima). Área livre com tile escolhido = coloca. Esc solta · Ctrl+Z desfaz.</div>
+    <div id="msg">Tile escolhido = clique PINTA. Sem tile (✋ mão livre) = clique SELECIONA e move. Ctrl+Z desfaz · Esc solta.</div>
     <div id="fab">
       <button id="fabFrente" title="Alterna se este objeto cobre o personagem">⬆ vem pra frente</button>
       <button id="fabDel" title="Apagar (Del)">🗑</button>
@@ -342,7 +347,7 @@ function paleta(){
   // Chip de mão livre: sem tile escolhido, cliques só selecionam/movem
   const livre=document.createElement('div');
   livre.className='livre'+(state.sel?'':' on');
-  livre.textContent = state.sel ? '✋ soltar tile (clique aqui)' : '✋ mão livre — cliques só selecionam';
+  livre.textContent = state.sel ? '✋ soltar tile — hoje o clique PINTA' : '✋ mão livre — clique seleciona objetos';
   livre.onclick=()=>{ state.sel=null; paleta(); msg('mão livre: clique nos objetos para mover/ajustar'); };
   p.appendChild(livre);
 
@@ -499,8 +504,6 @@ function aplica(x,y){
       if(state.layer==='terreno') state[state.layer][Y][X] = state.sel;
       else {
         state[state.layer][Y][X] = {t:state.sel, dx:0, dy:0, s:escNova};
-        selObj = {l:state.layer, x:X, y:Y};   // já sai selecionado
-        mostraAjuste();
       }
     }
   }
@@ -540,19 +543,20 @@ stage.addEventListener('mousedown',e=>{
       escBase={mx:e.clientX,my:e.clientY,s:o.s};
       return;
     }
-    const achouAgora = achaObj(x,y);
-    // Clicar sobre um objeto existente SEMPRE o seleciona para mover —
-    // nunca joga outra peça por cima. Para colocar, clique numa área livre.
-    if(achouAgora){
-      selObj=achouAgora; snapshot(); movendo=true;
-      const o=oInfo(state[achouAgora.l][achouAgora.y][achouAgora.x]);
-      movBase={mx:e.clientX,my:e.clientY,dx:o.dx,dy:o.dy};
-      mostraAjuste(); pintaObj(); pintaFre();
+    // REGRA: com um tile escolhido na paleta, o clique PINTA (mesmo por cima).
+    // Sem tile escolhido (mão livre), o clique SELECIONA o objeto do mapa.
+    if(!state.sel || state.tool==='ajustar'){
+      const achouAgora = achaObj(x,y);
+      if(achouAgora){
+        selObj=achouAgora; snapshot(); movendo=true;
+        const o=oInfo(state[achouAgora.l][achouAgora.y][achouAgora.x]);
+        movBase={mx:e.clientX,my:e.clientY,dx:o.dx,dy:o.dy};
+        mostraAjuste(); pintaObj(); pintaFre();
+      } else if(selObj){
+        selObj=null; mostraAjuste(); pintaObj(); pintaFre();
+      }
       return;
     }
-    // área livre: solta a seleção; sem tile escolhido, o clique não pinta
-    if(selObj){ selObj=null; mostraAjuste(); pintaObj(); pintaFre(); }
-    if(state.tool==='ajustar' || !state.sel) return;
   }
   if(false){
     const achou=null;
@@ -968,6 +972,50 @@ $('exp').onclick=async()=>{
   a2.download='collision.txt'; a2.click();
   msg('exportado: mapa-novo.png + collision.txt — sobe os dois no GitHub');
 };
+// ── BACKUP COMPLETO: um .json com tudo que é preciso para reconstruir ──
+$('bkp').onclick=async()=>{
+  try{
+    msg('gerando backup…');
+    const bkp = {
+      versao: 2,
+      criadoEm: new Date().toISOString(),
+      grade: N,
+      terreno: state.terreno, objeto: state.objeto, frente: state.frente, colisao: state.colisao,
+      tiles: UPLOADS,                       // imagens próprias embutidas (base64)
+      kit: TODOS.filter(f=>!UPLOADS[f]),    // peças que vêm do repositório
+    };
+    const nome = 'crias-mapa-backup-' + new Date().toISOString().slice(0,19).replace(/[:T]/g,'-');
+    const baixa = (blob, arq) => { const a=document.createElement('a');
+      a.href=URL.createObjectURL(blob); a.download=arq; a.click(); };
+    baixa(new Blob([JSON.stringify(bkp)],{type:'application/json'}), nome + '.json');
+    // e também as imagens finais, para não depender de nada
+    renderFinal().toBlob(b=>baixa(b, nome + '-mapa.jpg'), 'image/jpeg', .92);
+    renderCamada('frente').toBlob(b=>baixa(b, nome + '-frente.png'), 'image/png');
+    baixa(new Blob(['const COLLISION = [\n'+state.colisao.map(r=>'  ['+r.join(',')+']').join(',\n')+'\n];'],
+      {type:'text/plain'}), nome + '-collision.txt');
+    msg('✅ backup baixado: .json (tudo) + mapa .jpg + frente .png + collision .txt');
+  }catch(e){ msg('erro no backup: '+(e.message||e)); }
+};
+$('rest').onclick=()=>$('bkpFile').click();
+$('bkpFile').onchange=e=>{
+  const f=e.target.files[0]; if(!f) return;
+  const r=new FileReader();
+  r.onload=async()=>{
+    try{
+      const j=JSON.parse(r.result);
+      if(!j.terreno) throw new Error('arquivo não parece um backup do editor');
+      snapshot();
+      state.terreno=j.terreno; state.objeto=j.objeto;
+      state.frente=j.frente||state.frente; state.colisao=j.colisao;
+      Object.assign(UPLOADS, j.tiles||{});
+      for(const [k,v] of Object.entries(j.tiles||{})){ try{ await dbSalvaTile(k,v); }catch(err){} }
+      atualizaTodos(); paleta(); pintaTer(); pintaObj(); pintaFre(); pintaGrid();
+      msg('✅ backup restaurado ('+Object.keys(j.tiles||{}).length+' tiles próprios)');
+    }catch(err){ msg('erro ao restaurar: '+(err.message||err)); }
+  };
+  r.readAsText(f);
+};
+
 $('zerar').onclick=()=>{
   if(!confirm('Apagar TUDO que você pintou (terreno, objetos, frente e colisão)?')) return;
   snapshot();
