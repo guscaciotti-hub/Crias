@@ -45,7 +45,7 @@
     <h1>CRIAS — <span>Mapa</span></h1>
     <div class="hint">Marque onde o jogador <b>não passa</b>, onde ele <b>some por trás</b> e onde fica o <b>orbe</b>.</div>
 
-    <div class="sec">
+    <div class="sec" id="secModos">
       <h2>O que estou marcando</h2>
       <div class="modo" id="modos">
         <button data-m="colisao" class="on"><span class="dot" style="background:var(--col)"></span>Colisão — não passa</button>
@@ -54,12 +54,15 @@
         <button data-m="pecas"><span class="dot" style="background:var(--ok)"></span>Peças — colocar coisas</button>
         <button data-m="gerar"><span class="dot" style="background:var(--acc)"></span>Gerar tile novo</button>
       </div>
+      </div>
+    </div>
+    <div class="sec" id="secPincel">
       <label>Pincel <input type="range" id="brush" min="1" max="8" value="1"><b id="brushv" style="color:var(--acc)">1</b></label>
       <div class="hint" style="margin:6px 0 0;padding:0"><b>Clique</b> alterna a célula (marca/apaga) · <b>arrastar</b> sempre marca · <b>Shift</b> apaga.
       No modo <b>Passa atrás</b> o pincel é fino e redondo: contorne só a forma (ex: o orbe), sem pegar o que está em volta.</div>
     </div>
 
-    <div class="sec">
+    <div class="sec" id="secVer">
       <h2>Ver</h2>
       <label>Grade <input type="checkbox" id="grade" checked></label>
       <label>Marcações <input type="range" id="opac" min="10" max="90" value="45"></label>
@@ -249,6 +252,12 @@ document.querySelectorAll('#modos button').forEach(b=>b.onclick=()=>{
   $('secPecas').style.display = st.modo==='pecas' ? '' : 'none';
   $('secGerar').style.display = st.modo==='gerar' ? '' : 'none';
   $('secOrbe').style.display  = st.modo==='orbe'  ? '' : 'none';
+  // pincel e ferramentas de mapa só fazem sentido ao marcar
+  $('secPincel').style.display = (st.modo==='colisao'||st.modo==='frente') ? '' : 'none';
+  $('secVer').style.display    = (st.modo==='pecas'||st.modo==='gerar') ? 'none' : '';
+  // leva o painel até a seção do modo escolhido
+  const alvo = {pecas:'secPecas', gerar:'secGerar', orbe:'secOrbe'}[st.modo];
+  if(alvo) setTimeout(()=>$(alvo).scrollIntoView({block:'nearest', behavior:'smooth'}), 60);
   if(st.modo!=='pecas'){ st.sel=null; desenhaMarcas(); }
   msg(st.modo==='orbe' ? 'clique para posicionar o orbe' : 'clique/arraste para marcar · Shift apaga');
 });
