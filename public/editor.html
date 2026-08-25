@@ -36,6 +36,15 @@
   #top b{color:var(--acc)}
   .tool{background:#1a2542;border:1px solid var(--line);color:var(--txt);border-radius:6px;padding:5px 9px;font-size:11px;font-weight:700;cursor:pointer}
   .tool.on{background:var(--acc);color:#04121f;border-color:var(--acc)}
+  #gen{position:absolute;right:10px;top:50px;z-index:12;width:230px;background:rgba(12,18,36,.97);border:1px solid var(--line);border-radius:11px;padding:11px;display:none;flex-direction:column;gap:7px}
+  #gen.on{display:flex}
+  .gh1{font-size:12px;font-weight:800;color:var(--acc)}
+  .gsub{font-size:10px;color:var(--dim);line-height:1.4}
+  #gprev{pointer-events:none;max-width:100%;height:auto;align-self:center;background:#070b16;border:1px solid var(--line);border-radius:7px;image-rendering:auto}
+  .grow{display:flex;align-items:center;gap:6px;font-size:11px;color:var(--dim)}
+  .grow span{width:38px}
+  .grow select,.grow input{flex:1;background:#0d1424;border:1px solid var(--line);color:var(--txt);border-radius:6px;padding:5px;font-size:11px}
+  #selbox{position:absolute;border:2px dashed var(--acc);background:rgba(77,195,255,.14);pointer-events:none;display:none;z-index:11}
   #msg{position:absolute;right:10px;top:10px;z-index:9;background:rgba(10,16,32,.9);border:1px solid var(--line);border-radius:9px;padding:7px 11px;font-size:11px;color:var(--dim);max-width:300px}
 </style>
 </head>
@@ -75,10 +84,32 @@
       <button class="tool" data-t="borracha">🧽 Borracha</button>
       <button class="tool" data-t="conta">💧 Conta-gotas</button>
       <button class="tool" data-t="mao">✋ Mover</button>
+      <button class="tool" data-t="recorte">🎯 Gerar tile</button>
       <button class="tool" id="fit" style="background:#1a2542">🔍 Ver tudo</button>
       <span id="pos">—</span>
     </div>
+    <div id="selbox"></div>
     <div id="msg">Ctrl+Z desfaz · ✋ ou setas movem · tecla 0 enquadra tudo · roda dá zoom.</div>
+    <div id="gen">
+      <div class="gh1">🎯 Gerar tile novo</div>
+      <div class="gsub">Arraste sobre o mapa para marcar o que quer recriar.</div>
+      <canvas id="gprev" width="200" height="200"></canvas>
+      <div class="grow"><span>Tipo</span>
+        <select id="gtipo">
+          <option value="chao">Chão (repete)</option>
+          <option value="arvore">Árvore / vegetação</option>
+          <option value="casa">Casa / construção</option>
+          <option value="objeto">Objeto solto</option>
+          <option value="borda">Borda / margem</option>
+          <option value="detalhe">Detalhe pequeno</option>
+        </select>
+      </div>
+      <div class="grow"><span>Nome</span><input id="gnome" placeholder="ex: arvore-3"></div>
+      <div class="gsub" id="ginfo">—</div>
+      <button class="act" id="gcopy">📋 Copiar prompt</button>
+      <button class="gh" id="gdown">⬇ Baixar recorte (anexar no GPT)</button>
+      <button class="gh" id="gclose">fechar</button>
+    </div>
     <div id="wrap">
       <canvas id="cGhost"></canvas>
       <canvas id="cTer"></canvas>
@@ -275,6 +306,7 @@ function balde(x,y){
 stage.addEventListener('mousedown',e=>{
   if(e.button===1||espaco||state.tool==='mao'){ arrastando=true; lx=e.clientX; ly=e.clientY; e.preventDefault(); return; }
   const [x,y]=tileDe(e); if(x<0||y<0||x>=N||y>=N) return;
+  if(state.tool==='recorte'){ selA=[x,y]; selB=[x,y]; pintando=true; desenhaSel(); return; }
   if(state.tool==='conta'){ aplica(x,y); return; }
   snapshot();
   if(state.tool==='balde'&&state.layer!=='colisao'){ balde(x,y); pintaGrid(); return; }
@@ -284,9 +316,25 @@ window.addEventListener('mousemove',e=>{
   if(arrastando){ state.panX+=e.clientX-lx; state.panY+=e.clientY-ly; lx=e.clientX; ly=e.clientY; aplicaTransform(); return; }
   const [x,y]=tileDe(e);
   $('pos').textContent = (x>=0&&y>=0&&x<N&&y<N) ? `${x}, ${y}` : '—';
+  if(pintando&&state.tool==='recorte'&&x>=0&&y>=0&&x<N&&y<N){ selB=[x,y]; desenhaSel(); return; }
   if(pintando&&x>=0&&y>=0&&x<N&&y<N) aplica(x,y);
 });
-window.addEventListener('mouseup',()=>{pintando=false;arrastando=false;});
+window.addEventListener('mouseup',()=>{
+  if(pintando&&state.tool==='recorte') atualizaCrop();
+  pintando=false;arrastando=false;
+});
+function desenhaSel(){
+  if(!selA||!selB) return;
+  const x0=Math.min(selA[0],selB[0]), y0=Math.min(selA[1],selB[1]);
+  const x1=Math.max(selA[0],selB[0]), y1=Math.max(selA[1],selB[1]);
+  const r=wrap.getBoundingClientRect(), sr=stage.getBoundingClientRect(), z=TP*state.zoom;
+  const b=$('selbox');
+  b.style.display='block';
+  b.style.left=(r.left-sr.left+x0*z)+'px';
+  b.style.top=(r.top-sr.top+y0*z)+'px';
+  b.style.width=((x1-x0+1)*z)+'px';
+  b.style.height=((y1-y0+1)*z)+'px';
+}
 function verTudo(){
   const r = stage.getBoundingClientRect();
   state.zoom = Math.min(r.width, r.height) / (N*TP) * 0.96;
@@ -313,6 +361,108 @@ stage.addEventListener('wheel',e=>{
   state.panY -= (e.clientY-r.top)*(z/state.zoom-1);
   state.zoom=z; aplicaTransform();
 },{passive:false});
+
+// ── GERADOR DE PROMPT: recorta o mapa original e monta o pedido certo ──
+let selA=null, selB=null, cropData=null;
+const PROMPTS = {
+  chao: (n,t)=>`Crie uma TEXTURA DE CHÃO para o tileset de um jogo RPG, baseada no recorte anexado.
+Recrie o MESMO material/cor do recorte (é uma remasterização, não um design novo).
+
+OBRIGATÓRIO:
+- SEAMLESS: repete perfeitamente nas 4 bordas, sem emenda visível
+- Imagem quadrada 512x512, textura preenchendo a imagem inteira
+- Vista DE CIMA (top-down), iluminação neutra e uniforme, sem sombras direcionais
+- Sem objetos grandes, sem texto, sem moldura
+- Estilo: render 3D estilizado de jogo moderno, materiais com relevo e profundidade, cores vibrantes
+Este tile ocupa ${t} no mapa.`,
+  arvore: (n,t)=>`Crie UMA ÁRVORE/VEGETAÇÃO isolada para o tileset de um jogo RPG, baseada no recorte anexado.
+Recrie a MESMA espécie, formato e cor que aparece no recorte (remasterização, não design novo).
+
+OBRIGATÓRIO:
+- UM único elemento, centralizado, ocupando ~85% da imagem
+- Vista DE CIMA (top-down) com volume: iluminação vinda do canto superior esquerdo
+- SEM sombra projetada no chão (o jogo desenha a sombra)
+- Fundo MAGENTA CHROMA #FF00FF sólido
+- Nada tocando as bordas da imagem, sem texto
+- Estilo: render 3D estilizado, copa volumétrica, cores vibrantes
+Tamanho no jogo: ocupa cerca de ${t}.`,
+  casa: (n,t)=>`Crie UMA CONSTRUÇÃO isolada para o tileset de um jogo RPG, baseada no recorte anexado.
+Recrie a MESMA construção do recorte: mesmo formato de telhado, mesmas cores, mesma identidade
+(é uma remasterização em 3D, não um prédio novo).
+
+OBRIGATÓRIO:
+- Vista TOP-DOWN 3/4: telhado dominante visto de cima + fachada frontal estreita embaixo (porta e janelas)
+- Volumétrica, iluminação do canto superior esquerdo, sombras suaves internas
+- SEM sombra projetada no chão
+- Fundo MAGENTA CHROMA #FF00FF sólido, nada tocando as bordas, sem texto
+- Janelas com luz acesa aconchegante
+- Estilo: render 3D estilizado de jogo moderno, materiais ricos (madeira, telha, pedra com relevo)
+Proporção da imagem: ${t.split(' ')[0]} (largura:altura em tiles do jogo).`,
+  objeto: (n,t)=>`Crie UM OBJETO isolado para o tileset de um jogo RPG, baseado no recorte anexado.
+Recrie o MESMO objeto do recorte (mesma forma, mesmas cores) em versão 3D melhorada.
+
+OBRIGATÓRIO:
+- Objeto único, centralizado, vista de cima com leve 3/4
+- Iluminação do canto superior esquerdo, SEM sombra projetada no chão
+- Fundo MAGENTA CHROMA #FF00FF sólido, nada tocando as bordas, sem texto
+- Estilo: render 3D estilizado, volumétrico, cores vibrantes
+Tamanho no jogo: ${t}.`,
+  borda: (n,t)=>`Crie uma MOLDURA DE BORDA para o tileset de um jogo RPG, baseada no recorte anexado.
+É a faixa de transição entre dois terrenos (ex: onde a água encontra a grama), no MESMO estilo do recorte.
+
+OBRIGATÓRIO:
+- A imagem contém APENAS a faixa decorativa da transição
+- Todo o resto (os dois lados da faixa) deve ser MAGENTA CHROMA #FF00FF puro
+- A faixa ocupa ~20% da imagem, posicionada conforme o recorte
+- Imagem quadrada 512x512, vista de cima, iluminação do canto superior esquerdo
+- Sem texto, sem grade
+- Estilo: render 3D estilizado, materiais com relevo`,
+  detalhe: (n,t)=>`Crie um DETALHE PEQUENO de chão para o tileset de um jogo RPG, baseado no recorte anexado.
+Recrie o mesmo elemento do recorte (tufo, flores, pedrinhas etc.), isolado.
+
+OBRIGATÓRIO:
+- Elemento único e pequeno, centralizado
+- Vista DE CIMA, iluminação do canto superior esquerdo, SEM sombra no chão
+- Fundo MAGENTA CHROMA #FF00FF sólido, nada tocando as bordas, sem texto
+- Estilo: render 3D estilizado, cores vibrantes
+Tamanho no jogo: ${t}.`,
+};
+const PREFIXO = { chao:'tile-', arvore:'prop-', casa:'prop-', objeto:'prop-', borda:'margem-', detalhe:'det-' };
+
+function fechaGen(){ $('gen').classList.remove('on'); $('selbox').style.display='none'; selA=selB=null; }
+$('gclose').onclick=fechaGen;
+
+function atualizaCrop(){
+  if(!selA||!selB) return;
+  const x0=Math.min(selA[0],selB[0]), y0=Math.min(selA[1],selB[1]);
+  const x1=Math.max(selA[0],selB[0]), y1=Math.max(selA[1],selB[1]);
+  const tw=x1-x0+1, th=y1-y0+1;
+  const c=$('gprev'), g=c.getContext('2d');
+  const LIM=200, esc=Math.min(LIM/tw, LIM/th, 40);
+  c.width=Math.max(40,Math.round(tw*esc)); c.height=Math.max(40,Math.round(th*esc));
+  g.clearRect(0,0,c.width,c.height);
+  if(ghost.complete) g.drawImage(ghost, x0/N*ghost.width, y0/N*ghost.height,
+      tw/N*ghost.width, th/N*ghost.height, 0,0, c.width, c.height);
+  cropData={x0,y0,tw,th};
+  $('ginfo').textContent = `${tw}x${th} tiles · ${(tw*39)}x${(th*39)}px no jogo`;
+  $('gen').classList.add('on');
+}
+$('gtipo').onchange=()=>{ if(cropData) $('ginfo').textContent = `${cropData.tw}x${cropData.th} tiles · ${(cropData.tw*39)}x${(cropData.th*39)}px no jogo`; };
+$('gcopy').onclick=()=>{
+  if(!cropData) return msg('marque uma área no mapa primeiro');
+  const tipo=$('gtipo').value;
+  const nome=($('gnome').value||'novo').replace(/[^a-z0-9-]/gi,'-').toLowerCase();
+  const tam = `${cropData.tw}x${cropData.th} tiles (${cropData.tw*39}x${cropData.th*39} pixels no jogo)`;
+  const txt = PROMPTS[tipo](nome, tam);
+  navigator.clipboard.writeText(txt);
+  msg('prompt copiado! Anexe o recorte junto ao enviar. Salve como: '+PREFIXO[tipo]+nome+'.png');
+};
+$('gdown').onclick=()=>{
+  if(!cropData) return msg('marque uma área no mapa primeiro');
+  const nome=($('gnome').value||'recorte').replace(/[^a-z0-9-]/gi,'-').toLowerCase();
+  $('gprev').toBlob(b=>{ const a=document.createElement('a');
+    a.href=URL.createObjectURL(b); a.download='ref-'+nome+'.png'; a.click(); });
+};
 
 // ── upload de tiles ─────────────────────────────────────────────────────
 $('undo').onclick=desfazer; $('redo').onclick=refazer;
