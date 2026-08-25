@@ -36,6 +36,12 @@
   #top b{color:var(--acc)}
   .tool{background:#1a2542;border:1px solid var(--line);color:var(--txt);border-radius:6px;padding:5px 9px;font-size:11px;font-weight:700;cursor:pointer}
   .tool.on{background:var(--acc);color:#04121f;border-color:var(--acc)}
+  #fab{position:absolute;z-index:14;display:none;gap:5px;transform:translate(-50%,0)}
+  #fab.on{display:flex}
+  #fab button{background:rgba(12,18,36,.96);border:1px solid var(--acc);color:var(--acc);
+    border-radius:8px;padding:6px 10px;font-size:11px;font-weight:700;cursor:pointer;white-space:nowrap}
+  #fab button.frente{background:var(--warn);border-color:var(--warn);color:#231800}
+  #fab button:hover{filter:brightness(1.15)}
   #adj{position:absolute;right:10px;top:50px;z-index:13;width:230px;background:rgba(12,18,36,.97);
     border:1px solid var(--warn);border-radius:11px;padding:11px;display:none;flex-direction:column;gap:7px}
   #adj.on{display:flex}
@@ -105,7 +111,11 @@
       <span id="pos">—</span>
     </div>
     <div id="selbox"></div>
-    <div id="msg">Coloque e arraste direto: clique no objeto move, a alça amarela redimensiona. Ctrl+Z desfaz · Esc solta · Del apaga.</div>
+    <div id="msg">Clique no objeto: arrasta move · alça redimensiona · botão ⬆ manda pra frente do personagem. Ctrl+Z desfaz · Esc solta.</div>
+    <div id="fab">
+      <button id="fabFrente" title="Alterna se este objeto cobre o personagem">⬆ vem pra frente</button>
+      <button id="fabDel" title="Apagar (Del)">🗑</button>
+    </div>
     <div id="adj">
       <div class="gh1">✥ Ajustar objeto</div>
       <div class="gsub" id="adjnome">—</div>
@@ -184,7 +194,6 @@ const SECOES = [
   { id:'casas',   nome:'Casas',    camada:'objeto',  match:f=>/^prop-(casa|arena|predio|shop|cupula|loja|torre)/.test(f), pre:'prop-casa-' },
   { id:'objetos', nome:'Objetos',  camada:'objeto',  match:f=>f.startsWith('prop-')&&!/^prop-(arvore|pinheiro|arbusto|mato|casa|arena|predio|shop|cupula|loja|torre)/.test(f), pre:'prop-obj-' },
   { id:'detalhes',nome:'Detalhes', camada:'terreno', match:f=>f.startsWith('det-'), pre:'det-' },
-  { id:'frente',  nome:'⬆ Frente',  camada:'frente',  match:f=>f.startsWith('prop-'), pre:'prop-obj-' },
   { id:'colisao', nome:'Colisão',  camada:'colisao', match:()=>false },
 ];
 state.secao = 'chao';
@@ -412,7 +421,10 @@ window.addEventListener('keydown',e=>{
 // ── interação ───────────────────────────────────────────────────────────
 let pintando=false, arrastando=false, lx=0, ly=0, espaco=false;
 const stage=$('stage'), wrap=$('wrap');
-function aplicaTransform(){ wrap.style.transform=`translate(${state.panX}px,${state.panY}px) scale(${state.zoom})`; }
+function aplicaTransform(){
+  wrap.style.transform=`translate(${state.panX}px,${state.panY}px) scale(${state.zoom})`;
+  if(selObj) posFab();
+}
 function tileDe(ev){
   const r=wrap.getBoundingClientRect();
   return [Math.floor((ev.clientX-r.left)/(TP*state.zoom)), Math.floor((ev.clientY-r.top)/(TP*state.zoom))];
@@ -744,14 +756,41 @@ function achaObj(x,y){
   }
   return null;
 }
+// Botão flutuante do objeto selecionado: manda pra frente / traz pra trás.
+function posFab(){
+  const f=$('fab'), b=caixaSel();
+  if(!selObj||!b){ f.classList.remove('on'); return; }
+  const r=wrap.getBoundingClientRect(), sr=stage.getBoundingClientRect(), z=state.zoom;
+  f.style.left=(r.left-sr.left+(b.x+b.w/2)*z)+'px';
+  f.style.top =(r.top -sr.top +(b.y-34)*z + (b.y*z<40?b.h*z+40:0))+'px';
+  const naFrente = selObj.l==='frente';
+  const bt=$('fabFrente');
+  bt.textContent = naFrente ? '⬇ mandar pra trás' : '⬆ trazer pra frente';
+  bt.classList.toggle('frente', naFrente);
+  f.classList.add('on');
+}
+$('fabFrente').onclick=()=>{
+  if(!selObj) return;
+  snapshot();
+  const de=selObj.l, para = de==='frente' ? 'objeto' : 'frente';
+  const cel=state[de][selObj.y][selObj.x];
+  state[de][selObj.y][selObj.x]=null;
+  state[para][selObj.y][selObj.x]=cel;
+  selObj={l:para, x:selObj.x, y:selObj.y};
+  pintaObj(); pintaFre(); mostraAjuste();
+  msg(para==='frente' ? 'objeto agora COBRE o personagem' : 'objeto voltou para trás do personagem');
+};
+$('fabDel').onclick=()=>$('adjdel').click();
+
 function mostraAjuste(){
   const a=$('adj');
-  if(!selObj){ a.classList.remove('on'); return; }
+  if(!selObj){ a.classList.remove('on'); $('fab').classList.remove('on'); return; }
   const o=oInfo(state[selObj.l][selObj.y][selObj.x]);
   $('adjnome').textContent = nomeCurto(o.t) + '  ·  ' + (selObj.l==='frente'?'frente':'objeto');
   $('adjesc').value = Math.round(o.s*100);
   $('adjinfo').textContent = `tamanho ${Math.round(o.s*100)}%  ·  deslocado ${o.dx.toFixed(2)}, ${o.dy.toFixed(2)} tile`;
   a.classList.add('on');
+  posFab();
 }
 function setObj(mut){
   if(!selObj) return;
