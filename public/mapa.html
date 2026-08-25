@@ -92,7 +92,7 @@
 
     <div class="sec" id="secOrbe">
       <h2>Orbe</h2>
-      <label>Tamanho <input type="range" id="orbT" min="2" max="16" value="9"><b id="orbTv" style="color:var(--orb)">9</b></label>
+      <label>Tamanho <input type="range" id="orbT" min="1" max="30" value="9"><b id="orbTv" style="color:var(--orb)">9</b></label>
       <button class="gh" id="orbIr" style="margin-top:6px">🎯 ir até o orbe</button>
       <button class="gh" id="orbAuto" style="margin-top:5px">✨ marcar passa-atrás do orbe</button>
       <div class="hint" style="margin:6px 0 0;padding:0">Marca automaticamente a silhueta do orbe (só onde ele é opaco).</div>
@@ -203,11 +203,30 @@ function desenhaMarcas(){
   if(orbeImg.complete&&orbeImg.naturalWidth){
     gK.globalAlpha=.9;
     const hh=h, ww=hh*(orbeImg.naturalWidth/orbeImg.naturalHeight);
-    gK.drawImage(orbeImg, o.x*TP-ww/2, o.y*TP-hh/2, ww, hh);
+    gK.save();
+    gK.translate(o.x*TP, o.y*TP);
+    if(o.rot) gK.rotate(o.rot*Math.PI/180);
+    gK.drawImage(orbeImg, -ww/2, -hh/2, ww, hh);
+    gK.restore();
     gK.globalAlpha=1;
   }
-  gK.strokeStyle='#a78bfa'; gK.lineWidth=2; gK.setLineDash([6,4]);
-  gK.strokeRect(o.x*TP-w/2, o.y*TP-h/2, w, h); gK.setLineDash([]);
+  // caixa e alças do orbe (só no modo Orbe, para não poluir os outros)
+  if(st.modo==='orbe'){
+    const ow=(orbeImg.complete&&orbeImg.naturalWidth)
+      ? h*(orbeImg.naturalWidth/orbeImg.naturalHeight) : w;
+    const bx=o.x*TP-ow/2, by=o.y*TP-h/2;
+    gK.strokeStyle='#a78bfa'; gK.lineWidth=2; gK.setLineDash([6,4]);
+    gK.strokeRect(bx, by, ow, h); gK.setLineDash([]);
+    const s2=Math.max(10,14/st.zoom);
+    // alça de tamanho (canto inferior direito)
+    gK.fillStyle='#ffd54a'; gK.fillRect(bx+ow-s2/2, by+h-s2/2, s2, s2);
+    gK.strokeStyle='#20180a'; gK.lineWidth=1.5; gK.strokeRect(bx+ow-s2/2, by+h-s2/2, s2, s2);
+    // alça de girar (acima)
+    const gy=by-Math.max(20,26/st.zoom);
+    gK.strokeStyle='#a78bfa'; gK.lineWidth=2; gK.setLineDash([3,3]);
+    gK.beginPath(); gK.moveTo(o.x*TP, by); gK.lineTo(o.x*TP, gy); gK.stroke(); gK.setLineDash([]);
+    gK.fillStyle='#a78bfa'; gK.beginPath(); gK.arc(o.x*TP, gy, s2*0.6, 0, 6.283); gK.fill();
+  }
   if($('grade').checked){
     gK.strokeStyle='rgba(255,255,255,.10)'; gK.lineWidth=1;
     for(let i=0;i<=N;i++){
@@ -317,8 +336,17 @@ stage.addEventListener('mousedown',e=>{
   if(st.modo==='gerar'){ selA=[fx,fy]; selB=[fx,fy]; pintando=true; return; }
 
   if(st.modo==='orbe'){
-    // arrastar o próprio orbe
-    snap(); pintando=true; marca(fx,fy,false); return;
+    const o=st.orbe;
+    const h=o.tam, ow=(orbeImg.complete&&orbeImg.naturalWidth)
+      ? h*(orbeImg.naturalWidth/orbeImg.naturalHeight) : h;
+    const bx=o.x-ow/2, by=o.y-h/2, r=0.6;
+    if(Math.hypot(fx-(bx+ow), fy-(by+h))<r){          // alça de tamanho
+      snap(); escP='orbeTam'; base={fx,fy,s:o.tam}; return;
+    }
+    if(Math.hypot(fx-o.x, fy-(by-0.6))<r){            // alça de girar
+      snap(); escP='orbeRot'; base={fx,fy,rot:o.rot||0}; return;
+    }
+    snap(); movP='orbe'; base={fx,fy,px:o.x,py:o.y}; return;
   }
 
   if(st.modo==='pecas'){
@@ -345,6 +373,19 @@ window.addEventListener('mousemove',e=>{
   if(arrastando){ st.panX+=e.clientX-lx; st.panY+=e.clientY-ly; lx=e.clientX; ly=e.clientY; T(); return; }
   const [fx,fy]=tile(e);
   $('pos').textContent=(fx>=0&&fy>=0&&fx<N&&fy<N)?`${Math.floor(fx)}, ${Math.floor(fy)}`:'—';
+  if(movP==='orbe'&&base){
+    st.orbe.x=base.px+(fx-base.fx); st.orbe.y=base.py+(fy-base.fy);
+    desenhaMarcas(); return;
+  }
+  if(escP==='orbeTam'&&base){
+    st.orbe.tam=Math.max(1, Math.min(30, base.s + ((fx-base.fx)+(fy-base.fy))/2));
+    $('orbT').value=Math.round(st.orbe.tam); $('orbTv').textContent=Math.round(st.orbe.tam);
+    desenhaMarcas(); return;
+  }
+  if(escP==='orbeRot'&&base){
+    st.orbe.rot=Math.round(Math.atan2(fy-st.orbe.y, fx-st.orbe.x)*180/Math.PI+90);
+    desenhaMarcas(); return;
+  }
   if(movP&&st.sel!=null&&base){ const p=st.pecas[st.sel];
     p.x=base.px+(fx-base.fx); p.y=base.py+(fy-base.fy); desenhaMarcas(); return; }
   if(escP&&st.sel!=null&&base){ const p=st.pecas[st.sel];
@@ -357,7 +398,7 @@ window.addEventListener('mousemove',e=>{
 window.addEventListener('mouseup',()=>{
   if(pintando&&st.modo==='gerar') atualizaCrop();
   if(pintando||movP||escP) salvar();
-  pintando=false;arrastando=false;movP=false;escP=null;
+  pintando=false;arrastando=false;movP=false;escP=null;base=null;
 });
 window.addEventListener('keydown',e=>{
   if(st.modo==='pecas'&&st.sel!=null){

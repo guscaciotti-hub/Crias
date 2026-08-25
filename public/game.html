@@ -8491,7 +8491,11 @@ function render(now) {
     ctx.beginPath();
     ctx.rect(ox, oy + oh * 0.55, ow, oh * 0.45);
     ctx.clip();
-    ctx.drawImage(assets.orbSprite, ox, oy, ow, oh);
+    if (o.rot) {
+      ctx.translate(ox + ow / 2, oy + oh / 2);
+      ctx.rotate(o.rot * Math.PI / 180);
+      ctx.drawImage(assets.orbSprite, -ow / 2, -oh / 2, ow, oh);
+    } else ctx.drawImage(assets.orbSprite, ox, oy, ow, oh);
     ctx.restore();
     ctx.imageSmoothingEnabled = false;
   }
@@ -8629,7 +8633,11 @@ function render(now) {
     ctx.beginPath();
     ctx.rect(ox, oy, ow, oh * 0.55);   // metade de cima por cima do jogador
     ctx.clip();
-    ctx.drawImage(assets.orbSprite, ox, oy, ow, oh);
+    if (o.rot) {
+      ctx.translate(ox + ow / 2, oy + oh / 2);
+      ctx.rotate(o.rot * Math.PI / 180);
+      ctx.drawImage(assets.orbSprite, -ow / 2, -oh / 2, ow, oh);
+    } else ctx.drawImage(assets.orbSprite, ox, oy, ow, oh);
     ctx.restore();
     ctx.imageSmoothingEnabled = false;
   }
