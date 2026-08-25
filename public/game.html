@@ -3553,25 +3553,69 @@ const AMBIENT = {
 window.AMBIENT = AMBIENT;
 
 // Peças colocadas no editor /mapa (posição, escala e rotação em tiles)
-// Converte a marcação fina (4x) numa máscara de recorte usada a cada frame
+// Converte a marcação (4x) numa máscara de recorte usada a cada frame.
+// A marcação do editor é grossa (o usuário pinta um bloco em volta do objeto),
+// mas o jogador só deve sumir atrás do OBJETO — não do chão dentro do bloco.
+// Por isso a máscara é refinada comparando cada pixel marcado com a cor do chão
+// ao redor da região: o que é parecido com o chão sai da máscara.
 function construirMascaraFrente() {
   const F = window.MAPA_FRENTE;
   if (!F || !F.length) return;
+  const N_ = F.length;
   const c = document.createElement('canvas');
-  c.width = c.height = F.length;
+  c.width = c.height = N_;
   const g = c.getContext('2d');
-  const id = g.createImageData(c.width, c.height);
-  for (let y = 0; y < F.length; y++) {
+
+  // marcações do editor
+  const marc = new Uint8Array(N_ * N_);
+  for (let y = 0; y < N_; y++) {
     const linha = F[y]; if (!linha) continue;
-    for (let x = 0; x < linha.length; x++) {
-      if (!linha[x]) continue;
-      const i = (y * c.width + x) * 4;
-      id.data[i] = id.data[i+1] = id.data[i+2] = 255;
-      id.data[i+3] = 255;
+    for (let x = 0; x < linha.length; x++) if (linha[x]) marc[y * N_ + x] = 1;
+  }
+
+  // amostra do mapa na mesma resolução da máscara
+  let px = null;
+  if (assets.map && assets.map.complete && assets.map.naturalWidth) {
+    const mc = document.createElement('canvas');
+    mc.width = mc.height = N_;
+    const mg = mc.getContext('2d', { willReadFrequently: true });
+    mg.drawImage(assets.map, 0, 0, N_, N_);
+    try { px = mg.getImageData(0, 0, N_, N_).data; } catch (e) { px = null; }
+  }
+
+  const id = g.createImageData(N_, N_);
+  if (!px) {
+    // sem acesso ao mapa: mantém a marcação como veio
+    for (let i = 0; i < marc.length; i++) if (marc[i]) {
+      const k = i * 4; id.data[k] = id.data[k+1] = id.data[k+2] = id.data[k+3] = 255;
     }
+    g.putImageData(id, 0, 0); window._maskCanvas = c; return;
+  }
+
+  // cor do chão = média dos pixels NÃO marcados vizinhos da região marcada
+  let sr = 0, sg = 0, sb = 0, n = 0;
+  for (let y = 1; y < N_ - 1; y++) for (let x = 1; x < N_ - 1; x++) {
+    const i = y * N_ + x;
+    if (marc[i]) continue;
+    if (!(marc[i-1] || marc[i+1] || marc[i-N_] || marc[i+N_])) continue;
+    const k = i * 4; sr += px[k]; sg += px[k+1]; sb += px[k+2]; n++;
+  }
+  const gr = n ? sr / n : 0, gg2 = n ? sg / n : 0, gb = n ? sb / n : 0;
+  const LIMITE = 46;   // distância de cor a partir da qual o pixel é "objeto"
+
+  let mantidos = 0;
+  for (let i = 0; i < marc.length; i++) {
+    if (!marc[i]) continue;
+    const k = i * 4;
+    const d = Math.abs(px[k] - gr) + Math.abs(px[k+1] - gg2) + Math.abs(px[k+2] - gb);
+    if (n && d < LIMITE) continue;          // parecido com o chão: jogador passa por cima
+    id.data[k] = id.data[k+1] = id.data[k+2] = id.data[k+3] = 255;
+    mantidos++;
   }
   g.putImageData(id, 0, 0);
   window._maskCanvas = c;
+  console.log('[mapa] passa-atrás refinado: ' + mantidos + ' de ' +
+    marc.reduce((a, v) => a + v, 0) + ' pontos marcados');
 }
 
 // O canvas é esticado por CSS para preencher a tela, então imagens desenhadas
@@ -3697,6 +3741,7 @@ function loadAssets() {
   // (colisão, passa-atrás, orbe e peças), não a imagem.
   loadImage('/mapa-oficial.jpg', 20000)
     .catch(() => loadImage(MAP_URL, 20000)).then(img => {
+      window._maskCanvas = null;   // refaz a máscara já com o mapa disponível
     assets.map = img;
   }).catch(() => {});
   // Orb sprite (PNG transparente: só o orbe + aura, SEM chão).
