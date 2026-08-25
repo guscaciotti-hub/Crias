@@ -3213,11 +3213,12 @@ function fitCanvas() {
   const h = Math.min(rawW, rawH);
   viewportW = w;
   viewportH = h;
-  // Cap internal resolution for performance on mobile
-  const internalW = Math.min(w, 1280);
-  const internalH = Math.min(h, 720);
-  canvas.width  = internalW;
-  canvas.height = internalH;
+  // Limita a resolução interna SEM mudar a proporção: limitar largura e altura
+  // separadamente (1280 x 720) fazia o canvas ter aspecto diferente do CSS,
+  // e a tela esticava tudo na horizontal.
+  const escala = Math.min(1, 1280 / w, 720 / h);
+  canvas.width  = Math.round(w * escala);
+  canvas.height = Math.round(h * escala);
   canvas.style.width  = w + 'px';
   canvas.style.height = h + 'px';
   ctx.imageSmoothingEnabled = false;
