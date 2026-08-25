@@ -3551,6 +3551,25 @@ const AMBIENT = {
 };
 window.AMBIENT = AMBIENT;
 
+// Peças colocadas no editor /mapa (posição, escala e rotação em tiles)
+function desenhaPecasMapa(camX, camY, naFrente) {
+  for (const p of window.MAPA_PECAS) {
+    if (!!p.frente !== !!naFrente) continue;
+    const im = window.MAPA_TILES[p.t];
+    if (!im || !im.complete || !im.naturalWidth) continue;
+    const h = p.s * TILE, w = h * (im.naturalWidth / im.naturalHeight);
+    const cx = p.x * TILE - camX, cy = p.y * TILE - camY;
+    if (cx + w < -40 || cx - w > canvas.width + 40) continue;
+    ctx.save();
+    ctx.translate(cx, cy);
+    if (p.rot) ctx.rotate(p.rot * Math.PI / 180);
+    ctx.imageSmoothingEnabled = true;
+    ctx.drawImage(im, -w / 2, -h / 2, w, h);
+    ctx.restore();
+  }
+  ctx.imageSmoothingEnabled = false;
+}
+
 function drawOrbGroundFX(camX, camY, now) {
   const orbCX = 24 * TILE - camX;
   const orbCY = 22 * TILE - camY;
@@ -3628,16 +3647,23 @@ function loadAssets() {
           for (let x = 0; x < GRID; x++) COLLISION[y][x] = cfg.colisao[y][x];
       }
       if (Array.isArray(cfg.frente)) window.MAPA_FRENTE = cfg.frente;
+      if (Array.isArray(cfg.pecas)) {
+        window.MAPA_PECAS = cfg.pecas;
+        window.MAPA_TILES = {};
+        for (const p of cfg.pecas) {
+          if (window.MAPA_TILES[p.t]) continue;
+          const im = new Image();
+          im.src = (cfg.tiles && cfg.tiles[p.t]) ? cfg.tiles[p.t] : ('/map-kit/' + p.t);
+          window.MAPA_TILES[p.t] = im;
+        }
+      }
       if (cfg.orbe) window.MAPA_ORBE = cfg.orbe;
       console.log('[mapa] configuração publicada aplicada');
     }).catch(() => {});
 
-  // camada de frente publicada pelo editor: desenhada DEPOIS dos personagens
-  loadImage('https://gmycqvvvglexbtbqkjzi.supabase.co/storage/v1/object/public/mapas/mapa-frente.png?t=' + Date.now(), 20000)
-    .then(img => { assets.mapFrente = img; }).catch(() => {});
-
-  loadImage(_MAPA_NUVEM + '?t=' + Date.now(), 20000)
-    .catch(() => loadImage('/mapa-oficial.jpg', 20000))
+  // O mapa é o do repositório; o editor /mapa publica apenas as REGRAS
+  // (colisão, passa-atrás, orbe e peças), não a imagem.
+  loadImage('/mapa-oficial.jpg', 20000)
     .catch(() => loadImage(MAP_URL, 20000)).then(img => {
     assets.map = img;
   }).catch(() => {});
@@ -8419,6 +8445,9 @@ function render(now) {
   AMBIENT._last = now;
   AMBIENT.drawGround(ctx, camX, camY, cw, ch, now);
 
+  // Peças do editor que ficam ATRÁS do jogador
+  if (state && window.MAPA_PECAS) desenhaPecasMapa(camX, camY, false);
+
   // Orbe do editor: metade de baixo, atrás do jogador
   if (state && window.MAPA_ORBE && assets.orbSprite && assets.orbSprite.complete) {
     const o = window.MAPA_ORBE;
@@ -8604,6 +8633,9 @@ function render(now) {
        (pX >= 19 * TILE && pX < 21 * TILE))) {
     drawPlayer(pX - camX, pY - camY, now);
   }
+
+  // Peças marcadas para cobrir o jogador
+  if (state && window.MAPA_PECAS) desenhaPecasMapa(camX, camY, true);
 
   // === ORBE do editor: metade de baixo já foi desenhada; aqui vai a de cima,
   // que cobre o jogador (efeito de passar por trás do cristal) ===

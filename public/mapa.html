@@ -51,6 +51,8 @@
         <button data-m="colisao" class="on"><span class="dot" style="background:var(--col)"></span>Colisão — não passa</button>
         <button data-m="frente"><span class="dot" style="background:var(--fre)"></span>Passa atrás — some</button>
         <button data-m="orbe"><span class="dot" style="background:var(--orb)"></span>Posição do orbe</button>
+        <button data-m="pecas"><span class="dot" style="background:var(--ok)"></span>Peças — colocar coisas</button>
+        <button data-m="gerar"><span class="dot" style="background:var(--acc)"></span>Gerar tile novo</button>
       </div>
       <label>Pincel <input type="range" id="brush" min="1" max="8" value="2"><b id="brushv" style="color:var(--acc)">2</b></label>
       <div class="hint" style="margin:6px 0 0;padding:0">Clique pinta · <b>Shift+clique</b> apaga · arrasta desenha livre</div>
@@ -64,7 +66,29 @@
       <div class="row2"><button class="gh" id="undo">↶ Desfazer</button><button class="gh" id="limpa">🧹 Limpar</button></div>
     </div>
 
-    <div class="sec">
+    <div class="sec" id="secPecas" style="display:none">
+      <h2>Peças</h2>
+      <div id="pal" style="display:grid;grid-template-columns:repeat(2,1fr);gap:6px;max-height:260px;overflow-y:auto"></div>
+      <div class="row2"><button class="gh" id="up">+ enviar tiles</button></div>
+      <input type="file" id="file" accept="image/*" multiple hidden>
+      <label>Tamanho <input type="range" id="tam" min="20" max="1200" value="100"><b id="tamv" style="color:var(--ok)">100%</b></label>
+      <div class="hint" style="margin:0;padding:0">Clique coloca · clique na peça seleciona · arrasta move · alças redimensionam e giram · Del apaga</div>
+    </div>
+
+    <div class="sec" id="secGerar" style="display:none">
+      <h2>Gerar tile</h2>
+      <div class="hint" style="margin:0 0 8px;padding:0">Arraste sobre o mapa para marcar o que quer recriar.</div>
+      <div style="height:120px;display:flex;align-items:center;justify-content:center;background:#070b16;border:1px solid var(--line);border-radius:8px;overflow:hidden">
+        <canvas id="gprev" width="180" height="120" style="max-width:100%;max-height:100%;pointer-events:none"></canvas>
+      </div>
+      <div id="gtipos" style="display:grid;grid-template-columns:repeat(3,1fr);gap:5px;margin-top:8px"></div>
+      <input id="gnome" placeholder="nome (ex: arvore-3)" style="width:100%;margin-top:6px;background:#0d1424;border:1px solid var(--line);color:var(--txt);border-radius:6px;padding:6px;font-size:11px">
+      <div class="hint" id="ginfo" style="margin:6px 0;padding:0">—</div>
+      <button class="gh" id="gcopy">📋 copiar prompt</button>
+      <button class="gh" id="gdown" style="margin-top:5px">⬇ baixar recorte</button>
+    </div>
+
+    <div class="sec" id="secOrbe">
       <h2>Orbe</h2>
       <label>Tamanho <input type="range" id="orbT" min="2" max="16" value="9"><b id="orbTv" style="color:var(--orb)">9</b></label>
       <div class="hint" style="margin:0;padding:0">Metade de cima cobre o jogador automaticamente.</div>
@@ -94,7 +118,13 @@ const st = {
   frente:  Array.from({length:N},()=>Array(N).fill(0)),
   orbe: {x:23.5, y:21.5, tam:9},
   modo:'colisao', brush:2, zoom:1, panX:0, panY:0,
+  pecas: [],          // {t,x,y,s,rot,frente}
+  sel: null,          // índice da peça selecionada
+  tile: null,         // tile escolhido na paleta
 };
+const UP = {};        // nome -> dataURL dos tiles enviados
+const IMGS = {};
+function img(n){ if(!IMGS[n]){ const i=new Image(); i.src=UP[n]||('/map-kit/'+n); i.onload=desenhaMarcas; IMGS[n]=i; } return IMGS[n]; }
 const cM=$('cMapa'), cK=$('cMarca');
 [cM,cK].forEach(c=>{c.width=N*TP;c.height=N*TP;});
 const gM=cM.getContext('2d'), gK=cK.getContext('2d');
@@ -125,6 +155,25 @@ function desenhaMarcas(){
   gK.fillStyle='#ffd54a';
   for(let y=0;y<N;y++)for(let x=0;x<N;x++) if(st.frente[y][x]) gK.fillRect(x*TP,y*TP,TP,TP);
   gK.globalAlpha=1;
+  // peças colocadas (atrás e na frente marcadas por cor)
+  st.pecas.forEach((p,i)=>{
+    const im=img(p.t); if(!(im.complete&&im.naturalWidth)) return;
+    const h=p.s*TP, w=h*(im.naturalWidth/im.naturalHeight);
+    gK.save();
+    gK.translate(p.x*TP, p.y*TP);
+    if(p.rot) gK.rotate(p.rot*Math.PI/180);
+    gK.drawImage(im,-w/2,-h/2,w,h);
+    gK.restore();
+    if(st.sel===i){
+      gK.strokeStyle=p.frente?'#ffd54a':'#39e08a'; gK.lineWidth=2; gK.setLineDash([5,3]);
+      gK.strokeRect(p.x*TP-w/2, p.y*TP-h/2, w, h); gK.setLineDash([]);
+      const s2=Math.max(9,13/st.zoom);
+      gK.fillStyle='#ffd54a'; gK.fillRect(p.x*TP+w/2-s2/2, p.y*TP+h/2-s2/2, s2, s2);
+      gK.fillStyle='#a78bfa'; gK.beginPath();
+      gK.arc(p.x*TP, p.y*TP-h/2-Math.max(16,20/st.zoom), s2*0.6, 0, 6.283); gK.fill();
+    }
+  });
+
   // orbe
   const o=st.orbe, w=o.tam*TP, h=o.tam*TP;
   if(orbeImg.complete&&orbeImg.naturalWidth){
@@ -152,7 +201,11 @@ $('orbT').oninput=e=>{st.orbe.tam=+e.target.value;$('orbTv').textContent=e.targe
 document.querySelectorAll('#modos button').forEach(b=>b.onclick=()=>{
   document.querySelectorAll('#modos button').forEach(x=>x.classList.remove('on'));
   b.classList.add('on'); st.modo=b.dataset.m;
-  $('modoAtual').textContent = {colisao:'Colisão',frente:'Passa atrás',orbe:'Orbe'}[st.modo];
+  $('modoAtual').textContent = {colisao:'Colisão',frente:'Passa atrás',orbe:'Orbe',pecas:'Peças',gerar:'Gerar tile'}[st.modo];
+  $('secPecas').style.display = st.modo==='pecas' ? '' : 'none';
+  $('secGerar').style.display = st.modo==='gerar' ? '' : 'none';
+  $('secOrbe').style.display  = st.modo==='orbe'  ? '' : 'none';
+  if(st.modo!=='pecas'){ st.sel=null; desenhaMarcas(); }
   msg(st.modo==='orbe' ? 'clique para posicionar o orbe' : 'clique/arraste para marcar · Shift apaga');
 });
 
@@ -186,6 +239,22 @@ const stage=$('stage'), wrap=$('wrap');
 function T(){ wrap.style.transform=`translate(${st.panX}px,${st.panY}px) scale(${st.zoom})`; }
 function tile(ev){ const r=wrap.getBoundingClientRect();
   return [ (ev.clientX-r.left)/(TP*st.zoom), (ev.clientY-r.top)/(TP*st.zoom) ]; }
+function pecaEm(fx,fy){
+  for(let i=st.pecas.length-1;i>=0;i--){
+    const p=st.pecas[i], im=img(p.t); if(!(im.complete&&im.naturalWidth)) continue;
+    const h=p.s, w=h*(im.naturalWidth/im.naturalHeight);
+    if(fx>=p.x-w/2 && fx<=p.x+w/2 && fy>=p.y-h/2 && fy<=p.y+h/2) return i;
+  }
+  return -1;
+}
+function alcaPeca(fx,fy){
+  if(st.sel==null) return null;
+  const p=st.pecas[st.sel], im=img(p.t); if(!(im.complete&&im.naturalWidth)) return null;
+  const h=p.s, w=h*(im.naturalWidth/im.naturalHeight), r=0.45;
+  if(Math.hypot(fx-(p.x+w/2), fy-(p.y+h/2))<r) return 'tam';
+  if(Math.hypot(fx-p.x, fy-(p.y-h/2-0.5))<r) return 'girar';
+  return null;
+}
 function marca(fx,fy,apagar){
   if(st.modo==='orbe'){ st.orbe.x=fx; st.orbe.y=fy; desenhaMarcas(); return; }
   const x=Math.floor(fx), y=Math.floor(fy), b=st.brush, m=Math.floor(b/2);
@@ -196,19 +265,67 @@ function marca(fx,fy,apagar){
   }
   desenhaMarcas();
 }
+let movP=false, escP=null, base=null;
 stage.addEventListener('mousedown',e=>{
   if(e.button===1||e.altKey){ arrastando=true; lx=e.clientX; ly=e.clientY; return; }
   const [fx,fy]=tile(e);
   if(fx<0||fy<0||fx>=N||fy>=N){ arrastando=true; lx=e.clientX; ly=e.clientY; return; }
+
+  if(st.modo==='gerar'){ selA=[fx,fy]; selB=[fx,fy]; pintando=true; return; }
+
+  if(st.modo==='orbe'){
+    // arrastar o próprio orbe
+    snap(); pintando=true; marca(fx,fy,false); return;
+  }
+
+  if(st.modo==='pecas'){
+    const a=alcaPeca(fx,fy);
+    if(a){ snap(); escP=a; const p=st.pecas[st.sel];
+      base={fx,fy,s:p.s,rot:p.rot||0}; return; }
+    const i=pecaEm(fx,fy);
+    if(i>=0){ snap(); st.sel=i; movP=true; const p=st.pecas[i];
+      base={fx,fy,px:p.x,py:p.y}; desenhaMarcas(); return; }
+    if(st.tile){ snap();
+      st.pecas.push({t:st.tile, x:fx, y:fy, s:(+$('tam').value)/100*3, rot:0, frente:false});
+      st.sel=st.pecas.length-1; desenhaMarcas(); salvar(); return; }
+    st.sel=null; desenhaMarcas(); return;
+  }
+
   snap(); pintando=true; marca(fx,fy,e.shiftKey);
 });
 window.addEventListener('mousemove',e=>{
   if(arrastando){ st.panX+=e.clientX-lx; st.panY+=e.clientY-ly; lx=e.clientX; ly=e.clientY; T(); return; }
   const [fx,fy]=tile(e);
   $('pos').textContent=(fx>=0&&fy>=0&&fx<N&&fy<N)?`${Math.floor(fx)}, ${Math.floor(fy)}`:'—';
+  if(movP&&st.sel!=null&&base){ const p=st.pecas[st.sel];
+    p.x=base.px+(fx-base.fx); p.y=base.py+(fy-base.fy); desenhaMarcas(); return; }
+  if(escP&&st.sel!=null&&base){ const p=st.pecas[st.sel];
+    if(escP==='tam') p.s=Math.max(.3, base.s + ((fx-base.fx)+(fy-base.fy))/2);
+    else { p.rot=Math.round(Math.atan2(fy-p.y, fx-p.x)*180/Math.PI+90); }
+    desenhaMarcas(); return; }
+  if(pintando&&st.modo==='gerar'){ selB=[fx,fy]; desenhaSel(); return; }
   if(pintando&&fx>=0&&fy>=0&&fx<N&&fy<N) marca(fx,fy,e.shiftKey);
 });
-window.addEventListener('mouseup',()=>{ if(pintando)salvar(); pintando=false;arrastando=false; });
+window.addEventListener('mouseup',()=>{
+  if(pintando&&st.modo==='gerar') atualizaCrop();
+  if(pintando||movP||escP) salvar();
+  pintando=false;arrastando=false;movP=false;escP=null;
+});
+window.addEventListener('keydown',e=>{
+  if(st.modo==='pecas'&&st.sel!=null){
+    if(e.key==='Delete'){ snap(); st.pecas.splice(st.sel,1); st.sel=null; desenhaMarcas(); salvar(); return; }
+    if(e.key==='f'||e.key==='F'){ snap(); const p=st.pecas[st.sel]; p.frente=!p.frente;
+      desenhaMarcas(); salvar(); msg(p.frente?'peça COBRE o jogador':'peça fica atrás do jogador'); return; }
+    if(e.key==='Escape'){ st.sel=null; desenhaMarcas(); return; }
+  }
+  if(st.modo==='orbe'){
+    const p=.25;
+    if(e.key==='ArrowLeft'){ st.orbe.x-=p; desenhaMarcas(); salvar(); e.preventDefault(); }
+    if(e.key==='ArrowRight'){ st.orbe.x+=p; desenhaMarcas(); salvar(); e.preventDefault(); }
+    if(e.key==='ArrowUp'){ st.orbe.y-=p; desenhaMarcas(); salvar(); e.preventDefault(); }
+    if(e.key==='ArrowDown'){ st.orbe.y+=p; desenhaMarcas(); salvar(); e.preventDefault(); }
+  }
+});
 stage.addEventListener('wheel',e=>{
   e.preventDefault();
   const f=e.deltaY<0?1.12:1/1.12, z=Math.min(5,Math.max(.2,st.zoom*f));
@@ -224,7 +341,7 @@ $('fit').onclick=verTudo;
 // salvar / publicar
 let _t=null;
 function salvar(){ clearTimeout(_t); _t=setTimeout(()=>{
-  try{ localStorage.setItem('crias_mapa', JSON.stringify({c:st.colisao,f:st.frente,o:st.orbe}));
+  try{ localStorage.setItem('crias_mapa', JSON.stringify({c:st.colisao,f:st.frente,o:st.orbe,p:st.pecas,u:UP}));
     $('auto2').textContent='salvo '+new Date().toLocaleTimeString('pt-BR').slice(0,5);
   }catch(e){ msg('não consegui salvar — use o Backup'); } },600); }
 function carregar(){ const d=localStorage.getItem('crias_mapa'); if(!d)return;
@@ -237,7 +354,8 @@ $('pub').onclick=async()=>{
   try{
     sb = sb || window.supabase.createClient(SB,KEY);
     msg('publicando…');
-    const dados = JSON.stringify({colisao:st.colisao, frente:st.frente, orbe:st.orbe});
+    const dados = JSON.stringify({colisao:st.colisao, frente:st.frente, orbe:st.orbe,
+      pecas:st.pecas, tiles:UP});
     const r = await sb.storage.from('mapas').upload('mapa-config.json', new Blob([dados],{type:'application/json'}),
       {upsert:true, contentType:'application/json', cacheControl:'0'});
     if(r.error) throw r.error;
@@ -256,6 +374,103 @@ $('bkpF').onchange=e=>{ const f=e.target.files[0]; if(!f)return;
     snap(); st.colisao=j.colisao; st.frente=j.frente; if(j.orbe)st.orbe=j.orbe;
     desenhaMarcas(); salvar(); msg('backup restaurado'); }catch(err){ msg('arquivo inválido'); } };
   r.readAsText(f); };
+
+// ── PALETA e UPLOAD de tiles ───────────────────────────────────────────
+let KIT=[];
+fetch('/map-kit/manifest.json').then(r=>r.json()).then(m=>{
+  KIT=[].concat(...Object.values(m)); paleta();
+}).catch(()=>paleta());
+function paleta(){
+  const p=$('pal'); p.innerHTML='';
+  const lista=[...new Set([...KIT, ...Object.keys(UP)])].sort();
+  if(!lista.length){ p.innerHTML='<div class="hint" style="grid-column:1/-1">Envie tiles com o botão abaixo.</div>'; return; }
+  for(const f of lista){
+    const d=document.createElement('div');
+    d.style.cssText='aspect-ratio:1;border:2px solid '+(st.tile===f?'var(--ok)':'transparent')+
+      ';border-radius:8px;overflow:hidden;cursor:pointer;background:#0a0f1c;padding:2px';
+    d.innerHTML='<img src="'+(UP[f]||('/map-kit/'+f))+'" style="width:100%;height:100%;object-fit:contain">';
+    d.onclick=()=>{ st.tile = st.tile===f ? null : f; paleta();
+      msg(st.tile?'clique no mapa para colocar':'nenhum tile escolhido'); };
+    p.appendChild(d);
+  }
+}
+$('up').onclick=()=>$('file').click();
+$('file').onchange=e=>{
+  const fs=[...e.target.files]; let n=0;
+  fs.forEach(f=>{
+    const r=new FileReader();
+    r.onload=()=>{
+      const im=new Image();
+      im.onload=()=>{
+        // remove fundo magenta e reduz
+        const MX=640, k=Math.min(1,MX/Math.max(im.width,im.height));
+        const c=document.createElement('canvas'); c.width=Math.round(im.width*k); c.height=Math.round(im.height*k);
+        const g=c.getContext('2d'); g.drawImage(im,0,0,c.width,c.height);
+        try{ const d=g.getImageData(0,0,c.width,c.height), px=d.data;
+          for(let i=0;i<px.length;i+=4){ const R=px[i],G=px[i+1],B=px[i+2];
+            if(R>140&&B>140&&G<R*0.62&&G<B*0.62) px[i+3]=0; }
+          g.putImageData(d,0,0);
+        }catch(err){}
+        const nome='up-'+f.name.replace(/\s*\(\d+\)/,'').replace(/(\.png)+$/,'').replace(/[^\w.-]+/g,'-')+'.png';
+        UP[nome]=c.toDataURL('image/png');
+        if(++n===fs.length){ paleta(); salvar(); msg(fs.length+' tile(s) adicionados'); }
+      };
+      im.src=r.result;
+    };
+    r.readAsDataURL(f);
+  });
+};
+
+// ── GERAR TILE (recorte + prompt) ──────────────────────────────────────
+let selA=null, selB=null, crop=null, gtipo=null;
+const TIPOS=[['chao','🟩 Chão'],['arvore','🌳 Árvore'],['casa','🏠 Casa'],['objeto','🪵 Objeto'],['borda','🌊 Borda'],['detalhe','🌼 Detalhe']];
+TIPOS.forEach(([v,l])=>{ const b=document.createElement('button');
+  b.textContent=l; b.dataset.v=v;
+  b.style.cssText='background:#0d1424;border:1px solid var(--line);color:var(--dim);border-radius:6px;padding:6px 2px;font-size:9px;cursor:pointer';
+  b.onclick=()=>{ gtipo=v; document.querySelectorAll('#gtipos button').forEach(x=>{
+    x.style.background = x.dataset.v===v ? 'var(--acc)':'#0d1424';
+    x.style.color = x.dataset.v===v ? '#04121f':'var(--dim)'; }); };
+  $('gtipos').appendChild(b); });
+function desenhaSel(){ desenhaMarcas();
+  if(!selA||!selB) return;
+  const x0=Math.min(selA[0],selB[0]),y0=Math.min(selA[1],selB[1]);
+  const x1=Math.max(selA[0],selB[0]),y1=Math.max(selA[1],selB[1]);
+  gK.strokeStyle='#4dc3ff'; gK.lineWidth=2; gK.setLineDash([6,4]);
+  gK.strokeRect(x0*TP,y0*TP,(x1-x0)*TP,(y1-y0)*TP); gK.setLineDash([]);
+}
+function atualizaCrop(){
+  if(!selA||!selB) return;
+  const x0=Math.floor(Math.min(selA[0],selB[0])), y0=Math.floor(Math.min(selA[1],selB[1]));
+  const x1=Math.ceil(Math.max(selA[0],selB[0])), y1=Math.ceil(Math.max(selA[1],selB[1]));
+  const tw=Math.max(1,x1-x0), th=Math.max(1,y1-y0);
+  const c=$('gprev'), g=c.getContext('2d');
+  const LIM=180, esc=Math.min(LIM/tw, LIM/th, 60);
+  c.width=Math.round(tw*esc); c.height=Math.round(th*esc);
+  if(mapa.complete) g.drawImage(mapa, x0/N*mapa.width, y0/N*mapa.height, tw/N*mapa.width, th/N*mapa.height, 0,0,c.width,c.height);
+  crop={x0,y0,tw,th};
+  $('ginfo').textContent=`${tw}x${th} tiles · ${tw*39}x${th*39}px no jogo`;
+}
+const BASE_P=(tipo,tam)=>({
+ chao:`Crie uma TEXTURA DE CHÃO seamless (repete nas 4 bordas) baseada no recorte anexado, 512x512, vista de cima, iluminação uniforme, sem objetos, sem texto. Mesmo material e cores do recorte.`,
+ arvore:`Crie UMA ÁRVORE isolada igual à do recorte anexado, vista de cima com volume, fundo MAGENTA #FF00FF, sem sombra no chão, nada tocando as bordas.`,
+ casa:`Crie UMA CONSTRUÇÃO igual à do recorte anexado (mesmo telhado, mesmas cores), vista top-down 3/4, fundo MAGENTA #FF00FF, sem sombra no chão. Proporção ${tam}.`,
+ objeto:`Crie UM OBJETO isolado igual ao do recorte anexado, vista de cima, fundo MAGENTA #FF00FF, sem sombra no chão.`,
+ borda:`Crie uma MOLDURA DE BORDA (faixa de transição) igual à do recorte anexado; só a faixa, todo o resto MAGENTA #FF00FF, 512x512.`,
+ detalhe:`Crie um DETALHE pequeno (tufo/flores/pedrinhas) igual ao do recorte anexado, isolado, fundo MAGENTA #FF00FF.`,
+}[tipo] + `
+
+COERÊNCIA (obrigatório): use EXATAMENTE a mesma paleta, brilho, contraste e direção de luz do recorte anexado. Estilo render 3D estilizado, NÃO pixel art. Sem texto, sem moldura.`);
+$('gcopy').onclick=()=>{
+  if(!crop) return msg('marque uma área no mapa primeiro');
+  if(!gtipo) return msg('escolha o tipo primeiro');
+  navigator.clipboard.writeText(BASE_P(gtipo, `${crop.tw}:${crop.th}`));
+  msg('prompt copiado — anexe o recorte no GPT');
+};
+$('gdown').onclick=()=>{
+  if(!crop) return msg('marque uma área primeiro');
+  $('gprev').toBlob(b=>{ const a=document.createElement('a'); a.href=URL.createObjectURL(b);
+    a.download='ref-'+($('gnome').value||'recorte')+'.png'; a.click(); });
+};
 
 verTudo(); desenhaMarcas();
 </script>
