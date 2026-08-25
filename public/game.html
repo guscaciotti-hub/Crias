@@ -8594,19 +8594,10 @@ function render(now) {
     ctx.imageSmoothingEnabled = false;
   }
 
-  // === House sprite overlay (pass-behind: transparent sprite drawn after entities) ===
-  if (state && state.scene !== 'cave1' && assets.houseRoof && assets.houseRoof.complete) {
-    const hWorldX = 31 * TILE, hWorldY = 30 * TILE;
-    const hWorldW = 15 * TILE, hWorldH = 13 * TILE;
-    if (hWorldX + hWorldW >= camX && hWorldX <= camX + cw &&
-        hWorldY + hWorldH >= camY && hWorldY <= camY + ch) {
-      const _effCamX = Math.round(camX * _scaleX) / _scaleX;
-      const _effCamY = Math.round(camY * _scaleY) / _scaleY;
-      ctx.imageSmoothingEnabled = true;
-      ctx.drawImage(assets.houseRoof, hWorldX - _effCamX, hWorldY - _effCamY, hWorldW, hWorldH);
-      ctx.imageSmoothingEnabled = false;
-    }
-  }
+  // Overlay fixo da casa REMOVIDO: pertencia ao mapa antigo e reaparecia sobre
+  // qualquer mapa novo. O que cobre o personagem agora é a camada de frente
+  // publicada pelo editor (assets.mapFrente), desenhada logo acima.
+
 
   // === Cave darkness overlay (radial light around player) ===
   if (isInCaveArea()) {
