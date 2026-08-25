@@ -55,7 +55,7 @@
         <button data-m="gerar"><span class="dot" style="background:var(--acc)"></span>Gerar tile novo</button>
       </div>
       <label>Pincel <input type="range" id="brush" min="1" max="8" value="1"><b id="brushv" style="color:var(--acc)">1</b></label>
-      <div class="hint" style="margin:6px 0 0;padding:0">Clique pinta · <b>Shift+clique</b> apaga · arrasta desenha livre.
+      <div class="hint" style="margin:6px 0 0;padding:0">Clique <b>marca</b>; clicar em algo já marcado <b>apaga</b>. Arraste desenha livre.
       No modo <b>Passa atrás</b> o pincel é fino e redondo: contorne só a forma (ex: o orbe), sem pegar o que está em volta.</div>
     </div>
 
@@ -65,6 +65,7 @@
       <label>Marcações <input type="range" id="opac" min="10" max="90" value="45"></label>
       <div class="row2"><button class="gh" id="fit">🔍 Ver tudo</button><button class="gh" id="auto">✨ Auto-colisão</button></div>
       <div class="row2"><button class="gh" id="undo">↶ Desfazer</button><button class="gh" id="limpa">🧹 Limpar</button></div>
+      <div class="row2"><button class="gh" id="recarrega">↻ recarregar colisão do jogo</button></div>
     </div>
 
     <div class="sec" id="secPecas" style="display:none">
@@ -138,17 +139,34 @@ $('wrap').style.width=$('wrap').style.height=(N*TP)+'px';
 const mapa=new Image(); mapa.onload=()=>{ gM.drawImage(mapa,0,0,N*TP,N*TP); }; mapa.src='/mapa-oficial.jpg?t='+Date.now();
 const orbeImg=new Image(); orbeImg.onload=desenhaMarcas; orbeImg.src='/orbe.png';
 
-// colisão atual do jogo entra como ponto de partida
-fetch('/game.html').then(r=>r.text()).then(t=>{
-  const m=t.match(/const COLLISION = \[([\s\S]*?)\];/);
-  if(!m) return;
-  const linhas=m[1].match(/\[([\d,\s]+)\]/g)||[];
-  if(linhas.length===N && !localStorage.getItem('crias_mapa')){
-    linhas.forEach((l,y)=>{ l.replace(/[\[\]]/g,'').split(',').forEach((v,x)=>{ st.colisao[y][x]=+v?1:0; }); });
+// colisão original do jogo (usada no primeiro acesso e pelo botão de recarregar)
+let COL_JOGO = null;
+function buscaColisaoJogo(){
+  return fetch('/game.html').then(r=>r.text()).then(t=>{
+    const m=t.match(/const COLLISION = \[([\s\S]*?)\];/);
+    if(!m) return null;
+    const linhas=m[1].match(/\[([\d,\s]+)\]/g)||[];
+    if(linhas.length!==N) return null;
+    COL_JOGO = linhas.map(l=>l.replace(/[\[\]]/g,'').split(',').map(v=>+v?1:0));
+    return COL_JOGO;
+  }).catch(()=>null);
+}
+buscaColisaoJogo().then(col=>{
+  const salvo = localStorage.getItem('crias_mapa');
+  if(col && !salvo){
+    st.colisao = col.map(l=>[...l]);
     msg('colisão atual do jogo carregada — ajuste o que precisar');
   }
   carregar(); desenhaMarcas();
-}).catch(()=>{ carregar(); desenhaMarcas(); });
+});
+$('recarrega').onclick=async()=>{
+  const col = COL_JOGO || await buscaColisaoJogo();
+  if(!col) return msg('não consegui ler a colisão do jogo');
+  snap();
+  st.colisao = col.map(l=>[...l]);
+  desenhaMarcas(); salvar();
+  msg('colisão do jogo recarregada ('+st.colisao.flat().filter(Boolean).length+' células)');
+};
 
 function msg(t){ $('msg').textContent=t; }
 function desenhaMarcas(){
@@ -290,7 +308,7 @@ function marca(fx,fy,apagar){
   }
   desenhaMarcas();
 }
-let movP=false, escP=null, base=null;
+let movP=false, escP=null, base=null, apagandoTraco=false;
 stage.addEventListener('mousedown',e=>{
   if(e.button===1||e.altKey){ arrastando=true; lx=e.clientX; ly=e.clientY; return; }
   const [fx,fy]=tile(e);
@@ -316,7 +334,12 @@ stage.addEventListener('mousedown',e=>{
     st.sel=null; desenhaMarcas(); return;
   }
 
-  snap(); pintando=true; marca(fx,fy,e.shiftKey);
+  // Clique alterna: se a célula já está marcada, o traço apaga (sem Shift)
+  const jaMarcado = st.modo==='colisao'
+    ? !!(st.colisao[Math.floor(fy)] && st.colisao[Math.floor(fy)][Math.floor(fx)])
+    : !!(st.frente[Math.floor(fy*4)] && st.frente[Math.floor(fy*4)][Math.floor(fx*4)]);
+  apagandoTraco = e.shiftKey || jaMarcado;
+  snap(); pintando=true; marca(fx,fy,apagandoTraco);
 });
 window.addEventListener('mousemove',e=>{
   if(arrastando){ st.panX+=e.clientX-lx; st.panY+=e.clientY-ly; lx=e.clientX; ly=e.clientY; T(); return; }
@@ -329,7 +352,7 @@ window.addEventListener('mousemove',e=>{
     else { p.rot=Math.round(Math.atan2(fy-p.y, fx-p.x)*180/Math.PI+90); }
     desenhaMarcas(); return; }
   if(pintando&&st.modo==='gerar'){ selB=[fx,fy]; desenhaSel(); return; }
-  if(pintando&&fx>=0&&fy>=0&&fx<N&&fy<N) marca(fx,fy,e.shiftKey);
+  if(pintando&&fx>=0&&fy>=0&&fx<N&&fy<N) marca(fx,fy,apagandoTraco);
 });
 window.addEventListener('mouseup',()=>{
   if(pintando&&st.modo==='gerar') atualizaCrop();
