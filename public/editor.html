@@ -167,6 +167,38 @@ const state = {
   colisao: Array.from({length:N},()=>Array(N).fill(0)),
   layer:'terreno', tool:'pincel', sel:null, brush:1, zoom:1, panX:0, panY:0,
 };
+// Os tiles enviados vão para o IndexedDB: em localStorage as imagens (vários
+// MB em base64) estouram a cota e o save falhava em silêncio.
+let _db = null;
+function db(){
+  if(_db) return Promise.resolve(_db);
+  return new Promise((ok,err)=>{
+    const r = indexedDB.open('criasEditor', 1);
+    r.onupgradeneeded = () => { const d=r.result; if(!d.objectStoreNames.contains('tiles')) d.createObjectStore('tiles'); };
+    r.onsuccess = () => { _db=r.result; ok(_db); };
+    r.onerror = () => err(r.error);
+  });
+}
+async function dbSalvaTile(nome, dataUrl){
+  const d = await db();
+  return new Promise((ok,err)=>{
+    const t=d.transaction('tiles','readwrite');
+    t.objectStore('tiles').put(dataUrl, nome);
+    t.oncomplete=ok; t.onerror=()=>err(t.error);
+  });
+}
+async function dbCarregaTiles(){
+  try{
+    const d = await db();
+    return await new Promise((ok,err)=>{
+      const t=d.transaction('tiles','readonly'), st=t.objectStore('tiles');
+      const ks=st.getAllKeys(), vs=st.getAll();
+      t.oncomplete=()=>{ const o={}; ks.result.forEach((k,i)=>o[k]=vs.result[i]); ok(o); };
+      t.onerror=()=>err(t.error);
+    });
+  }catch(e){ return {}; }
+}
+
 const IMGS = {};                    // nome -> Image
 const UPLOADS = {};                 // nome -> dataURL (tiles enviados aqui)
 
@@ -213,7 +245,13 @@ function montaTabs(){
     t.appendChild(b);
   }
 }
-fetch('/map-kit/manifest.json').then(r=>r.json()).then(m=>{ manifest=m; atualizaTodos(); montaTabs(); paleta(); });
+fetch('/map-kit/manifest.json').then(r=>r.json()).then(async m=>{
+  manifest=m;
+  Object.assign(UPLOADS, await dbCarregaTiles());   // tiles próprios voltam sozinhos
+  atualizaTodos(); montaTabs(); paleta();
+  const n=Object.keys(UPLOADS).length;
+  if(n) msg(n+' tile(s) próprios recuperados');
+});
 
 // Uma célula de objeto é 'arquivo.png' (simples) ou {t,dx,dy,s} quando o
 // usuário ajusta posição/tamanho livremente com a ferramenta ✥.
@@ -820,7 +858,21 @@ $('file').onchange=e=>{
       const sec = SECOES.find(s=>s.id===state.secao) || SECOES[0];
       let nome = f.name.replace(/\s*\(\d+\)/,'').replace(/(\.png)+$/,'').replace(/[^\w.-]+/g,'-');
       nome = (sec.pre || 'tile-') + nome + '.png';
-      UPLOADS[nome]=r.result; if(++n===fs.length){ atualizaTodos(); paleta(); msg(fs.length+' tile(s) adicionados em '+(SECOES.find(s=>s.id===state.secao)||{}).nome); }
+      const img = new Image();
+      img.onload = async () => {
+        // reduz para no máximo 640px: no jogo os tiles são desenhados pequenos
+        const MX=640, esc=Math.min(1, MX/Math.max(img.width,img.height));
+        const c=document.createElement('canvas');
+        c.width=Math.round(img.width*esc); c.height=Math.round(img.height*esc);
+        c.getContext('2d').drawImage(img,0,0,c.width,c.height);
+        const url=c.toDataURL('image/png');
+        UPLOADS[nome]=url;
+        try{ await dbSalvaTile(nome, url); }catch(e){ msg('aviso: não consegui guardar '+nome); }
+        if(++n===fs.length){ atualizaTodos(); paleta();
+          msg(fs.length+' tile(s) salvos em '+(SECOES.find(s=>s.id===state.secao)||{}).nome); }
+      };
+      img.onerror = () => { if(++n===fs.length){ atualizaTodos(); paleta(); } };
+      img.src = r.result;
     };
     r.readAsDataURL(f);
   });
@@ -926,9 +978,13 @@ $('despub').onclick=async()=>{
     msg('publicação removida — recarregue o jogo');
   }catch(e){ msg('erro ao despublicar: '+(e.message||e)); }
 };
-$('save').onclick=()=>{
-  localStorage.setItem('crias_editor', JSON.stringify({t:state.terreno,o:state.objeto,f:state.frente,c:state.colisao,u:UPLOADS}));
-  msg('projeto salvo no navegador');
+$('save').onclick=async()=>{
+  try{
+    // grids no localStorage (leve); imagens já estão no IndexedDB
+    localStorage.setItem('crias_editor', JSON.stringify({t:state.terreno,o:state.objeto,f:state.frente,c:state.colisao}));
+    for(const [k,v] of Object.entries(UPLOADS)){ try{ await dbSalvaTile(k,v); }catch(e){} }
+    msg('projeto salvo ('+Object.keys(UPLOADS).length+' tiles próprios guardados)');
+  }catch(e){ msg('erro ao salvar: '+(e.message||e)); }
 };
 $('load').onclick=()=>{
   const d=localStorage.getItem('crias_editor'); if(!d) return msg('nenhum projeto salvo');
