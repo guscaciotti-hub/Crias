@@ -95,7 +95,7 @@
       <span id="pos">—</span>
     </div>
     <div id="selbox"></div>
-    <div id="msg">Ctrl+Z desfaz · ✋ ou setas movem · tecla 0 enquadra tudo · roda dá zoom.</div>
+    <div id="msg">Ctrl+Z desfaz · ✋ move · 0 enquadra · roda dá zoom. Aba ⬆ Frente = o que cobre o personagem.</div>
     <div id="gen">
       <div class="gh1">🎯 Gerar tile novo</div>
       <div class="gsub">Arraste sobre o mapa para marcar o que quer recriar.</div>
@@ -120,6 +120,7 @@
       <canvas id="cGhost"></canvas>
       <canvas id="cTer"></canvas>
       <canvas id="cObj"></canvas>
+      <canvas id="cFre"></canvas>
       <canvas id="cGrid"></canvas>
     </div>
   </div>
@@ -130,6 +131,7 @@ const $ = i => document.getElementById(i);
 const state = {
   terreno: Array.from({length:N},()=>Array(N).fill(null)),
   objeto:  Array.from({length:N},()=>Array(N).fill(null)),
+  frente:  Array.from({length:N},()=>Array(N).fill(null)),
   colisao: Array.from({length:N},()=>Array(N).fill(0)),
   layer:'terreno', tool:'pincel', sel:null, brush:1, zoom:1, panX:0, panY:0,
 };
@@ -137,10 +139,10 @@ const IMGS = {};                    // nome -> Image
 const UPLOADS = {};                 // nome -> dataURL (tiles enviados aqui)
 
 // ── canvases ────────────────────────────────────────────────────────────
-const cs = ['cGhost','cTer','cObj','cGrid'].map(id=>{
+const cs = ['cGhost','cTer','cObj','cFre','cGrid'].map(id=>{
   const c=$(id); c.width=N*TP; c.height=N*TP; return c;
 });
-const [gGhost,gTer,gObj,gGrid] = cs.map(c=>c.getContext('2d'));
+const [gGhost,gTer,gObj,gFre,gGrid] = cs.map(c=>c.getContext('2d'));
 $('wrap').style.width = $('wrap').style.height = (N*TP)+'px';
 
 // mapa fantasma (o original, para traçar por cima)
@@ -160,6 +162,7 @@ const SECOES = [
   { id:'casas',   nome:'Casas',    camada:'objeto',  match:f=>/^prop-(casa|arena|predio|shop|cupula|loja|torre)/.test(f) },
   { id:'objetos', nome:'Objetos',  camada:'objeto',  match:f=>f.startsWith('prop-')&&!/^prop-(arvore|pinheiro|arbusto|mato|casa|arena|predio|shop|cupula|loja|torre)/.test(f) },
   { id:'detalhes',nome:'Detalhes', camada:'terreno', match:f=>f.startsWith('det-') },
+  { id:'frente',  nome:'⬆ Frente',  camada:'frente',  match:f=>f.startsWith('prop-') },
   { id:'colisao', nome:'Colisão',  camada:'colisao', match:()=>false },
 ];
 state.secao = 'chao';
@@ -230,6 +233,18 @@ function pintaObj(){
     gObj.drawImage(im, x*TP+TP/2-w/2, y*TP+TP-h, w, h);
   }
 }
+function pintaFre(){
+  gFre.clearRect(0,0,N*TP,N*TP);
+  for(let y=0;y<N;y++)for(let x=0;x<N;x++){
+    const t=state.frente[y][x]; if(!t) continue;
+    const im=imgDe(t); if(!(im.complete&&im.naturalWidth)) continue;
+    const esc=2.0, h=TP*esc, w=h*(im.naturalWidth/im.naturalHeight);
+    gFre.drawImage(im, x*TP+TP/2-w/2, y*TP+TP-h, w, h);
+    // marca visual: só no editor, para saber o que cobre o personagem
+    gFre.strokeStyle='rgba(255,200,60,.85)'; gFre.setLineDash([4,3]); gFre.lineWidth=1.5;
+    gFre.strokeRect(x*TP+1, y*TP+1, TP-2, TP-2); gFre.setLineDash([]);
+  }
+}
 function pintaGrid(){
   gGrid.clearRect(0,0,N*TP,N*TP);
   if($('showcol').checked||state.layer==='colisao'){
@@ -250,24 +265,24 @@ $('brush').oninput=e=>state.brush=+e.target.value;
 // ── histórico (Ctrl+Z / Ctrl+Y) ─────────────────────────────────────────
 const HIST = [], REDO = [];
 function snapshot(){
-  HIST.push(JSON.stringify({t:state.terreno,o:state.objeto,c:state.colisao}));
+  HIST.push(JSON.stringify({t:state.terreno,o:state.objeto,f:state.frente,c:state.colisao}));
   if(HIST.length>60) HIST.shift();
   REDO.length = 0;
 }
 function restaura(json){
   const j = JSON.parse(json);
   state.terreno=j.t; state.objeto=j.o; state.colisao=j.c;
-  pintaTer(); pintaObj(); pintaGrid();
+  pintaTer(); pintaObj(); pintaFre(); pintaGrid();
 }
 function desfazer(){
   if(!HIST.length) return msg('nada para desfazer');
-  REDO.push(JSON.stringify({t:state.terreno,o:state.objeto,c:state.colisao}));
+  REDO.push(JSON.stringify({t:state.terreno,o:state.objeto,f:state.frente,c:state.colisao}));
   restaura(HIST.pop());
   msg('desfeito ('+HIST.length+' passos restantes)');
 }
 function refazer(){
   if(!REDO.length) return msg('nada para refazer');
-  HIST.push(JSON.stringify({t:state.terreno,o:state.objeto,c:state.colisao}));
+  HIST.push(JSON.stringify({t:state.terreno,o:state.objeto,f:state.frente,c:state.colisao}));
   restaura(REDO.pop());
   msg('refeito');
 }
@@ -295,7 +310,9 @@ function aplica(x,y){
     else if(state.tool==='conta'){ state.sel=state[state.layer][Y][X]||state.sel; paleta(); return; }
     else if(state.sel) state[state.layer][Y][X]=state.sel;
   }
-  if(state.layer==='terreno') pintaTer(); else if(state.layer==='objeto') pintaObj();
+  if(state.layer==='terreno') pintaTer();
+  else if(state.layer==='objeto') pintaObj();
+  else if(state.layer==='frente') pintaFre();
   pintaGrid();
 }
 function balde(x,y){
@@ -308,7 +325,9 @@ function balde(x,y){
     vis.add(k); L[b2][a]=novo;
     fila.push([a+1,b2],[a-1,b2],[a,b2+1],[a,b2-1]);
   }
-  if(state.layer==='terreno') pintaTer(); else pintaObj();
+  if(state.layer==='terreno') pintaTer();
+  else if(state.layer==='frente') pintaFre();
+  else pintaObj();
 }
 stage.addEventListener('mousedown',e=>{
   if(e.button===1||espaco||state.tool==='mao'){ arrastando=true; lx=e.clientX; ly=e.clientY; e.preventDefault(); return; }
@@ -511,6 +530,17 @@ $('auto').onclick=()=>{
   pintaGrid(); msg('auto-colisão: '+n+' tiles bloqueados (objetos, água e penhasco)');
 };
 // ── render do mapa final (usado por exportar e publicar) ────────────────
+function renderCamada(campo, transparente){
+  const OUT=64, c=document.createElement('canvas'); c.width=c.height=N*OUT;
+  const g=c.getContext('2d');
+  for(let y=0;y<N;y++)for(let x=0;x<N;x++){
+    const t=state[campo][y][x]; if(!t) continue;
+    const im=imgDe(t); if(!im.complete) continue;
+    const esc=2.0, h=OUT*esc, w=h*(im.naturalWidth/im.naturalHeight);
+    g.drawImage(im,x*OUT+OUT/2-w/2,y*OUT+OUT-h,w,h);
+  }
+  return c;
+}
 function renderFinal(){
   const OUT=64, c=document.createElement('canvas'); c.width=c.height=N*OUT;
   const g=c.getContext('2d');
@@ -541,6 +571,12 @@ $('pub').onclick=async()=>{
     let up = await sb.storage.from('mapas').upload('mapa-oficial.jpg', blob,
       { upsert:true, contentType:'image/jpeg', cacheControl:'0' });
     if(up.error) throw up.error;
+    // camada de frente (o que cobre o personagem) vai como PNG transparente
+    const fre = renderCamada('frente');
+    const freBlob = await new Promise(r=>fre.toBlob(r,'image/png'));
+    up = await sb.storage.from('mapas').upload('mapa-frente.png', freBlob,
+      { upsert:true, contentType:'image/png', cacheControl:'0' });
+    if(up.error) throw up.error;
     const col = JSON.stringify(state.colisao);
     up = await sb.storage.from('mapas').upload('collision.json', new Blob([col],{type:'application/json'}),
       { upsert:true, contentType:'application/json', cacheControl:'0' });
@@ -554,13 +590,15 @@ $('pub').onclick=async()=>{
 $('exp').onclick=async()=>{
   const c = renderFinal();
   c.toBlob(b=>{ const a=document.createElement('a'); a.href=URL.createObjectURL(b); a.download='mapa-novo.png'; a.click(); },'image/jpeg',.92);
+  renderCamada('frente').toBlob(b=>{ const a=document.createElement('a');
+    a.href=URL.createObjectURL(b); a.download='mapa-frente.png'; a.click(); },'image/png');
   const col='const COLLISION = [\n'+state.colisao.map(r=>'  ['+r.join(',')+']').join(',\n')+'\n];';
   const a2=document.createElement('a'); a2.href=URL.createObjectURL(new Blob([col],{type:'text/plain'}));
   a2.download='collision.txt'; a2.click();
   msg('exportado: mapa-novo.png + collision.txt — sobe os dois no GitHub');
 };
 $('save').onclick=()=>{
-  localStorage.setItem('crias_editor', JSON.stringify({t:state.terreno,o:state.objeto,c:state.colisao,u:UPLOADS}));
+  localStorage.setItem('crias_editor', JSON.stringify({t:state.terreno,o:state.objeto,f:state.frente,c:state.colisao,u:UPLOADS}));
   msg('projeto salvo no navegador');
 };
 $('load').onclick=()=>{
@@ -570,7 +608,7 @@ $('load').onclick=()=>{
   Object.assign(UPLOADS,j.u||{}); atualizaTodos();
   paleta(); pintaTer(); pintaObj(); pintaGrid(); msg('projeto carregado');
 };
-pintaGrid(); verTudo();
+pintaFre(); pintaGrid(); verTudo();
 </script>
 </body>
 </html>

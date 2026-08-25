@@ -3625,6 +3625,10 @@ function loadAssets() {
       }
     }).catch(() => {});
 
+  // camada de frente publicada pelo editor: desenhada DEPOIS dos personagens
+  loadImage('https://gmycqvvvglexbtbqkjzi.supabase.co/storage/v1/object/public/mapas/mapa-frente.png?t=' + Date.now(), 20000)
+    .then(img => { assets.mapFrente = img; }).catch(() => {});
+
   loadImage(_MAPA_NUVEM + '?t=' + Date.now(), 20000)
     .catch(() => loadImage('/mapa-oficial.jpg', 20000))
     .catch(() => loadImage(MAP_URL, 20000)).then(img => {
@@ -8574,6 +8578,20 @@ function render(now) {
       ((pX >= 27 * TILE && pX < 29 * TILE) ||
        (pX >= 19 * TILE && pX < 21 * TILE))) {
     drawPlayer(pX - camX, pY - camY, now);
+  }
+
+  // === Camada de FRENTE do mapa (editor): cobre o personagem ===
+  // Desenhada após as entidades e alinhada ao mundo — é o que faz o jogador
+  // passar por trás de copas, telhados e o que for marcado na aba Frente.
+  if (state && state.scene !== 'cave1' && assets.mapFrente && assets.mapFrente.complete) {
+    const _fw = assets.mapFrente.naturalWidth, _fh = assets.mapFrente.naturalHeight;
+    const _fsx = _fw / MAP_W_PX, _fsy = _fh / MAP_H_PX;
+    ctx.imageSmoothingEnabled = true;
+    ctx.drawImage(assets.mapFrente,
+      Math.round(camX * _fsx), Math.round(camY * _fsy),
+      Math.round(cw * _fsx), Math.round(ch * _fsy),
+      0, 0, cw, ch);
+    ctx.imageSmoothingEnabled = false;
   }
 
   // === House sprite overlay (pass-behind: transparent sprite drawn after entities) ===
