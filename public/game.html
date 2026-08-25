@@ -8,18 +8,6 @@
      arquivo é auto-suficiente e a página é igual seja servida pelo Express ou
      direto do CDN como estático. -->
 <link rel="stylesheet" href="/game-mobile.css" media="(max-width: 900px)">
-<script>
-(function(){
-  // Android permite travar em paisagem; no iOS o #rotatePrompt cobre o caso.
-  function trava(){
-    if (screen.orientation && screen.orientation.lock) {
-      screen.orientation.lock('landscape').catch(function(){});
-    }
-  }
-  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', trava);
-  else trava();
-})();
-</script>
 <style>
   * { margin: 0; padding: 0; box-sizing: border-box; user-select: none; -webkit-tap-highlight-color: transparent; }
   html, body {
@@ -70,12 +58,28 @@
   }
   #rotatePrompt h2 { font-size: 22px; margin-bottom: 8px; }
   #rotatePrompt p { font-size: 14px; color: #8ab0dd; max-width: 280px; line-height: 1.5; }
-  /* Retrato no celular: pedir para virar o aparelho.
-     Girar o #app 90deg (o que se fazia antes) deitava só o canvas: a HUD, o
-     joystick e o botão A continuavam em pé, e o analógico ficava 90° fora de
-     fase — empurrar pra cima andava pra direita. */
+  /* Celular joga SEMPRE em paisagem. Com o aparelho na vertical — ou com a
+     rotação travada, que é o caso comum — a tela inteira gira 90°.
+     Girar só o #app (o que se fazia antes) deitava apenas o canvas: HUD,
+     joystick e botão A ficavam em pé sobre um mundo deitado, e o analógico
+     saía 90° fora de fase (empurrar pra cima andava pra direita). Girando o
+     body, tudo vai junto — inclusive as telas criadas em tempo de execução,
+     como a cinemática de abertura e os avisos. */
   @media (orientation: portrait) and (pointer: coarse) {
-    #rotatePrompt { display: flex; }
+    /* !important porque game-mobile.css trava html/body em 100%/top:0 */
+    body {
+      position: fixed !important;
+      top: 50% !important; left: 50% !important;
+      width: 100vh !important; height: 100vw !important;
+      transform: translate(-50%, -50%) rotate(90deg) !important;
+      transform-origin: center center !important;
+    }
+    #app {
+      position: fixed !important;
+      top: 0 !important; left: 0 !important;
+      width: 100% !important; height: 100% !important;
+    }
+    #rotatePrompt { display: none !important; }
   }
 
   .overlay { position: fixed; inset: 0; display: none; align-items: center; justify-content: center; z-index: 10; }
@@ -4522,6 +4526,14 @@ const JOY_RADIUS = 50;       // max stick travel in px
 const JOY_DEADZONE = 12;     // ignore micro-movements
 const JOY_ACTIVATE = 25;     // distance to register as a direction
 
+// Quando a tela gira 90° (celular na vertical), o dedo se move num
+// referencial e o mundo em outro: sem converter, empurrar o analógico pra
+// cima faz o personagem andar pra direita.
+const _mqTelaGirada = window.matchMedia('(orientation: portrait) and (pointer: coarse)');
+function paraReferencialDoMundo(dx, dy) {
+  return _mqTelaGirada.matches ? { dx: dy, dy: -dx } : { dx, dy };
+}
+
 function updateJoystickDirection(dx, dy) {
   const mag = Math.hypot(dx, dy);
   if (mag < JOY_ACTIVATE) {
@@ -4561,17 +4573,15 @@ function onJoyStart(clientX, clientY, touchId) {
   joyCenter.x = r.left + r.width / 2;
   joyCenter.y = r.top + r.height / 2;
   joystickEl.classList.add('active');
-  const dx = clientX - joyCenter.x;
-  const dy = clientY - joyCenter.y;
-  setStickPosition(dx, dy);
-  updateJoystickDirection(dx, dy);
+  const g = paraReferencialDoMundo(clientX - joyCenter.x, clientY - joyCenter.y);
+  setStickPosition(g.dx, g.dy);
+  updateJoystickDirection(g.dx, g.dy);
 }
 
 function onJoyMove(clientX, clientY) {
-  const dx = clientX - joyCenter.x;
-  const dy = clientY - joyCenter.y;
-  setStickPosition(dx, dy);
-  updateJoystickDirection(dx, dy);
+  const g = paraReferencialDoMundo(clientX - joyCenter.x, clientY - joyCenter.y);
+  setStickPosition(g.dx, g.dy);
+  updateJoystickDirection(g.dx, g.dy);
 }
 
 function onJoyEnd() {
