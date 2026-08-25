@@ -3658,8 +3658,7 @@ function desenhaPecasMapa(camX, camY, naFrente) {
     if (!!p.frente !== !!naFrente) continue;
     const im = window.MAPA_TILES[p.t];
     if (!im || !im.complete || !im.naturalWidth) continue;
-    const ys = _aspectoY();
-    const h = p.s * TILE * ys, w = (p.s * TILE) * (im.naturalWidth / im.naturalHeight);
+    const h = p.s * TILE, w = h * (im.naturalWidth / im.naturalHeight);
     const cx = p.x * TILE - camX, cy = p.y * TILE - camY;
     if (cx + w < -40 || cx - w > canvas.width + 40) continue;
     ctx.save();
@@ -8555,9 +8554,8 @@ function render(now) {
   // Orbe do editor: metade de baixo, atrás do jogador
   if (state && window.MAPA_ORBE && assets.orbSprite && assets.orbSprite.complete) {
     const o = window.MAPA_ORBE;
-    const ys = _aspectoY();
-    const oh = o.tam * TILE * ys;                       // compensa o esticamento
-    const ow = (o.tam * TILE) * (assets.orbSprite.naturalWidth / assets.orbSprite.naturalHeight);
+    const oh = o.tam * TILE;
+    const ow = oh * (assets.orbSprite.naturalWidth / assets.orbSprite.naturalHeight);
     const ox = o.x * TILE - ow / 2 - camX, oy = o.y * TILE - oh / 2 - camY;
     ctx.imageSmoothingEnabled = true;
     ctx.save();
@@ -8726,9 +8724,8 @@ function render(now) {
   // que cobre o jogador (efeito de passar por trás do cristal) ===
   if (state && state.scene !== 'cave1' && window.MAPA_ORBE && assets.orbSprite && assets.orbSprite.complete) {
     const o = window.MAPA_ORBE;
-    const ys = _aspectoY();
-    const oh = o.tam * TILE * ys;
-    const ow = (o.tam * TILE) * (assets.orbSprite.naturalWidth / assets.orbSprite.naturalHeight);
+    const oh = o.tam * TILE;
+    const ow = oh * (assets.orbSprite.naturalWidth / assets.orbSprite.naturalHeight);
     const ox = o.x * TILE - ow / 2 - camX, oy = o.y * TILE - oh / 2 - camY;
     ctx.imageSmoothingEnabled = true;
     ctx.save();
@@ -9696,6 +9693,7 @@ setInterval(()=>{ if(state) saveGame(); }, 30000);
 document.addEventListener('pointerdown', (e)=>{ const c=document.getElementById('playerMiniCard'); if(c && c.style.display==='block' && !c.contains(e.target)) hidePlayerCard(); }, true);
 
 let _lastT = 0;
+let _erroFrameVisto = false;
 function loop(t) {
   const dt = Math.min(50, t - _lastT);
   _lastT = t;
@@ -9709,8 +9707,10 @@ function loop(t) {
       const sh = FX.getShake();
       canvas.style.transform = (sh.x || sh.y) ? `translate(${sh.x}px, ${sh.y}px)` : '';
     } catch(e) {
-      // Swallow render errors (e.g. after canvas resize on iOS orientation change)
-      // so requestAnimationFrame always fires and the loop never dies.
+      // O loop nunca morre (um erro de frame não pode congelar o jogo), mas
+      // engolir em silêncio já escondeu um bug que apagava o personagem da
+      // tela: o primeiro erro vai para o console.
+      if (!_erroFrameVisto) { _erroFrameVisto = true; console.error('[render] frame falhou:', e); }
     }
   }
   requestAnimationFrame(loop);
