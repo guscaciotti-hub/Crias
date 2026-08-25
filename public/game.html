@@ -3573,12 +3573,21 @@ function construirMascaraFrente() {
   window._maskCanvas = c;
 }
 
+// O canvas é esticado por CSS para preencher a tela, então imagens desenhadas
+// sobre o mundo precisam compensar a diferença de proporção — senão o orbe
+// aparece esticado na horizontal.
+function _aspectoY() {
+  const rx = viewportW / canvas.width, ry = viewportH / canvas.height;
+  return (rx > 0 && ry > 0) ? rx / ry : 1;
+}
+
 function desenhaPecasMapa(camX, camY, naFrente) {
   for (const p of window.MAPA_PECAS) {
     if (!!p.frente !== !!naFrente) continue;
     const im = window.MAPA_TILES[p.t];
     if (!im || !im.complete || !im.naturalWidth) continue;
-    const h = p.s * TILE, w = h * (im.naturalWidth / im.naturalHeight);
+    const ys = _aspectoY();
+    const h = p.s * TILE * ys, w = (p.s * TILE) * (im.naturalWidth / im.naturalHeight);
     const cx = p.x * TILE - camX, cy = p.y * TILE - camY;
     if (cx + w < -40 || cx - w > canvas.width + 40) continue;
     ctx.save();
@@ -8473,8 +8482,9 @@ function render(now) {
   // Orbe do editor: metade de baixo, atrás do jogador
   if (state && window.MAPA_ORBE && assets.orbSprite && assets.orbSprite.complete) {
     const o = window.MAPA_ORBE;
-    const oh = o.tam * TILE;
-    const ow = oh * (assets.orbSprite.naturalWidth / assets.orbSprite.naturalHeight);
+    const ys = _aspectoY();
+    const oh = o.tam * TILE * ys;                       // compensa o esticamento
+    const ow = (o.tam * TILE) * (assets.orbSprite.naturalWidth / assets.orbSprite.naturalHeight);
     const ox = o.x * TILE - ow / 2 - camX, oy = o.y * TILE - oh / 2 - camY;
     ctx.imageSmoothingEnabled = true;
     ctx.save();
@@ -8610,8 +8620,9 @@ function render(now) {
   // que cobre o jogador (efeito de passar por trás do cristal) ===
   if (state && state.scene !== 'cave1' && window.MAPA_ORBE && assets.orbSprite && assets.orbSprite.complete) {
     const o = window.MAPA_ORBE;
-    const oh = o.tam * TILE;
-    const ow = oh * (assets.orbSprite.naturalWidth / assets.orbSprite.naturalHeight);
+    const ys = _aspectoY();
+    const oh = o.tam * TILE * ys;
+    const ow = (o.tam * TILE) * (assets.orbSprite.naturalWidth / assets.orbSprite.naturalHeight);
     const ox = o.x * TILE - ow / 2 - camX, oy = o.y * TILE - oh / 2 - camY;
     ctx.imageSmoothingEnabled = true;
     ctx.save();
