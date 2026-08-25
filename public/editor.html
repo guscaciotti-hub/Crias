@@ -17,16 +17,23 @@
   .tabs button{min-width:33.33%}
   .tabs button{flex:1;background:none;border:0;color:var(--dim);padding:9px 2px;font-size:11px;font-weight:700;cursor:pointer;border-bottom:2px solid transparent}
   .tabs button.on{color:var(--acc);border-bottom-color:var(--acc)}
-  #pal{flex:1;overflow-y:auto;padding:8px;display:grid;grid-template-columns:repeat(3,1fr);gap:6px;align-content:start}
-  .tile{position:relative;aspect-ratio:1;border:2px solid transparent;border-radius:7px;overflow:hidden;cursor:pointer;background:#0a0f1c}
-  .tile img{width:100%;height:100%;object-fit:contain;display:block}
+  #pal{flex:1 1 auto;min-height:300px;overflow-y:auto;padding:8px;display:grid;
+       grid-template-columns:repeat(2,1fr);gap:7px;align-content:start}
+  .tile{position:relative;aspect-ratio:1;border:2px solid transparent;border-radius:8px;overflow:hidden;
+        cursor:pointer;background:#0a0f1c;padding:3px}
+  .tile img{width:100%;height:100%;object-fit:contain;display:block}   /* peça inteira, sem corte */
   .tile.on{border-color:var(--acc);box-shadow:0 0 0 2px rgba(77,195,255,.25)}
-  .tile b{position:absolute;left:0;right:0;bottom:0;font-size:8px;font-weight:600;background:rgba(0,0,0,.72);padding:1px 2px;text-align:center;white-space:nowrap;overflow:hidden}
+  .tile b{position:absolute;left:0;right:0;bottom:0;font-size:9px;font-weight:600;background:rgba(0,0,0,.72);padding:1px 2px;text-align:center;white-space:nowrap;overflow:hidden}
   .livre{grid-column:1/-1;font-size:10px;font-weight:700;text-align:center;padding:7px 4px;border-radius:7px;
     border:1px dashed var(--line);color:var(--dim);cursor:pointer;margin-bottom:2px}
   .livre.on{border-color:var(--ok);color:var(--ok);background:rgba(61,220,132,.10);border-style:solid}
   .grp{grid-column:1/-1;font-size:10px;color:var(--dim);text-transform:uppercase;letter-spacing:.08em;margin:6px 0 0}
-  #ctrl{border-top:1px solid var(--line);padding:9px 12px;display:flex;flex-direction:column;gap:7px}
+  #ctrl{border-top:1px solid var(--line);padding:8px 10px;display:flex;flex-direction:column;gap:5px;
+        flex:0 0 auto;max-height:46vh;overflow-y:auto}
+  #ctrl label{font-size:10px}
+  #ctrl button.gh{padding:5px;font-size:10px}
+  #ctrl button.act{padding:7px;font-size:11px}
+  #side{overflow:hidden}
   label{font-size:11px;color:var(--dim);display:flex;align-items:center;gap:6px;justify-content:space-between}
   input[type=range]{width:120px}
   button.act{background:var(--acc);border:0;color:#04121f;border-radius:7px;padding:8px;font-weight:800;font-size:12px;cursor:pointer;width:100%}
@@ -94,6 +101,7 @@
         <button class="gh" id="save">Salvar</button>
         <button class="gh" id="load">Abrir</button>
       </div>
+      <div style="font-size:9px;color:var(--ok);text-align:center" id="auto2">salvando automaticamente</div>
       <div class="row2">
         <button class="gh" id="bkp" title="Baixa TUDO: projeto, tiles, mapa e colisão">💾 Backup completo</button>
         <button class="gh" id="rest" title="Restaura um backup .json">♻ Restaurar</button>
@@ -119,7 +127,7 @@
       <span id="pos">—</span>
     </div>
     <div id="selbox"></div>
-    <div id="msg">Tile escolhido = clique PINTA. Sem tile (✋ mão livre) = clique SELECIONA e move. Ctrl+Z desfaz · Esc solta.</div>
+    <div id="msg">Tile escolhido = clique PINTA. Sem tile = clique no objeto SELECIONA, no vazio ARRASTA o mapa. Ctrl+Z desfaz.</div>
     <div id="fab">
       <button id="fabFrente" title="Alterna se este objeto cobre o personagem">⬆ vem pra frente</button>
       <button id="fabDel" title="Apagar (Del)">🗑</button>
@@ -254,11 +262,8 @@ function montaTabs(){
   }
 }
 fetch('/map-kit/manifest.json').then(r=>r.json()).then(async m=>{
-  manifest=m;
-  Object.assign(UPLOADS, await dbCarregaTiles());   // tiles próprios voltam sozinhos
-  atualizaTodos(); montaTabs(); paleta();
-  const n=Object.keys(UPLOADS).length;
-  if(n) msg(n+' tile(s) próprios recuperados');
+  manifest=m; montaTabs();
+  await carregaProjeto();          // mapa E tiles voltam automaticamente
 });
 
 // Uma célula de objeto é 'arquivo.png' (simples) ou {t,dx,dy,s} quando o
@@ -510,7 +515,7 @@ function aplica(x,y){
   if(state.layer==='terreno') pintaTer();
   else if(state.layer==='objeto') pintaObj();
   else if(state.layer==='frente') pintaFre();
-  pintaGrid();
+  pintaGrid(); autoSalva();
 }
 function balde(x,y){
   const L=state[state.layer];
@@ -528,10 +533,16 @@ function balde(x,y){
   if(state.layer==='terreno') pintaTer();
   else if(state.layer==='frente') pintaFre();
   else pintaObj();
+  autoSalva();
 }
 stage.addEventListener('mousedown',e=>{
   if(e.button===1||espaco||state.tool==='mao'){ arrastando=true; lx=e.clientX; ly=e.clientY; e.preventDefault(); return; }
-  const [x,y]=tileDe(e); if(x<0||y<0||x>=N||y>=N) return;
+  const [x,y]=tileDe(e);
+  // fora da grade: arrastar move o mapa (evita cliques mortos nas margens)
+  if(x<0||y<0||x>=N||y>=N){
+    if(!state.sel){ arrastando=true; lx=e.clientX; ly=e.clientY; stage.style.cursor='grabbing'; }
+    return;
+  }
   if(state.tool==='recorte'){ selA=[x,y]; selB=[x,y]; pintando=true; desenhaSel(); return; }
   // Pincel também manipula: clicar num objeto já colocado seleciona e arrasta;
   // a alça na diagonal (canto inferior direito) redimensiona. Sem trocar de modo.
@@ -552,9 +563,13 @@ stage.addEventListener('mousedown',e=>{
         const o=oInfo(state[achouAgora.l][achouAgora.y][achouAgora.x]);
         movBase={mx:e.clientX,my:e.clientY,dx:o.dx,dy:o.dy};
         mostraAjuste(); pintaObj(); pintaFre();
-      } else if(selObj){
-        selObj=null; mostraAjuste(); pintaObj(); pintaFre();
+        return;
       }
+      // Sem tile e sem objeto sob o cursor: arrastar move o MAPA — é o gesto
+      // natural, em vez de obrigar a trocar para a ferramenta ✋
+      if(selObj){ selObj=null; mostraAjuste(); pintaObj(); pintaFre(); }
+      arrastando=true; lx=e.clientX; ly=e.clientY;
+      stage.style.cursor='grabbing';
       return;
     }
   }
@@ -583,8 +598,10 @@ window.addEventListener('mousemove',e=>{
     if($('tam')){ $('tam').value=v; $('tamv').textContent=v+'%'; }
     return;
   }
-  if(!pintando&&!movendo&&!redimensionando&&selObj){
-    stage.style.cursor = alcaHit(e) ? 'nwse-resize' : 'default';
+  if(!pintando&&!movendo&&!redimensionando&&!arrastando){
+    if(selObj && alcaHit(e)) stage.style.cursor='nwse-resize';
+    else if(!state.sel && x>=0&&y>=0&&x<N&&y<N && !achaObj(x,y)) stage.style.cursor='grab';
+    else stage.style.cursor='default';
   }
   if(movendo&&selObj&&movBase){
     const z=TP*state.zoom;
@@ -597,6 +614,7 @@ window.addEventListener('mousemove',e=>{
 window.addEventListener('mouseup',()=>{
   if(pintando&&state.tool==='recorte') atualizaCrop();
   pintando=false;arrastando=false;movendo=false;redimensionando=false;
+  stage.style.cursor='default';
 });
 function desenhaSel(){
   if(!selA||!selB) return;
@@ -774,6 +792,38 @@ $('gdown').onclick=()=>{
     a.href=URL.createObjectURL(b); a.download='ref-'+nome+'.png'; a.click(); });
 };
 
+// ── AUTO-SAVE: nada do que o usuário faz pode se perder ────────────────
+let _autoT=null;
+function autoSalva(){
+  clearTimeout(_autoT);
+  _autoT = setTimeout(()=>{
+    try{
+      localStorage.setItem('crias_editor', JSON.stringify({
+        t:state.terreno, o:state.objeto, f:state.frente, c:state.colisao, em:Date.now()
+      }));
+      const el=$('auto2'); if(el){ el.textContent='salvo ' + new Date().toLocaleTimeString('pt-BR').slice(0,5); }
+    }catch(err){ msg('ATENÇÃO: não consegui salvar automaticamente — use 💾 Backup completo'); }
+  }, 700);
+}
+async function carregaProjeto(silencioso){
+  const d=localStorage.getItem('crias_editor');
+  Object.assign(UPLOADS, await dbCarregaTiles());
+  if(d){
+    try{
+      const j=JSON.parse(d);
+      if(j.t) state.terreno=j.t;
+      if(j.o) state.objeto=j.o;
+      if(j.f) state.frente=j.f;
+      if(j.c) state.colisao=j.c;
+    }catch(e){}
+  }
+  atualizaTodos(); paleta(); pintaTer(); pintaObj(); pintaFre(); pintaGrid();
+  if(!silencioso){
+    const n=state.terreno.flat().filter(Boolean).length + state.objeto.flat().filter(Boolean).length;
+    msg(n ? ('projeto recuperado: '+n+' peças no mapa') : 'mapa vazio — comece a pintar');
+  }
+}
+
 // ── AJUSTAR: move e redimensiona um objeto já colocado ─────────────────
 let selObj=null, movendo=false, movBase=null, redimensionando=false, escBase=null;
 // Um objeto recém-colocado já fica selecionado: o clique seguinte em cima
@@ -828,7 +878,7 @@ $('fabFrente').onclick=()=>{
   state[de][selObj.y][selObj.x]=null;
   state[para][selObj.y][selObj.x]=cel;
   selObj={l:para, x:selObj.x, y:selObj.y};
-  pintaObj(); pintaFre(); mostraAjuste();
+  pintaObj(); pintaFre(); mostraAjuste(); autoSalva();
   msg(para==='frente' ? 'objeto agora COBRE o personagem' : 'objeto voltou para trás do personagem');
 };
 $('fabDel').onclick=()=>$('adjdel').click();
@@ -849,7 +899,7 @@ function setObj(mut){
   mut(cur);
   state[selObj.l][selObj.y][selObj.x]=cur;
   if(selObj.l==='frente') pintaFre(); else pintaObj();
-  mostraAjuste();
+  mostraAjuste(); autoSalva();
 }
 $('adjesc').oninput=e=>setObj(o=>o.s=+e.target.value/100);
 $('adjdel').onclick=()=>{ if(!selObj) return; snapshot();
@@ -902,7 +952,7 @@ $('auto').onclick=()=>{
     const bloq = !!state.objeto[y][x] || tn.includes('agua') || tn.includes('penhasco');
     if(bloq){ state.colisao[y][x]=1; n++; }
   }
-  pintaGrid(); msg('auto-colisão: '+n+' tiles bloqueados (objetos, água e penhasco)');
+  pintaGrid(); autoSalva(); msg('auto-colisão: '+n+' tiles bloqueados (objetos, água e penhasco)');
 };
 // ── render do mapa final (usado por exportar e publicar) ────────────────
 function renderCamada(campo, transparente){
@@ -1041,6 +1091,7 @@ $('save').onclick=async()=>{
     localStorage.setItem('crias_editor', JSON.stringify({t:state.terreno,o:state.objeto,f:state.frente,c:state.colisao}));
     for(const [k,v] of Object.entries(UPLOADS)){ try{ await dbSalvaTile(k,v); }catch(e){} }
     msg('projeto salvo ('+Object.keys(UPLOADS).length+' tiles próprios guardados)');
+    autoSalva();
   }catch(e){ msg('erro ao salvar: '+(e.message||e)); }
 };
 $('load').onclick=()=>{
