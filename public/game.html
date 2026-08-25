@@ -8745,29 +8745,59 @@ function drawMageNPC(npc, px, py, now) {
 }
 
 // ── Generic NPC draw (emoji) ──────────────────────────────────────────────────
-function drawNPC(npc, px, py, now) {
-  // Custom pixel-art sprite for cave guard
-  if (npc.id === 'cave_guard') { drawKnightNPC(npc, px, py, now); return; }
-  // Custom pixel-art sprite for Guia Solis
-  if (npc.id === 'guia') { drawMageNPC(npc, px, py, now); return; }
-  // Official sprite for PvP access NPC
-  if (npc.id === 'pvp_crias' && assets.pvpNpcSprite) { drawImageNPC(npc, px, py, now, assets.pvpNpcSprite, '#4dc3ff'); return; }
+// ── SLOTS DE SPRITE DOS NPCs ────────────────────────────────────────────────
+// Cada NPC espera '/npc-<id>.png' (PNG transparente, personagem inteiro).
+// Enquanto o arquivo não existe, aparece um marcador neutro (nada de emoji).
+const NPC_SPRITES = {};
+function npcSprite(id) {
+  if (!(id in NPC_SPRITES)) {
+    const im = new Image();
+    im.onerror = () => { NPC_SPRITES[id] = null; };
+    im.src = '/npc-' + id + '.png';
+    NPC_SPRITES[id] = im;
+  }
+  const im = NPC_SPRITES[id];
+  return (im && im !== null && im.complete && im.naturalWidth > 0) ? im : null;
+}
 
-  ctx.font = '32px serif';
+function drawNPC(npc, px, py, now) {
+  const spr = npcSprite(npc.id);
+  const bob = Math.sin(now / 400 + (npc.x + npc.y)) * 1.5;
+  const cx = px + TILE / 2;
+
+  // sombra no chão (comum aos dois casos)
+  ctx.fillStyle = 'rgba(0,0,0,0.45)';
+  ctx.beginPath();
+  ctx.ellipse(cx, py + TILE - 8, 13, 4, 0, 0, Math.PI * 2);
+  ctx.fill();
+
+  if (spr) {
+    const h = 68, w = h * (spr.naturalWidth / spr.naturalHeight);
+    ctx.imageSmoothingEnabled = true;
+    ctx.drawImage(spr, cx - w / 2, py + TILE - h + 4 + bob, w, h);
+    ctx.imageSmoothingEnabled = false;
+  } else {
+    // marcador do slot vago: pilar de luz discreto
+    const g = ctx.createLinearGradient(cx, py + TILE - 54, cx, py + TILE);
+    g.addColorStop(0, 'rgba(77,195,255,0)');
+    g.addColorStop(1, 'rgba(77,195,255,0.45)');
+    ctx.fillStyle = g;
+    ctx.fillRect(cx - 9, py + TILE - 54 + bob, 18, 54);
+    ctx.strokeStyle = 'rgba(150,225,255,0.75)';
+    ctx.lineWidth = 1.5;
+    ctx.beginPath();
+    ctx.ellipse(cx, py + TILE - 6, 11, 3.5, 0, 0, Math.PI * 2);
+    ctx.stroke();
+  }
+
+  ctx.font = 'bold 12px sans-serif';
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
-  ctx.fillStyle = 'rgba(0,0,0,0.5)';
-  ctx.beginPath();
-  ctx.ellipse(px + TILE/2, py + TILE - 10, 13, 4, 0, 0, Math.PI * 2);
-  ctx.fill();
-  const bob = Math.sin(now / 400 + (npc.x + npc.y)) * 1.5;
-  ctx.fillText(npc.emoji, px + TILE/2, py + TILE - 26 + bob);
-  ctx.font = 'bold 12px sans-serif';
   const tw = ctx.measureText(npc.name).width;
   ctx.fillStyle = 'rgba(0,0,0,0.75)';
-  ctx.fillRect(px + TILE/2 - tw/2 - 4, py + TILE + 2, tw + 8, 15);
+  ctx.fillRect(cx - tw / 2 - 4, py + TILE + 2, tw + 8, 15);
   ctx.fillStyle = '#4dc3ff';
-  ctx.fillText(npc.name, px + TILE/2, py + TILE + 11);
+  ctx.fillText(npc.name, cx, py + TILE + 11);
 }
 
 // ── Generic image-sprite NPC (transparent PNG drawn pixelated) ────────────────
