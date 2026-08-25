@@ -8620,28 +8620,6 @@ function render(now) {
   // Peças marcadas para cobrir o jogador
   if (state && window.MAPA_PECAS) desenhaPecasMapa(camX, camY, true);
 
-  // === ORBE do editor: metade de baixo já foi desenhada; aqui vai a de cima,
-  // que cobre o jogador (efeito de passar por trás do cristal) ===
-  if (state && state.scene !== 'cave1' && window.MAPA_ORBE && assets.orbSprite && assets.orbSprite.complete) {
-    const o = window.MAPA_ORBE;
-    const ys = _aspectoY();
-    const oh = o.tam * TILE * ys;
-    const ow = (o.tam * TILE) * (assets.orbSprite.naturalWidth / assets.orbSprite.naturalHeight);
-    const ox = o.x * TILE - ow / 2 - camX, oy = o.y * TILE - oh / 2 - camY;
-    ctx.imageSmoothingEnabled = true;
-    ctx.save();
-    ctx.beginPath();
-    ctx.rect(ox, oy, ow, oh * 0.55);   // metade de cima por cima do jogador
-    ctx.clip();
-    if (o.rot) {
-      ctx.translate(ox + ow / 2, oy + oh / 2);
-      ctx.rotate(o.rot * Math.PI / 180);
-      ctx.drawImage(assets.orbSprite, -ow / 2, -oh / 2, ow, oh);
-    } else ctx.drawImage(assets.orbSprite, ox, oy, ow, oh);
-    ctx.restore();
-    ctx.imageSmoothingEnabled = false;
-  }
-
   // === ZONAS DE PASSA-ATRÁS ===
   // A marcação vem em resolução 4x, então o recorte acompanha o contorno real
   // (a silhueta do orbe, a copa da árvore) em vez de apagar tiles quadrados.
@@ -8669,6 +8647,28 @@ function render(now) {
       tg.globalCompositeOperation = 'source-over';
       ctx.drawImage(tmp, 0, 0);
     }
+  }
+
+  // === ORBE do editor: metade de baixo já foi desenhada; aqui vai a de cima,
+  // que cobre o jogador (efeito de passar por trás do cristal) ===
+  if (state && state.scene !== 'cave1' && window.MAPA_ORBE && assets.orbSprite && assets.orbSprite.complete) {
+    const o = window.MAPA_ORBE;
+    const ys = _aspectoY();
+    const oh = o.tam * TILE * ys;
+    const ow = (o.tam * TILE) * (assets.orbSprite.naturalWidth / assets.orbSprite.naturalHeight);
+    const ox = o.x * TILE - ow / 2 - camX, oy = o.y * TILE - oh / 2 - camY;
+    ctx.imageSmoothingEnabled = true;
+    ctx.save();
+    ctx.beginPath();
+    ctx.rect(ox, oy, ow, oh * 0.55);   // metade de cima por cima do jogador
+    ctx.clip();
+    if (o.rot) {
+      ctx.translate(ox + ow / 2, oy + oh / 2);
+      ctx.rotate(o.rot * Math.PI / 180);
+      ctx.drawImage(assets.orbSprite, -ow / 2, -oh / 2, ow, oh);
+    } else ctx.drawImage(assets.orbSprite, ox, oy, ow, oh);
+    ctx.restore();
+    ctx.imageSmoothingEnabled = false;
   }
 
   // === Camada de FRENTE do mapa (editor): cobre o personagem ===
