@@ -3613,7 +3613,21 @@ function drawOrbGroundFX(camX, camY, now) {
 function loadAssets() {
   // Nada bloqueia a tela de loading — tudo carrega em background
   // O game loop já verifica assets.map antes de renderizar (if (!assets.map) return)
-  loadImage('/mapa-oficial.jpg', 20000).catch(() => loadImage(MAP_URL, 20000)).then(img => {
+  // Mapa publicado pelo editor (nuvem) tem prioridade; senão usa o do repositório.
+  const _MAPA_NUVEM = 'https://gmycqvvvglexbtbqkjzi.supabase.co/storage/v1/object/public/mapas/mapa-oficial.jpg';
+  fetch('https://gmycqvvvglexbtbqkjzi.supabase.co/storage/v1/object/public/mapas/collision.json?t=' + Date.now())
+    .then(r => r.ok ? r.json() : null)
+    .then(col => {
+      if (col && Array.isArray(col) && col.length === GRID) {
+        for (let y = 0; y < GRID; y++)
+          for (let x = 0; x < GRID; x++) COLLISION[y][x] = col[y][x];
+        console.log('[mapa] colisão publicada aplicada');
+      }
+    }).catch(() => {});
+
+  loadImage(_MAPA_NUVEM + '?t=' + Date.now(), 20000)
+    .catch(() => loadImage('/mapa-oficial.jpg', 20000))
+    .catch(() => loadImage(MAP_URL, 20000)).then(img => {
     assets.map = img;
   }).catch(() => {});
   // Orb sprite (PNG transparente: só o orbe + aura, SEM chão).

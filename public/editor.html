@@ -4,6 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>CRIAS — Construtor de Mapas</title>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <style>
   :root{--bg:#0b1020;--pan:#141b30;--line:#26314e;--txt:#dce6f5;--dim:#8ab0dd;--acc:#4dc3ff;--ok:#3ddc84;--warn:#ffa94d;--bad:#ff6b6b}
   *{box-sizing:border-box}
@@ -58,7 +59,8 @@
         <button class="gh" id="up">+ tiles</button>
         <button class="gh" id="auto">Auto-colisão</button>
       </div>
-      <button class="act" id="exp">⬇ Exportar mapa + colisão</button>
+      <button class="act" id="pub" style="background:var(--ok)">🚀 Publicar no jogo</button>
+      <button class="gh" id="exp">⬇ Exportar arquivos</button>
       <div class="row2">
         <button class="gh" id="save">Salvar</button>
         <button class="gh" id="load">Abrir</button>
@@ -72,9 +74,11 @@
       <button class="tool" data-t="balde">🪣 Balde</button>
       <button class="tool" data-t="borracha">🧽 Borracha</button>
       <button class="tool" data-t="conta">💧 Conta-gotas</button>
+      <button class="tool" data-t="mao">✋ Mover</button>
+      <button class="tool" id="fit" style="background:#1a2542">🔍 Ver tudo</button>
       <span id="pos">—</span>
     </div>
-    <div id="msg">Ctrl+Z desfaz · espaço arrasta · roda dá zoom. Escolha uma seção e um tile para pintar.</div>
+    <div id="msg">Ctrl+Z desfaz · ✋ ou setas movem · tecla 0 enquadra tudo · roda dá zoom.</div>
     <div id="wrap">
       <canvas id="cGhost"></canvas>
       <canvas id="cTer"></canvas>
@@ -269,7 +273,7 @@ function balde(x,y){
   if(state.layer==='terreno') pintaTer(); else pintaObj();
 }
 stage.addEventListener('mousedown',e=>{
-  if(e.button===1||espaco){ arrastando=true; lx=e.clientX; ly=e.clientY; e.preventDefault(); return; }
+  if(e.button===1||espaco||state.tool==='mao'){ arrastando=true; lx=e.clientX; ly=e.clientY; e.preventDefault(); return; }
   const [x,y]=tileDe(e); if(x<0||y<0||x>=N||y>=N) return;
   if(state.tool==='conta'){ aplica(x,y); return; }
   snapshot();
@@ -283,7 +287,23 @@ window.addEventListener('mousemove',e=>{
   if(pintando&&x>=0&&y>=0&&x<N&&y<N) aplica(x,y);
 });
 window.addEventListener('mouseup',()=>{pintando=false;arrastando=false;});
-window.addEventListener('keydown',e=>{ if(e.code==='Space'){espaco=true;e.preventDefault();} });
+function verTudo(){
+  const r = stage.getBoundingClientRect();
+  state.zoom = Math.min(r.width, r.height) / (N*TP) * 0.96;
+  state.panX = (r.width  - N*TP*state.zoom)/2;
+  state.panY = (r.height - N*TP*state.zoom)/2;
+  aplicaTransform();
+}
+$('fit').onclick = verTudo;
+window.addEventListener('keydown',e=>{
+  if(e.code==='Space'){espaco=true;e.preventDefault();}
+  const passo = 90;
+  if(e.key==='ArrowLeft'){ state.panX+=passo; aplicaTransform(); e.preventDefault(); }
+  if(e.key==='ArrowRight'){ state.panX-=passo; aplicaTransform(); e.preventDefault(); }
+  if(e.key==='ArrowUp'){ state.panY+=passo; aplicaTransform(); e.preventDefault(); }
+  if(e.key==='ArrowDown'){ state.panY-=passo; aplicaTransform(); e.preventDefault(); }
+  if(e.key==='0'){ verTudo(); }
+});
 window.addEventListener('keyup',e=>{ if(e.code==='Space')espaco=false; });
 stage.addEventListener('wheel',e=>{
   e.preventDefault();
@@ -322,7 +342,8 @@ $('auto').onclick=()=>{
   }
   pintaGrid(); msg('auto-colisão: '+n+' tiles bloqueados (objetos, água e penhasco)');
 };
-$('exp').onclick=async()=>{
+// ── render do mapa final (usado por exportar e publicar) ────────────────
+function renderFinal(){
   const OUT=64, c=document.createElement('canvas'); c.width=c.height=N*OUT;
   const g=c.getContext('2d');
   for(let y=0;y<N;y++)for(let x=0;x<N;x++){
@@ -335,6 +356,35 @@ $('exp').onclick=async()=>{
     const esc=t.startsWith('prop-')?2.0:1, h=OUT*esc, w=h*(im.naturalWidth/im.naturalHeight);
     g.drawImage(im,x*OUT+OUT/2-w/2,y*OUT+OUT-h,w,h);
   }
+  return c;
+}
+
+// ── PUBLICAR: manda mapa + colisão para a nuvem; o jogo lê na hora ──────
+const SB_URL='https://gmycqvvvglexbtbqkjzi.supabase.co';
+const SB_KEY='sb_publishable_N4DdqinjzjnMBWsik5qj2A_ksPBX9Av';
+let sb=null;
+$('pub').onclick=async()=>{
+  try{
+    if(!window.supabase) return msg('biblioteca da nuvem não carregou — recarregue a página');
+    sb = sb || window.supabase.createClient(SB_URL, SB_KEY);
+    msg('publicando…');
+    const c = renderFinal();
+    const blob = await new Promise(r=>c.toBlob(r,'image/jpeg',.92));
+    let up = await sb.storage.from('mapas').upload('mapa-oficial.jpg', blob,
+      { upsert:true, contentType:'image/jpeg', cacheControl:'0' });
+    if(up.error) throw up.error;
+    const col = JSON.stringify(state.colisao);
+    up = await sb.storage.from('mapas').upload('collision.json', new Blob([col],{type:'application/json'}),
+      { upsert:true, contentType:'application/json', cacheControl:'0' });
+    if(up.error) throw up.error;
+    msg('✅ publicado! Abra o jogo e recarregue para ver.');
+    $('pub').textContent='✅ Publicado';
+    setTimeout(()=>$('pub').textContent='🚀 Publicar no jogo', 3000);
+  }catch(e){ msg('erro ao publicar: '+(e.message||e)); }
+};
+
+$('exp').onclick=async()=>{
+  const c = renderFinal();
   c.toBlob(b=>{ const a=document.createElement('a'); a.href=URL.createObjectURL(b); a.download='mapa-novo.png'; a.click(); },'image/jpeg',.92);
   const col='const COLLISION = [\n'+state.colisao.map(r=>'  ['+r.join(',')+']').join(',\n')+'\n];';
   const a2=document.createElement('a'); a2.href=URL.createObjectURL(new Blob([col],{type:'text/plain'}));
@@ -352,7 +402,7 @@ $('load').onclick=()=>{
   Object.assign(UPLOADS,j.u||{}); atualizaTodos();
   paleta(); pintaTer(); pintaObj(); pintaGrid(); msg('projeto carregado');
 };
-pintaGrid(); aplicaTransform();
+pintaGrid(); verTudo();
 </script>
 </body>
 </html>
