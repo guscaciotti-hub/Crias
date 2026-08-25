@@ -52,14 +52,23 @@
     border-radius:8px;padding:6px 10px;font-size:11px;font-weight:700;cursor:pointer;white-space:nowrap}
   #fab button.frente{background:var(--warn);border-color:var(--warn);color:#231800}
   #fab button:hover{filter:brightness(1.15)}
-  #adj{position:absolute;right:10px;top:50px;z-index:13;width:230px;background:rgba(12,18,36,.97);
-    border:1px solid var(--warn);border-radius:11px;padding:11px;display:none;flex-direction:column;gap:7px}
+  #adj{position:absolute;right:10px;top:50px;z-index:13;width:250px;max-height:calc(100vh - 80px);
+    overflow-y:auto;background:rgba(12,18,36,.98);border:1px solid var(--warn);border-radius:11px;
+    padding:12px;display:none;flex-direction:column;gap:8px;box-shadow:0 8px 28px rgba(0,0,0,.55)}
+  #adj > *{flex:0 0 auto;width:100%}
   #adj.on{display:flex}
-  #gen{position:absolute;right:10px;top:50px;z-index:12;width:230px;background:rgba(12,18,36,.97);border:1px solid var(--line);border-radius:11px;padding:11px;display:none;flex-direction:column;gap:7px}
+  #gen{position:absolute;right:10px;top:50px;z-index:12;width:250px;max-height:calc(100vh - 80px);
+    overflow-y:auto;background:rgba(12,18,36,.98);border:1px solid var(--acc);border-radius:11px;
+    padding:12px;display:none;flex-direction:column;gap:8px;box-shadow:0 8px 28px rgba(0,0,0,.55)}
   #gen.on{display:flex}
+  #gen > *{flex:0 0 auto;width:100%}
   .gh1{font-size:12px;font-weight:800;color:var(--acc)}
-  .gsub{font-size:10px;color:var(--dim);line-height:1.4}
-  #gprev{pointer-events:none;max-width:100%;height:auto;align-self:center;background:#070b16;border:1px solid var(--line);border-radius:7px;image-rendering:auto}
+  .gsub{font-size:10px;color:var(--dim);line-height:1.45}
+  /* caixa fixa: a prévia nunca empurra nem cobre o resto do painel */
+  .prevbox{height:150px;display:flex;align-items:center;justify-content:center;
+    background:#070b16;border:1px solid var(--line);border-radius:8px;overflow:hidden}
+  #gprev{pointer-events:none;max-width:100%;max-height:100%;width:auto;height:auto;
+    display:block;image-rendering:auto}
   .grow{display:flex;align-items:center;gap:6px;font-size:11px;color:var(--dim)}
   .grow span{width:38px}
   #gtipos{display:grid;grid-template-columns:repeat(3,1fr);gap:5px}
@@ -147,8 +156,8 @@
     <div id="gen">
       <div class="gh1">🎯 Gerar tile novo</div>
       <div class="gsub">Arraste sobre o mapa para marcar o que quer recriar.</div>
-      <canvas id="gprev" width="200" height="200"></canvas>
-      <div class="gsub" style="color:var(--warn)">1. O que é isso?</div>
+      <div class="prevbox"><canvas id="gprev" width="200" height="200"></canvas></div>
+      <div class="gsub" style="color:var(--warn);font-weight:700;margin-top:2px">1 · O que é isso?</div>
       <div id="gtipos">
         <button data-v="chao">🟩<i>Chão</i></button>
         <button data-v="arvore">🌳<i>Árvore</i></button>
@@ -157,7 +166,7 @@
         <button data-v="borda">🌊<i>Borda</i></button>
         <button data-v="detalhe">🌼<i>Detalhe</i></button>
       </div>
-      <div class="gsub" style="color:var(--warn)">2. Nome do tile</div>
+      <div class="gsub" style="color:var(--warn);font-weight:700;margin-top:4px">2 · Nome do tile</div>
       <input id="gnome" placeholder="ex: arvore-3" style="width:100%">
       <div class="gsub" id="ginfo">—</div>
       <button class="act" id="gcopy">📋 Copiar prompt</button>
@@ -781,6 +790,7 @@ function atualizaCrop(){
     const sug = (tw<=1&&th<=1) ? 'detalhe' : (tw>=6||th>=6) ? 'casa' : (tw<=3&&th<=3) ? 'arvore' : 'objeto';
     marcaTipo(sug);
   }
+  $('adj').classList.remove('on'); $('fab').classList.remove('on');
   $('gen').classList.add('on');
 }
 let gtipo = null;
@@ -912,6 +922,7 @@ function mostraAjuste(){
   $('adjnome').textContent = nomeCurto(o.t) + '  ·  ' + (selObj.l==='frente'?'frente':'objeto');
   $('adjesc').value = Math.round(o.s*100);
   $('adjinfo').textContent = `tamanho ${Math.round(o.s*100)}%  ·  deslocado ${o.dx.toFixed(2)}, ${o.dy.toFixed(2)} tile`;
+  $('gen').classList.remove('on');
   a.classList.add('on');
   posFab();
 }
