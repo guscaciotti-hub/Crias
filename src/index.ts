@@ -151,6 +151,12 @@ app.get('/forge', (req, res) => {
   res.sendFile(path.join(publicDir, 'forge.html'))
 })
 
+// /mapa → editor de colisão, passa-atrás e orbe sobre o mapa oficial
+app.get('/mapa', (req, res) => {
+  res.setHeader('Cache-Control', 'no-store, must-revalidate')
+  res.sendFile(path.join(publicDir, 'mapa.html'))
+})
+
 // /editor → construtor visual de mapas (pinta tiles + colisão sobre o original)
 app.get('/editor', (req, res) => {
   res.setHeader('Cache-Control', 'no-store, must-revalidate')

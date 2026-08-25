@@ -3615,14 +3615,21 @@ function loadAssets() {
   // O game loop já verifica assets.map antes de renderizar (if (!assets.map) return)
   // Mapa publicado pelo editor (nuvem) tem prioridade; senão usa o do repositório.
   const _MAPA_NUVEM = 'https://gmycqvvvglexbtbqkjzi.supabase.co/storage/v1/object/public/mapas/mapa-oficial.jpg';
-  fetch('https://gmycqvvvglexbtbqkjzi.supabase.co/storage/v1/object/public/mapas/collision.json?t=' + Date.now())
+  // Configuração do mapa publicada pelo editor /mapa: colisão, zonas de
+  // passa-atrás e posição do orbe.
+  window.MAPA_FRENTE = null;      // matriz 48x48: 1 = cobre o jogador
+  window.MAPA_ORBE = null;        // {x, y, tam} em tiles
+  fetch('https://gmycqvvvglexbtbqkjzi.supabase.co/storage/v1/object/public/mapas/mapa-config.json?t=' + Date.now())
     .then(r => r.ok ? r.json() : null)
-    .then(col => {
-      if (col && Array.isArray(col) && col.length === GRID) {
+    .then(cfg => {
+      if (!cfg) return;
+      if (Array.isArray(cfg.colisao) && cfg.colisao.length === GRID) {
         for (let y = 0; y < GRID; y++)
-          for (let x = 0; x < GRID; x++) COLLISION[y][x] = col[y][x];
-        console.log('[mapa] colisão publicada aplicada');
+          for (let x = 0; x < GRID; x++) COLLISION[y][x] = cfg.colisao[y][x];
       }
+      if (Array.isArray(cfg.frente)) window.MAPA_FRENTE = cfg.frente;
+      if (cfg.orbe) window.MAPA_ORBE = cfg.orbe;
+      console.log('[mapa] configuração publicada aplicada');
     }).catch(() => {});
 
   // camada de frente publicada pelo editor: desenhada DEPOIS dos personagens
@@ -3640,7 +3647,9 @@ function loadAssets() {
     const el = document.getElementById('d-orb-sprite');
     if (!el || !el.textContent.trim()) return;
     const dataUrl = 'data:image/png;base64,' + el.textContent.trim();
-    loadImage(dataUrl, 10000).then(img => { assets.orbSprite = img; }).catch(() => {});
+    loadImage('/orbe.png', 10000)
+      .catch(() => loadImage(dataUrl, 10000))
+      .then(img => { assets.orbSprite = img; }).catch(() => {});
   })();
   loadImage(CAVE1_MAP_URL, 20000).then(img => { assets.cave1map = img; }).catch(() => {});
   loadImage('/house-roof-novo.png', 10000)
@@ -8410,8 +8419,24 @@ function render(now) {
   AMBIENT._last = now;
   AMBIENT.drawGround(ctx, camX, camY, cw, ch, now);
 
+  // Orbe do editor: metade de baixo, atrás do jogador
+  if (state && window.MAPA_ORBE && assets.orbSprite && assets.orbSprite.complete) {
+    const o = window.MAPA_ORBE;
+    const oh = o.tam * TILE;
+    const ow = oh * (assets.orbSprite.naturalWidth / assets.orbSprite.naturalHeight);
+    const ox = o.x * TILE - ow / 2 - camX, oy = o.y * TILE - oh / 2 - camY;
+    ctx.imageSmoothingEnabled = true;
+    ctx.save();
+    ctx.beginPath();
+    ctx.rect(ox, oy + oh * 0.55, ow, oh * 0.45);
+    ctx.clip();
+    ctx.drawImage(assets.orbSprite, ox, oy, ow, oh);
+    ctx.restore();
+    ctx.imageSmoothingEnabled = false;
+  }
+
   // Draw dark socket + blue neon aura (drawn live each frame with aspect correction).
-  drawOrbGroundFX(camX, camY, now);
+  if (!window.MAPA_ORBE) drawOrbGroundFX(camX, camY, now);
 
   // Neon quest path — pulsing dots leading player to quest destination
   drawNeonPath(camX, camY, now);
@@ -8465,7 +8490,7 @@ function render(now) {
   const _orbDY = ORB_DY - (_orbDH - ORB_DH) * 0.5;
   const _orbSrcSplit = Math.round(512 * ORB_SPLIT); // ≈ 384 px
 
-  if (assets.orbSprite) {
+  if (assets.orbSprite && !window.MAPA_ORBE) {
     ctx.imageSmoothingEnabled = true;
     // Bottom quarter: source y[(384-2)→512], starts 2px early to hide seam
     const _bSrcY = _orbSrcSplit - _orbSeam;
@@ -8522,7 +8547,7 @@ function render(now) {
   // Draws the upper half of the orb sprite after entities so lattice edges cover characters.
   // Then redraws the blue aura glow clipped to the same upper region, because the orb
   // interior is transparent — without the glow, the player shows through the crystal faces.
-  if (state && state.scene !== 'cave1' && assets.orbSprite) {
+  if (state && state.scene !== 'cave1' && assets.orbSprite && !window.MAPA_ORBE) {
     ctx.imageSmoothingEnabled = true;
     ctx.save();
     ctx.beginPath();
@@ -8578,6 +8603,44 @@ function render(now) {
       ((pX >= 27 * TILE && pX < 29 * TILE) ||
        (pX >= 19 * TILE && pX < 21 * TILE))) {
     drawPlayer(pX - camX, pY - camY, now);
+  }
+
+  // === ORBE do editor: metade de baixo já foi desenhada; aqui vai a de cima,
+  // que cobre o jogador (efeito de passar por trás do cristal) ===
+  if (state && state.scene !== 'cave1' && window.MAPA_ORBE && assets.orbSprite && assets.orbSprite.complete) {
+    const o = window.MAPA_ORBE;
+    const oh = o.tam * TILE;
+    const ow = oh * (assets.orbSprite.naturalWidth / assets.orbSprite.naturalHeight);
+    const ox = o.x * TILE - ow / 2 - camX, oy = o.y * TILE - oh / 2 - camY;
+    ctx.imageSmoothingEnabled = true;
+    ctx.save();
+    ctx.beginPath();
+    ctx.rect(ox, oy, ow, oh * 0.55);   // metade de cima por cima do jogador
+    ctx.clip();
+    ctx.drawImage(assets.orbSprite, ox, oy, ow, oh);
+    ctx.restore();
+    ctx.imageSmoothingEnabled = false;
+  }
+
+  // === ZONAS DE PASSA-ATRÁS: redesenha o próprio mapa por cima do jogador
+  // nas células marcadas no editor (copas, telhados, arcos) ===
+  if (state && state.scene !== 'cave1' && window.MAPA_FRENTE && assets.map && assets.map.complete) {
+    const _iw = assets.map.naturalWidth, _ih = assets.map.naturalHeight;
+    const _kx = _iw / MAP_W_PX, _ky = _ih / MAP_H_PX;
+    const t0x = Math.max(0, Math.floor(camX / TILE)), t1x = Math.min(GRID - 1, Math.ceil((camX + cw) / TILE));
+    const t0y = Math.max(0, Math.floor(camY / TILE)), t1y = Math.min(GRID - 1, Math.ceil((camY + ch) / TILE));
+    ctx.imageSmoothingEnabled = false;
+    for (let ty = t0y; ty <= t1y; ty++) {
+      const linha = window.MAPA_FRENTE[ty]; if (!linha) continue;
+      for (let tx = t0x; tx <= t1x; tx++) {
+        if (!linha[tx]) continue;
+        ctx.drawImage(assets.map,
+          Math.round(tx * TILE * _kx), Math.round(ty * TILE * _ky),
+          Math.round(TILE * _kx), Math.round(TILE * _ky),
+          Math.round(tx * TILE - camX), Math.round(ty * TILE - camY),
+          Math.ceil(TILE), Math.ceil(TILE));
+      }
+    }
   }
 
   // === Camada de FRENTE do mapa (editor): cobre o personagem ===

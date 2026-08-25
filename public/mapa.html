@@ -1,0 +1,263 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>CRIAS — Editor do Mapa</title>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<style>
+  :root{--bg:#0b1020;--pan:#141b30;--line:#26314e;--txt:#dce6f5;--dim:#8ab0dd;--acc:#4dc3ff;
+        --col:#ff5a5a;--fre:#ffd54a;--ok:#3ddc84;--orb:#a78bfa}
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--txt);font:13px/1.45 system-ui,sans-serif;overflow:hidden}
+  #app{display:flex;height:100vh}
+  #side{width:250px;background:var(--pan);border-right:1px solid var(--line);display:flex;flex-direction:column;overflow-y:auto}
+  h1{font-size:15px;margin:12px 12px 2px}h1 span{color:var(--acc)}
+  .hint{font-size:11px;color:var(--dim);margin:0 12px 10px;line-height:1.5}
+  .sec{padding:10px 12px;border-top:1px solid var(--line)}
+  .sec h2{font-size:10px;color:var(--dim);text-transform:uppercase;letter-spacing:.09em;margin:0 0 8px}
+  .modo{display:flex;flex-direction:column;gap:6px}
+  .modo button{background:#0d1424;border:1px solid var(--line);color:var(--txt);border-radius:8px;
+    padding:9px;font-size:12px;font-weight:700;cursor:pointer;text-align:left;display:flex;align-items:center;gap:8px}
+  .modo button .dot{width:12px;height:12px;border-radius:3px;flex:0 0 auto}
+  .modo button.on{border-width:2px}
+  .modo button.on[data-m=colisao]{border-color:var(--col);background:rgba(255,90,90,.12)}
+  .modo button.on[data-m=frente]{border-color:var(--fre);background:rgba(255,213,74,.12)}
+  .modo button.on[data-m=orbe]{border-color:var(--orb);background:rgba(167,139,250,.12)}
+  label{font-size:11px;color:var(--dim);display:flex;align-items:center;justify-content:space-between;gap:8px;margin:7px 0}
+  input[type=range]{width:110px}
+  button.act{background:var(--ok);border:0;color:#04121f;border-radius:8px;padding:10px;font-weight:800;font-size:12px;cursor:pointer;width:100%}
+  button.gh{background:transparent;border:1px solid var(--line);color:var(--dim);border-radius:7px;padding:7px;font-size:11px;cursor:pointer;width:100%}
+  .row2{display:flex;gap:6px;margin-top:6px}
+  #stage{flex:1;position:relative;overflow:hidden;background:#070b16;cursor:crosshair}
+  #wrap{position:absolute;transform-origin:0 0}
+  canvas{position:absolute;left:0;top:0}
+  #top{position:absolute;left:10px;top:10px;z-index:9;background:rgba(10,16,32,.92);border:1px solid var(--line);
+    border-radius:9px;padding:7px 12px;display:flex;gap:14px;align-items:center;font-size:11px}
+  #top b{color:var(--acc)}
+  #msg{position:absolute;right:10px;top:10px;z-index:9;background:rgba(10,16,32,.92);border:1px solid var(--line);
+    border-radius:9px;padding:7px 12px;font-size:11px;color:var(--dim);max-width:330px}
+</style>
+</head>
+<body>
+<div id="app">
+  <div id="side">
+    <h1>CRIAS — <span>Mapa</span></h1>
+    <div class="hint">Marque onde o jogador <b>não passa</b>, onde ele <b>some por trás</b> e onde fica o <b>orbe</b>.</div>
+
+    <div class="sec">
+      <h2>O que estou marcando</h2>
+      <div class="modo" id="modos">
+        <button data-m="colisao" class="on"><span class="dot" style="background:var(--col)"></span>Colisão — não passa</button>
+        <button data-m="frente"><span class="dot" style="background:var(--fre)"></span>Passa atrás — some</button>
+        <button data-m="orbe"><span class="dot" style="background:var(--orb)"></span>Posição do orbe</button>
+      </div>
+      <label>Pincel <input type="range" id="brush" min="1" max="8" value="2"><b id="brushv" style="color:var(--acc)">2</b></label>
+      <div class="hint" style="margin:6px 0 0;padding:0">Clique pinta · <b>Shift+clique</b> apaga · arrasta desenha livre</div>
+    </div>
+
+    <div class="sec">
+      <h2>Ver</h2>
+      <label>Grade <input type="checkbox" id="grade" checked></label>
+      <label>Marcações <input type="range" id="opac" min="10" max="90" value="45"></label>
+      <div class="row2"><button class="gh" id="fit">🔍 Ver tudo</button><button class="gh" id="auto">✨ Auto-colisão</button></div>
+      <div class="row2"><button class="gh" id="undo">↶ Desfazer</button><button class="gh" id="limpa">🧹 Limpar</button></div>
+    </div>
+
+    <div class="sec">
+      <h2>Orbe</h2>
+      <label>Tamanho <input type="range" id="orbT" min="2" max="16" value="9"><b id="orbTv" style="color:var(--orb)">9</b></label>
+      <div class="hint" style="margin:0;padding:0">Metade de cima cobre o jogador automaticamente.</div>
+    </div>
+
+    <div class="sec">
+      <button class="act" id="pub">🚀 Publicar no jogo</button>
+      <div class="row2"><button class="gh" id="bkp">💾 Backup</button><button class="gh" id="rest">♻ Restaurar</button></div>
+      <input type="file" id="bkpF" accept=".json" hidden>
+      <div style="font-size:9px;color:var(--ok);text-align:center;margin-top:6px" id="auto2">salvando automaticamente</div>
+    </div>
+  </div>
+
+  <div id="stage">
+    <div id="top"><b id="modoAtual">Colisão</b><span id="pos">—</span><span id="stats"></span></div>
+    <div id="msg">Arraste para marcar. O mapa já vem com a colisão atual do jogo.</div>
+    <div id="wrap">
+      <canvas id="cMapa"></canvas>
+      <canvas id="cMarca"></canvas>
+    </div>
+  </div>
+</div>
+<script>
+const N=48, TP=40, $=i=>document.getElementById(i);
+const st = {
+  colisao: Array.from({length:N},()=>Array(N).fill(0)),
+  frente:  Array.from({length:N},()=>Array(N).fill(0)),
+  orbe: {x:23.5, y:21.5, tam:9},
+  modo:'colisao', brush:2, zoom:1, panX:0, panY:0,
+};
+const cM=$('cMapa'), cK=$('cMarca');
+[cM,cK].forEach(c=>{c.width=N*TP;c.height=N*TP;});
+const gM=cM.getContext('2d'), gK=cK.getContext('2d');
+$('wrap').style.width=$('wrap').style.height=(N*TP)+'px';
+
+const mapa=new Image(); mapa.onload=()=>{ gM.drawImage(mapa,0,0,N*TP,N*TP); }; mapa.src='/mapa-oficial.jpg?t='+Date.now();
+const orbeImg=new Image(); orbeImg.onload=desenhaMarcas; orbeImg.src='/orbe.png';
+
+// colisão atual do jogo entra como ponto de partida
+fetch('/game.html').then(r=>r.text()).then(t=>{
+  const m=t.match(/const COLLISION = \[([\s\S]*?)\];/);
+  if(!m) return;
+  const linhas=m[1].match(/\[([\d,\s]+)\]/g)||[];
+  if(linhas.length===N && !localStorage.getItem('crias_mapa')){
+    linhas.forEach((l,y)=>{ l.replace(/[\[\]]/g,'').split(',').forEach((v,x)=>{ st.colisao[y][x]=+v?1:0; }); });
+    msg('colisão atual do jogo carregada — ajuste o que precisar');
+  }
+  carregar(); desenhaMarcas();
+}).catch(()=>{ carregar(); desenhaMarcas(); });
+
+function msg(t){ $('msg').textContent=t; }
+function desenhaMarcas(){
+  gK.clearRect(0,0,N*TP,N*TP);
+  const a=+$('opac').value/100;
+  gK.globalAlpha=a;
+  gK.fillStyle='#ff3b3b';
+  for(let y=0;y<N;y++)for(let x=0;x<N;x++) if(st.colisao[y][x]) gK.fillRect(x*TP,y*TP,TP,TP);
+  gK.fillStyle='#ffd54a';
+  for(let y=0;y<N;y++)for(let x=0;x<N;x++) if(st.frente[y][x]) gK.fillRect(x*TP,y*TP,TP,TP);
+  gK.globalAlpha=1;
+  // orbe
+  const o=st.orbe, w=o.tam*TP, h=o.tam*TP;
+  if(orbeImg.complete&&orbeImg.naturalWidth){
+    gK.globalAlpha=.9;
+    const hh=h, ww=hh*(orbeImg.naturalWidth/orbeImg.naturalHeight);
+    gK.drawImage(orbeImg, o.x*TP-ww/2, o.y*TP-hh/2, ww, hh);
+    gK.globalAlpha=1;
+  }
+  gK.strokeStyle='#a78bfa'; gK.lineWidth=2; gK.setLineDash([6,4]);
+  gK.strokeRect(o.x*TP-w/2, o.y*TP-h/2, w, h); gK.setLineDash([]);
+  if($('grade').checked){
+    gK.strokeStyle='rgba(255,255,255,.10)'; gK.lineWidth=1;
+    for(let i=0;i<=N;i++){
+      gK.beginPath();gK.moveTo(i*TP,0);gK.lineTo(i*TP,N*TP);gK.stroke();
+      gK.beginPath();gK.moveTo(0,i*TP);gK.lineTo(N*TP,i*TP);gK.stroke();
+    }
+  }
+  const nc=st.colisao.flat().filter(Boolean).length, nf=st.frente.flat().filter(Boolean).length;
+  $('stats').textContent = `${nc} bloqueados · ${nf} passa-atrás`;
+}
+$('grade').onchange=$('opac').oninput=desenhaMarcas;
+$('brush').oninput=e=>{st.brush=+e.target.value;$('brushv').textContent=e.target.value;};
+$('orbT').oninput=e=>{st.orbe.tam=+e.target.value;$('orbTv').textContent=e.target.value;desenhaMarcas();salvar();};
+
+document.querySelectorAll('#modos button').forEach(b=>b.onclick=()=>{
+  document.querySelectorAll('#modos button').forEach(x=>x.classList.remove('on'));
+  b.classList.add('on'); st.modo=b.dataset.m;
+  $('modoAtual').textContent = {colisao:'Colisão',frente:'Passa atrás',orbe:'Orbe'}[st.modo];
+  msg(st.modo==='orbe' ? 'clique para posicionar o orbe' : 'clique/arraste para marcar · Shift apaga');
+});
+
+// histórico
+const HIST=[];
+function snap(){ HIST.push(JSON.stringify({c:st.colisao,f:st.frente,o:st.orbe})); if(HIST.length>40)HIST.shift(); }
+$('undo').onclick=()=>{ if(!HIST.length) return msg('nada para desfazer');
+  const j=JSON.parse(HIST.pop()); st.colisao=j.c; st.frente=j.f; st.orbe=j.o; desenhaMarcas(); salvar(); };
+$('limpa').onclick=()=>{ if(!confirm('Apagar todas as marcações?'))return; snap();
+  for(let y=0;y<N;y++)for(let x=0;x<N;x++){st.colisao[y][x]=0;st.frente[y][x]=0;} desenhaMarcas(); salvar(); };
+
+// auto-colisão pelas cores do mapa (água, rocha, construções)
+$('auto').onclick=()=>{
+  snap();
+  const c=document.createElement('canvas'); c.width=c.height=N;
+  const g=c.getContext('2d'); g.drawImage(mapa,0,0,N,N);
+  const d=g.getImageData(0,0,N,N).data; let n=0;
+  for(let y=0;y<N;y++)for(let x=0;x<N;x++){
+    const i=(y*N+x)*4, r=d[i],gg=d[i+1],b=d[i+2];
+    const agua = b>70 && b>r*1.4 && b>gg*1.1;
+    const rocha = r>g && r<95 && (r-b)>15;
+    const escuro = (r+gg+b) < 120;
+    if(agua||rocha||escuro){ st.colisao[y][x]=1; n++; }
+  }
+  desenhaMarcas(); salvar(); msg('auto-colisão sugeriu '+n+' células (ajuste o que quiser)');
+};
+
+// pintura
+let pintando=false, arrastando=false, lx=0,ly=0;
+const stage=$('stage'), wrap=$('wrap');
+function T(){ wrap.style.transform=`translate(${st.panX}px,${st.panY}px) scale(${st.zoom})`; }
+function tile(ev){ const r=wrap.getBoundingClientRect();
+  return [ (ev.clientX-r.left)/(TP*st.zoom), (ev.clientY-r.top)/(TP*st.zoom) ]; }
+function marca(fx,fy,apagar){
+  if(st.modo==='orbe'){ st.orbe.x=fx; st.orbe.y=fy; desenhaMarcas(); return; }
+  const x=Math.floor(fx), y=Math.floor(fy), b=st.brush, m=Math.floor(b/2);
+  const alvo = st.modo==='colisao' ? st.colisao : st.frente;
+  for(let dy=0;dy<b;dy++)for(let dx=0;dx<b;dx++){
+    const X=x+dx-m, Y=y+dy-m;
+    if(X>=0&&Y>=0&&X<N&&Y<N) alvo[Y][X]= apagar?0:1;
+  }
+  desenhaMarcas();
+}
+stage.addEventListener('mousedown',e=>{
+  if(e.button===1||e.altKey){ arrastando=true; lx=e.clientX; ly=e.clientY; return; }
+  const [fx,fy]=tile(e);
+  if(fx<0||fy<0||fx>=N||fy>=N){ arrastando=true; lx=e.clientX; ly=e.clientY; return; }
+  snap(); pintando=true; marca(fx,fy,e.shiftKey);
+});
+window.addEventListener('mousemove',e=>{
+  if(arrastando){ st.panX+=e.clientX-lx; st.panY+=e.clientY-ly; lx=e.clientX; ly=e.clientY; T(); return; }
+  const [fx,fy]=tile(e);
+  $('pos').textContent=(fx>=0&&fy>=0&&fx<N&&fy<N)?`${Math.floor(fx)}, ${Math.floor(fy)}`:'—';
+  if(pintando&&fx>=0&&fy>=0&&fx<N&&fy<N) marca(fx,fy,e.shiftKey);
+});
+window.addEventListener('mouseup',()=>{ if(pintando)salvar(); pintando=false;arrastando=false; });
+stage.addEventListener('wheel',e=>{
+  e.preventDefault();
+  const f=e.deltaY<0?1.12:1/1.12, z=Math.min(5,Math.max(.2,st.zoom*f));
+  const r=wrap.getBoundingClientRect();
+  st.panX-=(e.clientX-r.left)*(z/st.zoom-1); st.panY-=(e.clientY-r.top)*(z/st.zoom-1);
+  st.zoom=z; T();
+},{passive:false});
+function verTudo(){ const r=stage.getBoundingClientRect();
+  st.zoom=Math.min(r.width,r.height)/(N*TP)*.96;
+  st.panX=(r.width-N*TP*st.zoom)/2; st.panY=(r.height-N*TP*st.zoom)/2; T(); }
+$('fit').onclick=verTudo;
+
+// salvar / publicar
+let _t=null;
+function salvar(){ clearTimeout(_t); _t=setTimeout(()=>{
+  try{ localStorage.setItem('crias_mapa', JSON.stringify({c:st.colisao,f:st.frente,o:st.orbe}));
+    $('auto2').textContent='salvo '+new Date().toLocaleTimeString('pt-BR').slice(0,5);
+  }catch(e){ msg('não consegui salvar — use o Backup'); } },600); }
+function carregar(){ const d=localStorage.getItem('crias_mapa'); if(!d)return;
+  try{ const j=JSON.parse(d); st.colisao=j.c; st.frente=j.f; if(j.o)st.orbe=j.o;
+    $('orbT').value=st.orbe.tam; $('orbTv').textContent=st.orbe.tam; }catch(e){} }
+
+const SB='https://gmycqvvvglexbtbqkjzi.supabase.co', KEY='sb_publishable_N4DdqinjzjnMBWsik5qj2A_ksPBX9Av';
+let sb=null;
+$('pub').onclick=async()=>{
+  try{
+    sb = sb || window.supabase.createClient(SB,KEY);
+    msg('publicando…');
+    const dados = JSON.stringify({colisao:st.colisao, frente:st.frente, orbe:st.orbe});
+    const r = await sb.storage.from('mapas').upload('mapa-config.json', new Blob([dados],{type:'application/json'}),
+      {upsert:true, contentType:'application/json', cacheControl:'0'});
+    if(r.error) throw r.error;
+    msg('✅ publicado! Abra o jogo e recarregue.');
+  }catch(e){ msg('erro: '+(e.message||e)); }
+};
+$('bkp').onclick=()=>{
+  const b=new Blob([JSON.stringify({colisao:st.colisao,frente:st.frente,orbe:st.orbe})],{type:'application/json'});
+  const a=document.createElement('a'); a.href=URL.createObjectURL(b);
+  a.download='crias-mapa-'+new Date().toISOString().slice(0,10)+'.json'; a.click();
+  msg('backup baixado');
+};
+$('rest').onclick=()=>$('bkpF').click();
+$('bkpF').onchange=e=>{ const f=e.target.files[0]; if(!f)return;
+  const r=new FileReader(); r.onload=()=>{ try{ const j=JSON.parse(r.result);
+    snap(); st.colisao=j.colisao; st.frente=j.frente; if(j.orbe)st.orbe=j.orbe;
+    desenhaMarcas(); salvar(); msg('backup restaurado'); }catch(err){ msg('arquivo inválido'); } };
+  r.readAsText(f); };
+
+verTudo(); desenhaMarcas();
+</script>
+</body>
+</html>
