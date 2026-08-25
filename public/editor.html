@@ -93,6 +93,8 @@
       <label>Fantasma <input type="range" id="ghost" min="0" max="100" value="55"></label>
       <label>Grade <input type="checkbox" id="grid" checked></label>
       <label>Colisão <input type="checkbox" id="showcol"></label>
+      <label title="Coloca o tile como peça solta (move, redimensiona) em vez de preencher a célula">
+        Peça livre <input type="checkbox" id="pecalivre"></label>
       <label>Pincel <input type="range" id="brush" min="1" max="6" value="1"></label>
       <label title="Escurece e esfria os tiles para casar com o clima do mapa">Harmonizar <input type="range" id="harm" min="0" max="100" value="0"></label>
       <label id="lbtam" title="Tamanho com que o próximo objeto será colocado">Tamanho <input type="range" id="tam" min="30" max="2000" value="100"><b id="tamv" style="color:var(--acc);font-size:10px">100%</b></label>
@@ -463,6 +465,11 @@ $('grid').onchange=$('showcol').onchange=pintaGrid;
 $('brush').oninput=e=>state.brush=+e.target.value;
 $('harm').oninput=()=>{ pintaTer(); pintaObj(); pintaFre(); };
 $('tam').oninput=e=>{ $('tamv').textContent=e.target.value+'%'; };
+$('pecalivre').onchange=e=>{
+  msg(e.target.checked
+    ? 'peça livre ON: o tile vira objeto solto (move e redimensiona)'
+    : 'peça livre OFF: o tile preenche a célula da grade');
+};
 
 // ── histórico (Ctrl+Z / Ctrl+Y) ─────────────────────────────────────────
 const HIST = [], REDO = [];
@@ -522,13 +529,17 @@ function aplica(x,y){
       // objetos guardam posição/escala próprias desde o início — evita
       // depender de conversão posterior ao ajustar
       const escNova = (+($('tam')?.value || 100))/100;
-      if(state.layer==='terreno') state[state.layer][Y][X] = state.sel;
+      // "Peça livre": mesmo um tile de chão entra como objeto solto, podendo
+      // ser movido e redimensionado depois
+      const comoPeca = $('pecalivre') && $('pecalivre').checked;
+      if(state.layer==='terreno' && !comoPeca) state[state.layer][Y][X] = state.sel;
+      else if(state.layer==='terreno' && comoPeca) state.objeto[Y][X] = {t:state.sel, dx:0, dy:0, s:escNova};
       else {
         state[state.layer][Y][X] = {t:state.sel, dx:0, dy:0, s:escNova};
       }
     }
   }
-  if(state.layer==='terreno') pintaTer();
+  if(state.layer==='terreno'){ pintaTer(); pintaObj(); }   // peça livre cai em objetos
   else if(state.layer==='objeto') pintaObj();
   else if(state.layer==='frente') pintaFre();
   pintaGrid(); autoSalva();
