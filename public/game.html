@@ -8581,7 +8581,6 @@ function render(now) {
     if (_inPassZone) ctx.restore();
   }
 
-  drawLabels(camX, camY, cw, ch);
 
   // Ambient: orb aura (at center of map plaza)
   const orbX = 23 * TILE, orbY = 23 * TILE;
@@ -8671,6 +8670,9 @@ function render(now) {
     ctx.restore();
     ctx.imageSmoothingEnabled = false;
   }
+
+  // Nomes por último: nem a máscara de passa-atrás nem o orbe cortam os rótulos
+  drawLabels(camX, camY, cw, ch);
 
   // === Camada de FRENTE do mapa (editor): cobre o personagem ===
   // Desenhada após as entidades e alinhada ao mundo — é o que faz o jogador
