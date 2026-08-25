@@ -55,7 +55,7 @@
         <button data-m="gerar"><span class="dot" style="background:var(--acc)"></span>Gerar tile novo</button>
       </div>
       <label>Pincel <input type="range" id="brush" min="1" max="8" value="1"><b id="brushv" style="color:var(--acc)">1</b></label>
-      <div class="hint" style="margin:6px 0 0;padding:0">Clique <b>marca</b>; clicar em algo já marcado <b>apaga</b>. Arraste desenha livre.
+      <div class="hint" style="margin:6px 0 0;padding:0"><b>Clique</b> alterna a célula (marca/apaga) · <b>arrastar</b> sempre marca · <b>Shift</b> apaga.
       No modo <b>Passa atrás</b> o pincel é fino e redondo: contorne só a forma (ex: o orbe), sem pegar o que está em volta.</div>
     </div>
 
@@ -327,7 +327,7 @@ function marca(fx,fy,apagar){
   }
   desenhaMarcas();
 }
-let movP=false, escP=null, base=null, apagandoTraco=false;
+let movP=false, escP=null, base=null, apagandoTraco=false, cliqueSimples=null;
 stage.addEventListener('mousedown',e=>{
   if(e.button===1||e.altKey){ arrastando=true; lx=e.clientX; ly=e.clientY; return; }
   const [fx,fy]=tile(e);
@@ -362,12 +362,16 @@ stage.addEventListener('mousedown',e=>{
     st.sel=null; desenhaMarcas(); return;
   }
 
-  // Clique alterna: se a célula já está marcada, o traço apaga (sem Shift)
+  // Alternar vale só para o CLIQUE parado: ao arrastar, sempre marca.
+  // (Com o mapa quase todo marcado, um arrasto iniciado sobre célula marcada
+  // apagava áreas inteiras sem querer.)
   const jaMarcado = st.modo==='colisao'
     ? !!(st.colisao[Math.floor(fy)] && st.colisao[Math.floor(fy)][Math.floor(fx)])
     : !!(st.frente[Math.floor(fy*4)] && st.frente[Math.floor(fy*4)][Math.floor(fx*4)]);
-  apagandoTraco = e.shiftKey || jaMarcado;
-  snap(); pintando=true; marca(fx,fy,apagandoTraco);
+  apagandoTraco = e.shiftKey;
+  cliqueSimples = { fx, fy, jaMarcado, arrastou:false };
+  snap(); pintando=true;
+  if(e.shiftKey) marca(fx,fy,true);
 });
 window.addEventListener('mousemove',e=>{
   if(arrastando){ st.panX+=e.clientX-lx; st.panY+=e.clientY-ly; lx=e.clientX; ly=e.clientY; T(); return; }
@@ -393,9 +397,20 @@ window.addEventListener('mousemove',e=>{
     else { p.rot=Math.round(Math.atan2(fy-p.y, fx-p.x)*180/Math.PI+90); }
     desenhaMarcas(); return; }
   if(pintando&&st.modo==='gerar'){ selB=[fx,fy]; desenhaSel(); return; }
-  if(pintando&&fx>=0&&fy>=0&&fx<N&&fy<N) marca(fx,fy,apagandoTraco);
+  if(pintando&&fx>=0&&fy>=0&&fx<N&&fy<N){
+    if(cliqueSimples){
+      const dist=Math.hypot(fx-cliqueSimples.fx, fy-cliqueSimples.fy);
+      if(dist>0.35) cliqueSimples.arrastou=true;   // virou traço: sempre marca
+    }
+    marca(fx,fy,apagandoTraco);
+  }
 });
 window.addEventListener('mouseup',()=>{
+  // clique parado sobre célula marcada = apaga aquela célula (alternar)
+  if(pintando && cliqueSimples && !cliqueSimples.arrastou && !apagandoTraco){
+    marca(cliqueSimples.fx, cliqueSimples.fy, cliqueSimples.jaMarcado);
+  }
+  cliqueSimples=null;
   if(pintando&&st.modo==='gerar') atualizaCrop();
   if(pintando||movP||escP) salvar();
   pintando=false;arrastando=false;movP=false;escP=null;base=null;
