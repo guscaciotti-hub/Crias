@@ -22,6 +22,9 @@
   .tile img{width:100%;height:100%;object-fit:contain;display:block}
   .tile.on{border-color:var(--acc);box-shadow:0 0 0 2px rgba(77,195,255,.25)}
   .tile b{position:absolute;left:0;right:0;bottom:0;font-size:8px;font-weight:600;background:rgba(0,0,0,.72);padding:1px 2px;text-align:center;white-space:nowrap;overflow:hidden}
+  .livre{grid-column:1/-1;font-size:10px;font-weight:700;text-align:center;padding:7px 4px;border-radius:7px;
+    border:1px dashed var(--line);color:var(--dim);cursor:pointer;margin-bottom:2px}
+  .livre.on{border-color:var(--ok);color:var(--ok);background:rgba(61,220,132,.10);border-style:solid}
   .grp{grid-column:1/-1;font-size:10px;color:var(--dim);text-transform:uppercase;letter-spacing:.08em;margin:6px 0 0}
   #ctrl{border-top:1px solid var(--line);padding:9px 12px;display:flex;flex-direction:column;gap:7px}
   label{font-size:11px;color:var(--dim);display:flex;align-items:center;gap:6px;justify-content:space-between}
@@ -111,7 +114,7 @@
       <span id="pos">—</span>
     </div>
     <div id="selbox"></div>
-    <div id="msg">Clique no objeto: arrasta move · alça redimensiona · botão ⬆ manda pra frente do personagem. Ctrl+Z desfaz · Esc solta.</div>
+    <div id="msg">Clique num objeto = seleciona e move (nunca pinta por cima). Área livre com tile escolhido = coloca. Esc solta · Ctrl+Z desfaz.</div>
     <div id="fab">
       <button id="fabFrente" title="Alterna se este objeto cobre o personagem">⬆ vem pra frente</button>
       <button id="fabDel" title="Apagar (Del)">🗑</button>
@@ -336,6 +339,13 @@ function paleta(){
     p.innerHTML = '<div class="grp" style="line-height:1.7">Clique = bloquear (vermelho)<br>Shift+clique = liberar<br>Ctrl+Z desfaz<br><br>“Auto-colisão” marca objetos, água e penhasco de uma vez.</div>';
     return;
   }
+  // Chip de mão livre: sem tile escolhido, cliques só selecionam/movem
+  const livre=document.createElement('div');
+  livre.className='livre'+(state.sel?'':' on');
+  livre.textContent = state.sel ? '✋ soltar tile (clique aqui)' : '✋ mão livre — cliques só selecionam';
+  livre.onclick=()=>{ state.sel=null; paleta(); msg('mão livre: clique nos objetos para mover/ajustar'); };
+  p.appendChild(livre);
+
   const lista = TODOS.filter(sec.match).sort();
   if(!lista.length){
     p.innerHTML = '<div class="grp" style="line-height:1.6">Nenhum tile nesta seção.<br>Use “+ tiles” para enviar.</div>';
@@ -350,6 +360,8 @@ function paleta(){
       if(_im.complete&&_im.naturalWidth) aplicar(); else _im.addEventListener('load',aplicar,{once:true});
     }
     d.onclick=()=>{
+      // clicar no tile já escolhido desmarca (volta à mão livre)
+      if(state.sel===f){ state.sel=null; paleta(); msg('mão livre: cliques só selecionam'); return; }
       state.sel=f;
       // escolher um tile volta ao Pincel: senão o clique no mapa não coloca nada
       if(state.tool!=='pincel'&&state.tool!=='balde'){
@@ -529,21 +541,18 @@ stage.addEventListener('mousedown',e=>{
       return;
     }
     const achouAgora = achaObj(x,y);
-    if(achouAgora && (state.tool==='ajustar' || jaSelecionado(achouAgora,x,y))){
+    // Clicar sobre um objeto existente SEMPRE o seleciona para mover —
+    // nunca joga outra peça por cima. Para colocar, clique numa área livre.
+    if(achouAgora){
       selObj=achouAgora; snapshot(); movendo=true;
       const o=oInfo(state[achouAgora.l][achouAgora.y][achouAgora.x]);
       movBase={mx:e.clientX,my:e.clientY,dx:o.dx,dy:o.dy};
       mostraAjuste(); pintaObj(); pintaFre();
       return;
     }
-    if(state.tool==='ajustar'){
-      if(achouAgora){ selObj=achouAgora; snapshot(); movendo=true;
-        const o=oInfo(state[achouAgora.l][achouAgora.y][achouAgora.x]);
-        movBase={mx:e.clientX,my:e.clientY,dx:o.dx,dy:o.dy};
-        mostraAjuste(); pintaObj(); pintaFre();
-      } else { selObj=null; mostraAjuste(); pintaObj(); pintaFre(); }
-      return;
-    }
+    // área livre: solta a seleção; sem tile escolhido, o clique não pinta
+    if(selObj){ selObj=null; mostraAjuste(); pintaObj(); pintaFre(); }
+    if(state.tool==='ajustar' || !state.sel) return;
   }
   if(false){
     const achou=null;
