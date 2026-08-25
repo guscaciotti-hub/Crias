@@ -1,0 +1,54 @@
+{
+ "terreno": [
+  "tile-agua.png",
+  "tile-caminho.png",
+  "tile-grama.png",
+  "tile-penhasco.png",
+  "tile-praca.png"
+ ],
+ "margem": [
+  "margem-curva-ext-ne.png",
+  "margem-curva-ext-no.png",
+  "margem-curva-ext-so.png",
+  "margem-curva-int-ne.png",
+  "margem-curva-int-no.png",
+  "margem-curva-int-se.png",
+  "margem-curva-int-so.png",
+  "margem-reta-l.png",
+  "margem-reta-n.png",
+  "margem-reta-o.png",
+  "margem-reta-s.png",
+  "meiofio-curva-ext-ne.png",
+  "meiofio-curva-ext-no.png",
+  "meiofio-curva-ext-se.png",
+  "meiofio-curva-ext-so.png",
+  "meiofio-curva-int-ne.png",
+  "meiofio-curva-int-no.png",
+  "meiofio-curva-int-se.png",
+  "meiofio-curva-int-so.png",
+  "meiofio-reta-l.png",
+  "meiofio-reta-n.png",
+  "meiofio-reta-o.png",
+  "meiofio-reta-s.png"
+ ],
+ "prop": [
+  "prop-arena.png",
+  "prop-arvore-1.png",
+  "prop-arvore-2.png",
+  "prop-casa-azul.png",
+  "prop-casa-marrom.png",
+  "prop-cerca.png",
+  "prop-cupula.png",
+  "prop-pedra.png",
+  "prop-pinheiro.png",
+  "prop-ponte.png",
+  "prop-poste.png",
+  "prop-predio-roxo.png",
+  "prop-shop.png"
+ ],
+ "detalhe": [
+  "det-flores.png",
+  "det-pedrinhas.png",
+  "det-tufo.png"
+ ]
+}

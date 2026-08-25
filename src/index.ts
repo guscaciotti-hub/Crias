@@ -151,6 +151,12 @@ app.get('/forge', (req, res) => {
   res.sendFile(path.join(publicDir, 'forge.html'))
 })
 
+// /editor → construtor visual de mapas (pinta tiles + colisão sobre o original)
+app.get('/editor', (req, res) => {
+  res.setHeader('Cache-Control', 'no-store, must-revalidate')
+  res.sendFile(path.join(publicDir, 'editor.html'))
+})
+
 // /design → database oficial do jogo (mecânica, crias, orbes, masmorra)
 app.get('/design', (req, res) => {
   res.setHeader('Cache-Control', 'no-store, must-revalidate')
