@@ -103,6 +103,10 @@
         <button class="gh" id="redo">↷ Refazer</button>
       </div>
       <div class="row2">
+        <button class="gh" id="copiar" title="Ctrl+C">⧉ Copiar</button>
+        <button class="gh" id="colar" title="Ctrl+V — cola onde o mouse estiver">⧉ Colar</button>
+      </div>
+      <div class="row2">
         <button class="gh" id="up">+ tiles</button>
         <button class="gh" id="auto">Auto-colisão</button>
       </div>
@@ -138,9 +142,10 @@
       <span id="pos">—</span>
     </div>
     <div id="selbox"></div>
-    <div id="msg">Tudo que você coloca é peça: clique seleciona, arrasta move, alça redimensiona. Desligue 'Peça livre' para pintar chão na grade.</div>
+    <div id="msg">Clique seleciona · arrasta move · alça redimensiona · Ctrl+C/Ctrl+V copia com o MESMO tamanho · Ctrl+D duplica.</div>
     <div id="fab">
       <button id="fabFrente" title="Alterna se este objeto cobre o personagem">⬆ vem pra frente</button>
+      <button id="fabDup" title="Duplicar com o mesmo tamanho (Ctrl+D)">⧉</button>
       <button id="fabDel" title="Apagar (Del)">🗑</button>
     </div>
     <div id="adj">
@@ -524,6 +529,9 @@ function refazer(){
 }
 window.addEventListener('keydown',e=>{
   const k = e.key.toLowerCase();
+  if((e.ctrlKey||e.metaKey) && k==='c'){ e.preventDefault(); copiarPeca(); return; }
+  if((e.ctrlKey||e.metaKey) && k==='v'){ e.preventDefault(); colarPeca(); return; }
+  if((e.ctrlKey||e.metaKey) && k==='d'){ e.preventDefault(); copiarPeca(); colarPeca(); return; }
   if((e.ctrlKey||e.metaKey) && k==='z' && !e.shiftKey){ e.preventDefault(); desfazer(); }
   else if((e.ctrlKey||e.metaKey) && (k==='y' || (k==='z'&&e.shiftKey))){ e.preventDefault(); refazer(); }
 });
@@ -710,6 +718,7 @@ window.addEventListener('mousemove',e=>{
   if(arrastando){ state.panX+=e.clientX-lx; state.panY+=e.clientY-ly; lx=e.clientX; ly=e.clientY; aplicaTransform(); return; }
   const [x,y]=tileDe(e);
   $('pos').textContent = (x>=0&&y>=0&&x<N&&y<N) ? `${x}, ${y}` : '—';
+  if(x>=0&&y>=0&&x<N&&y<N) ultimoTile={x,y};   // destino do Ctrl+V
   if(redimensionando&&selObj&&escBase){
     const d=((e.clientX-escBase.mx)+(e.clientY-escBase.my))/2;
     setObj(o=>o.s=Math.max(0.3, Math.min(20, escBase.s + d/60)));
@@ -923,6 +932,31 @@ $('gdown').onclick=()=>{
     a.href=URL.createObjectURL(b); a.download='ref-'+nome+'.png'; a.click(); });
 };
 
+// ── COPIAR / COLAR (Ctrl+C / Ctrl+V) ───────────────────────────────────
+// Guarda a peça inteira (textura, escala e deslocamento) para repetir o
+// mesmo ajuste sem refazer tamanho a cada cópia.
+let areaTransf = null;   // {t, dx, dy, s, l}
+let ultimoTile = {x:24, y:24};
+function copiarPeca(){
+  if(!selObj){ msg('selecione uma peça primeiro (clique nela)'); return; }
+  const o = oInfo(state[selObj.l][selObj.y][selObj.x]);
+  areaTransf = {t:o.t, dx:o.dx, dy:o.dy, s:o.s, l:selObj.l};
+  msg('copiado: ' + nomeCurto(o.t) + ' em ' + Math.round(o.s*100) + '% — Ctrl+V cola com o mesmo tamanho');
+}
+function colarPeca(){
+  if(!areaTransf){ msg('nada copiado ainda (Ctrl+C numa peça)'); return; }
+  const {x,y} = ultimoTile;
+  if(x<0||y<0||x>=N||y>=N) return;
+  snapshot();
+  const alvo = areaTransf.l==='frente' ? 'frente' : 'objeto';
+  state[alvo][y][x] = {t:areaTransf.t, dx:areaTransf.dx, dy:areaTransf.dy, s:areaTransf.s};
+  selObj = {l:alvo, x, y};
+  // o tamanho copiado também vira o padrão do próximo clique
+  if($('tam')){ $('tam').value=Math.round(areaTransf.s*100); $('tamv').textContent=Math.round(areaTransf.s*100)+'%'; }
+  pintaObj(); pintaFre(); mostraAjuste(); autoSalva();
+  msg('colado em ' + x + ',' + y + ' com ' + Math.round(areaTransf.s*100) + '%');
+}
+
 // ── AUTO-SAVE: nada do que o usuário faz pode se perder ────────────────
 let _autoT=null;
 function autoSalva(){
@@ -1035,6 +1069,13 @@ $('fabFrente').onclick=()=>{
   pintaObj(); pintaFre(); mostraAjuste(); autoSalva();
   msg(para==='frente' ? 'objeto agora COBRE o personagem' : 'objeto voltou para trás do personagem');
 };
+$('fabDup').onclick=()=>{
+  copiarPeca();
+  // cola ao lado, para a cópia não ficar escondida sob a original
+  const antes=ultimoTile;
+  ultimoTile={x:Math.min(N-1,selObj.x+2), y:selObj.y};
+  colarPeca(); ultimoTile=antes;
+};
 $('fabDel').onclick=()=>$('adjdel').click();
 
 function mostraAjuste(){
@@ -1066,6 +1107,7 @@ $('adjclose').onclick=()=>{ selObj=null; mostraAjuste(); pintaObj(); pintaFre();
 
 // ── upload de tiles ─────────────────────────────────────────────────────
 $('undo').onclick=desfazer; $('redo').onclick=refazer;
+$('copiar').onclick=copiarPeca; $('colar').onclick=colarPeca;
 $('up').onclick=()=>$('file').click();
 $('file').onchange=e=>{
   const fs=[...e.target.files]; let n=0;
