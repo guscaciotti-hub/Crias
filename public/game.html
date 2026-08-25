@@ -3553,97 +3553,104 @@ const AMBIENT = {
 window.AMBIENT = AMBIENT;
 
 // Peças colocadas no editor /mapa (posição, escala e rotação em tiles)
-// Converte a marcação (4x) numa máscara de recorte usada a cada frame.
-// A marcação do editor é grossa (o usuário pinta um bloco em volta do objeto),
-// mas o jogador só deve sumir atrás do OBJETO — não do chão dentro do bloco.
-// Por isso a máscara é refinada comparando cada pixel marcado com a cor do chão
-// ao redor da região: o que é parecido com o chão sai da máscara.
+// A marcação amarela define apenas a ÁREA de busca. Dentro dela, só os pixels
+// do OBJETO (copa, telhado) cobrem o jogador — o chão que sobrou dentro do
+// bloco precisa ser descartado, como acontece com o orbe, que usa o alfa do
+// próprio sprite.
+//
+// Separação: o chão "vaza" das bordas da área para dentro, avançando enquanto
+// a cor continua parecida com a do vizinho de onde veio. Onde ele não chega —
+// porque a cor muda bruscamente na silhueta — está o objeto. Depois manchas
+// muito pequenas (textura de grama) são descartadas.
 function construirMascaraFrente() {
   const F = window.MAPA_FRENTE;
   if (!F || !F.length) return;
-  const N_ = F.length;
-  const c = document.createElement('canvas');
-  c.width = c.height = N_;
-  const g = c.getContext('2d');
+  if (!(assets.map && assets.map.complete && assets.map.naturalWidth)) return;
 
-  // marcações do editor
-  const marc = new Uint8Array(N_ * N_);
-  for (let y = 0; y < N_; y++) {
+  const M = F.length, SUB = 4, R = M * SUB;
+  const marc = new Uint8Array(M * M);
+  let temMarca = false;
+  for (let y = 0; y < M; y++) {
     const linha = F[y]; if (!linha) continue;
-    for (let x = 0; x < linha.length; x++) if (linha[x]) marc[y * N_ + x] = 1;
+    for (let x = 0; x < linha.length; x++) if (linha[x]) { marc[y * M + x] = 1; temMarca = true; }
   }
+  if (!temMarca) { window._maskCanvas = null; return; }
 
-  // amostra do mapa na mesma resolução da máscara
-  let px = null;
-  if (assets.map && assets.map.complete && assets.map.naturalWidth) {
-    const mc = document.createElement('canvas');
-    mc.width = mc.height = N_;
-    const mg = mc.getContext('2d', { willReadFrequently: true });
-    mg.drawImage(assets.map, 0, 0, N_, N_);
-    try { px = mg.getImageData(0, 0, N_, N_).data; } catch (e) { px = null; }
+  const mc = document.createElement('canvas');
+  mc.width = mc.height = R;
+  const mg = mc.getContext('2d', { willReadFrequently: true });
+  mg.drawImage(assets.map, 0, 0, R, R);
+  let px;
+  try { px = mg.getImageData(0, 0, R, R).data; } catch (e) { return; }
+
+  const dentroArea = (x, y) =>
+    (x >= 0 && y >= 0 && x < R && y < R) ? marc[((y / SUB) | 0) * M + ((x / SUB) | 0)] : 0;
+
+  // 1) o chão entra pelas bordas e se espalha enquanto a cor não muda
+  const TOL = 18;
+  const chao = new Uint8Array(R * R);
+  const fila = new Int32Array(R * R);
+  let a = 0, b = 0;
+  for (let y = 0; y < R; y++) for (let x = 0; x < R; x++) {
+    if (dentroArea(x, y)) continue;
+    if (dentroArea(x-1,y) || dentroArea(x+1,y) || dentroArea(x,y-1) || dentroArea(x,y+1))
+      fila[b++] = y * R + x;
   }
-
-  const id = g.createImageData(N_, N_);
-  if (!px) {
-    // sem acesso ao mapa: mantém a marcação como veio
-    for (let i = 0; i < marc.length; i++) if (marc[i]) {
-      const k = i * 4; id.data[k] = id.data[k+1] = id.data[k+2] = id.data[k+3] = 255;
-    }
-    g.putImageData(id, 0, 0); window._maskCanvas = c; return;
-  }
-
-  // A cor do chão é medida POR REGIÃO marcada: uma árvore no gramado e uma
-  // casa sobre o calçamento têm chões diferentes, e uma média única erraria.
-  const LIMITE = 46;
-  const visto = new Uint8Array(marc.length);
-  const fila = new Int32Array(marc.length);
-  let mantidos = 0;
-
-  for (let ini = 0; ini < marc.length; ini++) {
-    if (!marc[ini] || visto[ini]) continue;
-    // 1) coleta a região conectada
-    let ini_f = 0, fim_f = 0;
-    fila[fim_f++] = ini; visto[ini] = 1;
-    const regiao = [];
-    while (ini_f < fim_f) {
-      const i = fila[ini_f++]; regiao.push(i);
-      const x = i % N_, y = (i / N_) | 0;
-      if (x > 0        && marc[i-1]  && !visto[i-1])  { visto[i-1]  = 1; fila[fim_f++] = i-1; }
-      if (x < N_ - 1   && marc[i+1]  && !visto[i+1])  { visto[i+1]  = 1; fila[fim_f++] = i+1; }
-      if (y > 0        && marc[i-N_] && !visto[i-N_]) { visto[i-N_] = 1; fila[fim_f++] = i-N_; }
-      if (y < N_ - 1   && marc[i+N_] && !visto[i+N_]) { visto[i+N_] = 1; fila[fim_f++] = i+N_; }
-    }
-    // 2) chão desta região = média dos vizinhos não marcados
-    let sr = 0, sg = 0, sb = 0, n = 0;
-    for (const i of regiao) {
-      const x = i % N_, y = (i / N_) | 0;
-      for (const j of [x>0?i-1:-1, x<N_-1?i+1:-1, y>0?i-N_:-1, y<N_-1?i+N_:-1]) {
-        if (j < 0 || marc[j]) continue;
-        const k = j * 4; sr += px[k]; sg += px[k+1]; sb += px[k+2]; n++;
+  while (a < b) {
+    const i = fila[a++], x = i % R, y = (i / R) | 0, k = i * 4;
+    for (const [dx, dy] of [[-1,0],[1,0],[0,-1],[0,1]]) {
+      const X = x + dx, Y = y + dy;
+      if (X < 0 || Y < 0 || X >= R || Y >= R) continue;
+      const j = Y * R + X;
+      if (chao[j] || !dentroArea(X, Y)) continue;
+      const k2 = j * 4;
+      if (Math.abs(px[k2]-px[k]) + Math.abs(px[k2+1]-px[k+1]) + Math.abs(px[k2+2]-px[k+2]) < TOL) {
+        chao[j] = 1; fila[b++] = j;
       }
     }
-    const gr = n ? sr/n : 0, gg2 = n ? sg/n : 0, gb = n ? sb/n : 0;
-    // 3) mantém só o que destoa do chão local
-    for (const i of regiao) {
+  }
+
+  // 2) o que o chão não alcançou é objeto; manchas minúsculas são ruído
+  const obj = new Uint8Array(R * R);
+  for (let i = 0; i < R * R; i++)
+    if (dentroArea(i % R, (i / R) | 0) && !chao[i]) obj[i] = 1;
+
+  const MIN_BLOB = 40;
+  const visto = new Uint8Array(R * R);
+  const c = document.createElement('canvas');
+  c.width = c.height = R;
+  const g = c.getContext('2d');
+  const id = g.createImageData(R, R);
+  let mantidos = 0, total = 0;
+  for (let i = 0; i < R * R; i++) if (dentroArea(i % R, (i / R) | 0)) total++;
+
+  for (let ini2 = 0; ini2 < R * R; ini2++) {
+    if (!obj[ini2] || visto[ini2]) continue;
+    let a2 = 0, b2 = 0;
+    fila[b2++] = ini2; visto[ini2] = 1;
+    const blob = [];
+    while (a2 < b2) {
+      const i = fila[a2++]; blob.push(i);
+      const x = i % R, y = (i / R) | 0;
+      for (const [dx, dy] of [[-1,0],[1,0],[0,-1],[0,1],[-1,-1],[1,1],[-1,1],[1,-1]]) {
+        const X = x + dx, Y = y + dy;
+        if (X < 0 || Y < 0 || X >= R || Y >= R) continue;
+        const j = Y * R + X;
+        if (obj[j] && !visto[j]) { visto[j] = 1; fila[b2++] = j; }
+      }
+    }
+    if (blob.length < MIN_BLOB) continue;
+    for (const i of blob) {
       const k = i * 4;
-      const d = Math.abs(px[k]-gr) + Math.abs(px[k+1]-gg2) + Math.abs(px[k+2]-gb);
-      if (n && d < LIMITE) continue;
       id.data[k] = id.data[k+1] = id.data[k+2] = id.data[k+3] = 255;
       mantidos++;
     }
   }
+
   g.putImageData(id, 0, 0);
   window._maskCanvas = c;
-  console.log('[mapa] passa-atrás refinado: ' + mantidos + ' de ' +
-    marc.reduce((a, v) => a + v, 0) + ' pontos marcados');
-}
-
-// O canvas é esticado por CSS para preencher a tela, então imagens desenhadas
-// sobre o mundo precisam compensar a diferença de proporção — senão o orbe
-// aparece esticado na horizontal.
-function _aspectoY() {
-  const rx = viewportW / canvas.width, ry = viewportH / canvas.height;
-  return (rx > 0 && ry > 0) ? rx / ry : 1;
+  console.log('[mapa] passa-atrás: silhueta com ' + mantidos + ' de ' + total +
+    ' pontos da área marcada (' + Math.round(mantidos / total * 100) + '%)');
 }
 
 function desenhaPecasMapa(camX, camY, naFrente) {
