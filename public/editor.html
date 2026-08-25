@@ -70,6 +70,7 @@
       <label>Colisão <input type="checkbox" id="showcol"></label>
       <label>Pincel <input type="range" id="brush" min="1" max="6" value="1"></label>
       <label title="Escurece e esfria os tiles para casar com o clima do mapa">Harmonizar <input type="range" id="harm" min="0" max="100" value="0"></label>
+      <label id="lbtam" title="Tamanho com que o próximo objeto será colocado">Tamanho <input type="range" id="tam" min="30" max="2000" value="100"><b id="tamv" style="color:var(--acc);font-size:10px">100%</b></label>
       <div class="row2">
         <button class="gh" id="undo">↶ Desfazer</button>
         <button class="gh" id="redo">↷ Refazer</button>
@@ -109,7 +110,7 @@
       <div class="gh1">✥ Ajustar objeto</div>
       <div class="gsub" id="adjnome">—</div>
       <div class="gsub">Arraste no mapa para mover livre · setas ajustam fino</div>
-      <div class="grow"><span>Tam.</span><input type="range" id="adjesc" min="40" max="260" value="100"></div>
+      <div class="grow"><span>Tam.</span><input type="range" id="adjesc" min="30" max="2000" value="100"></div>
       <div class="gsub" id="adjinfo">—</div>
       <div class="grow" style="gap:5px">
         <button class="gh" id="adjreset" style="flex:1">↺ centro</button>
@@ -236,10 +237,44 @@ function harmoniza(im, forca){
   HARM_CACHE[k]=out; return out;
 }
 function imgH(nome){
-  const im = imgDe(nome), f = +($('harm')?.value || 0);
-  if(!f || !im.complete || !im.naturalWidth) return im;
+  let im = imgDe(nome);
+  if(!im.complete || !im.naturalWidth) return im;
+  // props (prop-/margem-/det-) vêm com chroma magenta; chão não
+  if(!nome.startsWith('tile-')){
+    const t = tiraChroma(im);
+    if(t.complete && t.naturalWidth) im = t;
+  }
+  const f = +($('harm')?.value || 0);
+  if(!f) return im;
   const h = harmoniza(im, f);
   return (h.complete && h.naturalWidth) ? h : im;
+}
+
+// Remove o fundo MAGENTA (#FF00FF) dos props e suaviza o spill nas bordas.
+// Sem isso, a peça entra no mapa com o retângulo rosa em volta.
+const CHROMA_CACHE = {};
+function tiraChroma(im){
+  const k = im.src.slice(-70);
+  if(CHROMA_CACHE[k]) return CHROMA_CACHE[k];
+  const c=document.createElement('canvas'); c.width=im.naturalWidth; c.height=im.naturalHeight;
+  const g=c.getContext('2d'); g.drawImage(im,0,0);
+  try{
+    const d=g.getImageData(0,0,c.width,c.height), px=d.data;
+    let achou=false;
+    for(let i=0;i<px.length;i+=4){
+      const r=px[i], gg=px[i+1], b=px[i+2];
+      if(r>140 && b>140 && gg < r*0.62 && gg < b*0.62){ px[i+3]=0; achou=true; }
+      else if(r>gg && b>gg && gg>100){          // de-spill nas bordas
+        const sp=Math.min(r,b)-gg;
+        if(sp>0 && sp<130){ px[i]=r-sp*0.85; px[i+2]=b-sp*0.85; }
+      }
+    }
+    if(!achou){ CHROMA_CACHE[k]=im; return im; }   // não era chroma: mantém
+    g.putImageData(d,0,0);
+  }catch(e){ return im; }
+  const out=new Image(); out.src=c.toDataURL('image/png');
+  out.onload=()=>{ pintaTer(); pintaObj(); pintaFre(); };
+  CHROMA_CACHE[k]=out; return out;
 }
 
 function imgDe(nome){
@@ -262,7 +297,20 @@ function paleta(){
   for(const f of lista){
     const d=document.createElement('div'); d.className='tile'+(state.sel===f?' on':'');
     d.innerHTML='<img src="'+(UPLOADS[f]||('/map-kit/'+f))+'"><b>'+nomeCurto(f)+'</b>';
-    d.onclick=()=>{ state.sel=f; paleta(); };
+    if(!f.startsWith('tile-')){
+      const _im=imgDe(f);
+      const aplicar=()=>{ const t=tiraChroma(_im); if(t!==_im) d.querySelector('img').src=t.src; };
+      if(_im.complete&&_im.naturalWidth) aplicar(); else _im.addEventListener('load',aplicar,{once:true});
+    }
+    d.onclick=()=>{
+      state.sel=f;
+      // escolher um tile volta ao Pincel: senão o clique no mapa não coloca nada
+      if(state.tool!=='pincel'&&state.tool!=='balde'){
+        state.tool='pincel';
+        document.querySelectorAll('.tool').forEach(x=>x.classList.toggle('on', x.dataset.t==='pincel'));
+      }
+      paleta();
+    };
     p.appendChild(d);
   }
 }
@@ -323,6 +371,7 @@ function pintaGrid(){
 $('grid').onchange=$('showcol').onchange=pintaGrid;
 $('brush').oninput=e=>state.brush=+e.target.value;
 $('harm').oninput=()=>{ pintaTer(); pintaObj(); pintaFre(); };
+$('tam').oninput=e=>{ $('tamv').textContent=e.target.value+'%'; };
 
 // ── histórico (Ctrl+Z / Ctrl+Y) ─────────────────────────────────────────
 const HIST = [], REDO = [];
@@ -369,12 +418,18 @@ function aplica(x,y){
     if(X<0||Y<0||X>=N||Y>=N) continue;
     if(state.layer==='colisao'){ state.colisao[Y][X]= window.event&&window.event.shiftKey?0:1; continue; }
     if(state.tool==='borracha') state[state.layer][Y][X]=null;
-    else if(state.tool==='conta'){ state.sel=oNome(state[state.layer][Y][X])||state.sel; paleta(); return; }
+    else if(state.tool==='conta'){
+      const cel=state[state.layer][Y][X];
+      if(cel){ state.sel=oNome(cel)||state.sel;
+        const oi=oInfo(cel); if(oi&&$('tam')){ $('tam').value=Math.round(oi.s*100); $('tamv').textContent=Math.round(oi.s*100)+'%'; } }
+      paleta(); return;
+    }
     else if(state.sel){
       // objetos guardam posição/escala próprias desde o início — evita
       // depender de conversão posterior ao ajustar
+      const escNova = (+($('tam')?.value || 100))/100;
       state[state.layer][Y][X] = (state.layer==='terreno')
-        ? state.sel : {t:state.sel, dx:0, dy:0, s:1};
+        ? state.sel : {t:state.sel, dx:0, dy:0, s:escNova};
     }
   }
   if(state.layer==='terreno') pintaTer();
@@ -386,7 +441,7 @@ function balde(x,y){
   const L=state[state.layer];
   const alvo=oNome(L[y][x]) || null;
   const novoSel = state.tool==='borracha' ? null
-    : (state.layer==='terreno' ? state.sel : {t:state.sel, dx:0, dy:0, s:1});
+    : (state.layer==='terreno' ? state.sel : {t:state.sel, dx:0, dy:0, s:(+($('tam')?.value||100))/100});
   if(alvo===oNome(novoSel)) return;
   const fila=[[x,y]], vis=new Set();
   while(fila.length){
