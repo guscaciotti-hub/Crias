@@ -138,7 +138,7 @@
       <span id="pos">—</span>
     </div>
     <div id="selbox"></div>
-    <div id="msg">Tile escolhido = clique PINTA. Sem tile = clique no objeto SELECIONA, no vazio ARRASTA o mapa. Ctrl+Z desfaz.</div>
+    <div id="msg">Tile = clique PINTA · sem tile: objeto SELECIONA, vazio ARRASTA · 3 cliques no chão = selecionar ÁREA (setas movem).</div>
     <div id="fab">
       <button id="fabFrente" title="Alterna se este objeto cobre o personagem">⬆ vem pra frente</button>
       <button id="fabDel" title="Apagar (Del)">🗑</button>
@@ -488,7 +488,7 @@ function pintaGrid(){
     }
   }
 }
-$('grid').onchange=$('showcol').onchange=pintaGrid;
+$('grid').onchange=$('showcol').onchange=()=>{ pintaGrid(); pintaArea(); };
 $('brush').oninput=e=>state.brush=+e.target.value;
 $('harm').oninput=()=>{ for(const k in PAT_CACHE) delete PAT_CACHE[k]; pintaTer(); pintaObj(); pintaFre(); };
 $('tam').oninput=e=>{ $('tamv').textContent=e.target.value+'%'; };
@@ -589,6 +589,64 @@ function balde(x,y){
   else pintaObj();
   autoSalva();
 }
+// ── ÁREA DE CHÃO: 3 cliques selecionam a região contígua da mesma textura,
+// que passa a ser movida em bloco (setas/arraste) ou apagada.
+let areaSel = null;           // {tiles:Set('x,y'), tex, ox, oy}
+function regiaoDe(x,y){
+  const tex = state.terreno[y] && state.terreno[y][x];
+  if(!tex) return null;
+  const vis=new Set(), fila=[[x,y]];
+  while(fila.length){
+    const [a,b2]=fila.pop(), k=a+','+b2;
+    if(a<0||b2<0||a>=N||b2>=N||vis.has(k)) continue;
+    if(state.terreno[b2][a]!==tex) continue;
+    vis.add(k); fila.push([a+1,b2],[a-1,b2],[a,b2+1],[a,b2-1]);
+  }
+  return {tiles:vis, tex, ox:0, oy:0};
+}
+function pintaArea(){
+  if(!areaSel) return;
+  gGrid.save();
+  gGrid.fillStyle='rgba(255,213,74,.22)';
+  gGrid.strokeStyle='#ffd54a'; gGrid.lineWidth=2; gGrid.setLineDash([6,4]);
+  for(const k of areaSel.tiles){
+    const [x,y]=k.split(',').map(Number);
+    gGrid.fillRect((x+areaSel.ox)*TP,(y+areaSel.oy)*TP,TP,TP);
+  }
+  gGrid.setLineDash([]); gGrid.restore();
+}
+function moveArea(dx,dy){
+  if(!areaSel) return;
+  snapshot();
+  const orig=[...areaSel.tiles].map(k=>k.split(',').map(Number));
+  for(const [x,y] of orig) state.terreno[y][x]=null;
+  const novos=new Set();
+  for(const [x,y] of orig){
+    const X=x+dx, Y=y+dy;
+    if(X>=0&&Y>=0&&X<N&&Y<N){ state.terreno[Y][X]=areaSel.tex; novos.add(X+','+Y); }
+  }
+  areaSel.tiles=novos;
+  pintaTer(); pintaGrid(); pintaArea(); autoSalva();
+}
+function soltaArea(){ areaSel=null; pintaGrid(); }
+
+let _cliques=0, _cliqueT=null;
+stage.addEventListener('click', e=>{
+  _cliques++;
+  clearTimeout(_cliqueT);
+  _cliqueT = setTimeout(()=>{ _cliques=0; }, 450);
+  if(_cliques>=3){
+    _cliques=0;
+    const [x,y]=tileDe(e);
+    if(x<0||y<0||x>=N||y>=N) return;
+    const r=regiaoDe(x,y);
+    if(r){ areaSel=r; selObj=null; mostraAjuste();
+      pintaGrid(); pintaArea();
+      msg('área de chão selecionada ('+r.tiles.size+' células) — setas movem, Del apaga, Esc solta');
+    } else msg('não há chão pintado aqui');
+  }
+});
+
 // Duplo clique seleciona o objeto sob o cursor mesmo com um tile escolhido
 stage.addEventListener('dblclick',e=>{
   const [x,y]=tileDe(e); if(x<0||y<0||x>=N||y>=N) return;
@@ -698,7 +756,18 @@ function verTudo(){
 }
 $('fit').onclick = verTudo;
 window.addEventListener('keydown',e=>{
-  if(e.key==='Escape'&&selObj){ selObj=null; mostraAjuste(); pintaObj(); pintaFre(); return; }
+  if(e.key==='Escape'){ if(areaSel){ soltaArea(); return; }
+    if(selObj){ selObj=null; mostraAjuste(); pintaObj(); pintaFre(); return; } }
+  if(areaSel){
+    const p2 = e.shiftKey ? 4 : 1;
+    if(e.key==='ArrowLeft'){ moveArea(-p2,0); e.preventDefault(); return; }
+    if(e.key==='ArrowRight'){ moveArea(p2,0); e.preventDefault(); return; }
+    if(e.key==='ArrowUp'){ moveArea(0,-p2); e.preventDefault(); return; }
+    if(e.key==='ArrowDown'){ moveArea(0,p2); e.preventDefault(); return; }
+    if(e.key==='Delete'){ snapshot();
+      for(const k of areaSel.tiles){ const [x,y]=k.split(',').map(Number); state.terreno[y][x]=null; }
+      soltaArea(); pintaTer(); autoSalva(); msg('área apagada'); return; }
+  }
   if(e.code==='Space'){espaco=true;e.preventDefault();}
   if(selObj && state.tool==='ajustar'){
     const f=e.shiftKey?0.25:0.05;
