@@ -400,11 +400,38 @@ document.querySelectorAll('.tool').forEach(b=>b.onclick=()=>{
 });
 
 // ── desenho das camadas ─────────────────────────────────────────────────
+// Uma textura de chão cobre TEX_TILES x TEX_TILES células: espremer os 512px
+// dentro de um tile de 40px transformava pedras grandes em tijolinhos.
+const TEX_TILES = 4;
+const PAT_CACHE = {};
+function padrao(nome, ctx){
+  const k = nome + '|' + (($('harm')&&$('harm').value)||0);
+  if(PAT_CACHE[k]) return PAT_CACHE[k];
+  const im = imgH(nome);
+  if(!(im.complete && im.naturalWidth)) return null;
+  const lado = TP * TEX_TILES;
+  const c = document.createElement('canvas'); c.width=c.height=lado;
+  c.getContext('2d').drawImage(im, 0, 0, lado, lado);
+  const pat = ctx.createPattern(c, 'repeat');
+  PAT_CACHE[k] = pat; return pat;
+}
 function pintaTer(){
   gTer.clearRect(0,0,N*TP,N*TP);
+  // agrupa por textura: um fill por tipo, com o padrão ancorado no mundo
+  const porTipo = {};
   for(let y=0;y<N;y++)for(let x=0;x<N;x++){
     const t=state.terreno[y][x]; if(!t) continue;
-    const im=imgH(t); if(im.complete&&im.naturalWidth) gTer.drawImage(im,x*TP,y*TP,TP,TP);
+    (porTipo[t] = porTipo[t] || []).push([x,y]);
+  }
+  for(const [t, cels] of Object.entries(porTipo)){
+    const pat = padrao(t, gTer);
+    if(pat){
+      gTer.fillStyle = pat;
+      for(const [x,y] of cels) gTer.fillRect(x*TP, y*TP, TP, TP);
+    } else {
+      const im=imgH(t);
+      if(im.complete&&im.naturalWidth) for(const [x,y] of cels) gTer.drawImage(im,x*TP,y*TP,TP,TP);
+    }
   }
 }
 function pintaObj(){
@@ -463,7 +490,7 @@ function pintaGrid(){
 }
 $('grid').onchange=$('showcol').onchange=pintaGrid;
 $('brush').oninput=e=>state.brush=+e.target.value;
-$('harm').oninput=()=>{ pintaTer(); pintaObj(); pintaFre(); };
+$('harm').oninput=()=>{ for(const k in PAT_CACHE) delete PAT_CACHE[k]; pintaTer(); pintaObj(); pintaFre(); };
 $('tam').oninput=e=>{ $('tamv').textContent=e.target.value+'%'; };
 $('pecalivre').onchange=e=>{
   msg(e.target.checked
@@ -1013,9 +1040,19 @@ function renderCamada(campo, transparente){
 function renderFinal(){
   const OUT=64, c=document.createElement('canvas'); c.width=c.height=N*OUT;
   const g=c.getContext('2d');
+  const porTipo={};
   for(let y=0;y<N;y++)for(let x=0;x<N;x++){
     const t=state.terreno[y][x]; if(!t) continue;
-    const im=imgH(t); if(im.complete) g.drawImage(im,x*OUT,y*OUT,OUT,OUT);
+    (porTipo[t]=porTipo[t]||[]).push([x,y]);
+  }
+  for(const [t,cels] of Object.entries(porTipo)){
+    const im=imgH(t); if(!(im.complete&&im.naturalWidth)) continue;
+    const lado=OUT*TEX_TILES;
+    const tc=document.createElement('canvas'); tc.width=tc.height=lado;
+    tc.getContext('2d').drawImage(im,0,0,lado,lado);
+    const pat=g.createPattern(tc,'repeat');
+    g.fillStyle=pat;
+    for(const [x,y] of cels) g.fillRect(x*OUT,y*OUT,OUT,OUT);
   }
   for(let y=0;y<N;y++)for(let x=0;x<N;x++){
     const c=state.objeto[y][x]; if(!c) continue;
