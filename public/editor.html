@@ -423,7 +423,14 @@ function pintaFre(){
     const c=state.frente[y][x]; if(!c) continue;
     const o=oInfo(c), im=imgH(o.t); if(!(im.complete&&im.naturalWidth)) continue;
     const esc=2.0*o.s, h=TP*esc, w=h*(im.naturalWidth/im.naturalHeight);
-    gFre.drawImage(im, x*TP+TP/2-w/2+o.dx*TP, y*TP+TP-h+o.dy*TP, w, h);
+    const bx=x*TP+TP/2-w/2+o.dx*TP, by=y*TP+TP-h+o.dy*TP;
+    gFre.drawImage(im, bx, by, w, h);
+    if(selObj && selObj.l==='frente' && selObj.x===x && selObj.y===y){
+      gFre.strokeStyle='#ffd54a'; gFre.lineWidth=2; gFre.setLineDash([5,3]);
+      gFre.strokeRect(bx,by,w,h); gFre.setLineDash([]);
+      const s2=Math.max(9,13/state.zoom);
+      gFre.fillStyle='#ffd54a'; gFre.fillRect(bx+w-s2/2, by+h-s2/2, s2, s2);
+    }
     // marca visual: só no editor, para saber o que cobre o personagem
     gFre.strokeStyle='rgba(255,200,60,.85)'; gFre.setLineDash([4,3]); gFre.lineWidth=1.5;
     gFre.strokeRect(x*TP+1, y*TP+1, TP-2, TP-2); gFre.setLineDash([]);
@@ -535,6 +542,13 @@ function balde(x,y){
   else pintaObj();
   autoSalva();
 }
+// Duplo clique seleciona o objeto sob o cursor mesmo com um tile escolhido
+stage.addEventListener('dblclick',e=>{
+  const [x,y]=tileDe(e); if(x<0||y<0||x>=N||y>=N) return;
+  const achou=achaObj(x,y);
+  if(achou){ selObj=achou; mostraAjuste(); pintaObj(); pintaFre();
+    msg('objeto selecionado — arraste para mover, alça redimensiona'); }
+});
 stage.addEventListener('mousedown',e=>{
   if(e.button===1||espaco||state.tool==='mao'){ arrastando=true; lx=e.clientX; ly=e.clientY; e.preventDefault(); return; }
   const [x,y]=tileDe(e);
@@ -832,30 +846,38 @@ function jaSelecionado(a,x,y){
   return selObj && a && selObj.l===a.l && selObj.x===a.x && selObj.y===a.y;
 }
 // retângulo do objeto selecionado na tela (para desenhar e testar a alça)
-function caixaSel(){
-  if(!selObj) return null;
-  const c=state[selObj.l][selObj.y][selObj.x]; if(!c) return null;
-  const o=oInfo(c), im=imgDe(o.t);
-  if(!(im.complete&&im.naturalWidth)) return null;
-  const esc=(o.t.startsWith('prop-')?2.0:1)*o.s;
-  const h=TP*esc, w=h*(im.naturalWidth/im.naturalHeight);
-  return { x:selObj.x*TP+TP/2-w/2+o.dx*TP, y:selObj.y*TP+TP-h+o.dy*TP, w, h };
-}
+function caixaSel(){ return selObj ? caixaDe(selObj.l, selObj.x, selObj.y) : null; }
 function alcaHit(e){
   const b=caixaSel(); if(!b) return false;
   const r=wrap.getBoundingClientRect(), z=state.zoom;
   const hx=r.left+(b.x+b.w)*z, hy=r.top+(b.y+b.h)*z;
   return Math.hypot(e.clientX-hx, e.clientY-hy) < 16;
 }
+// Caixa real de um objeto no mundo (mesma conta usada para desenhar)
+function caixaDe(l,x,y){
+  const c=state[l][y][x]; if(!c) return null;
+  const o=oInfo(c), im=imgDe(o.t);
+  if(!(im.complete&&im.naturalWidth)) return null;
+  const esc=(o.t.startsWith('prop-')?2.0:1)*o.s;
+  const h=TP*esc, w=h*(im.naturalWidth/im.naturalHeight);
+  return { x:x*TP+TP/2-w/2+o.dx*TP, y:y*TP+TP-h+o.dy*TP, w, h };
+}
+// Acerta o objeto pela ÁREA DESENHADA, não pela vizinhança da âncora: peças
+// grandes (orbe a 520%, praça) eram impossíveis de clicar no meio.
 function achaObj(x,y){
-  for(const l of ['frente','objeto']){
-    for(let dy=0;dy<=2;dy++) for(let dx=-1;dx<=1;dx++){
-      const X=x+dx, Y=y+dy;
-      if(X<0||Y<0||X>=N||Y>=N) continue;
-      if(state[l][Y][X]) return {l,x:X,y:Y};
+  const px=(x+0.5)*TP, py=(y+0.5)*TP;
+  let melhor=null;
+  for(const l of ['objeto','frente']){          // frente ganha por ser depois
+    for(let Y=0;Y<N;Y++) for(let X=0;X<N;X++){
+      if(!state[l][Y][X]) continue;
+      const b=caixaDe(l,X,Y); if(!b) continue;
+      if(px>=b.x && px<=b.x+b.w && py>=b.y && py<=b.y+b.h){
+        // entre sobrepostos, vence o desenhado por último (linha maior)
+        if(!melhor || l==='frente' || Y>=melhor.y) melhor={l,x:X,y:Y};
+      }
     }
   }
-  return null;
+  return melhor;
 }
 // Botão flutuante do objeto selecionado: manda pra frente / traz pra trás.
 function posFab(){
