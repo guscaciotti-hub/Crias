@@ -43,6 +43,12 @@
   #gprev{pointer-events:none;max-width:100%;height:auto;align-self:center;background:#070b16;border:1px solid var(--line);border-radius:7px;image-rendering:auto}
   .grow{display:flex;align-items:center;gap:6px;font-size:11px;color:var(--dim)}
   .grow span{width:38px}
+  #gtipos{display:grid;grid-template-columns:repeat(3,1fr);gap:5px}
+  #gtipos button{background:#0d1424;border:1px solid var(--line);color:var(--dim);border-radius:7px;
+    padding:6px 2px;font-size:16px;cursor:pointer;display:flex;flex-direction:column;align-items:center;gap:2px}
+  #gtipos button i{font-size:9px;font-style:normal;font-weight:700}
+  #gtipos button.on{background:var(--acc);color:#04121f;border-color:var(--acc)}
+  #gen input{background:#0d1424;border:1px solid var(--line);color:var(--txt);border-radius:6px;padding:6px;font-size:11px}
   .grow select,.grow input{flex:1;background:#0d1424;border:1px solid var(--line);color:var(--txt);border-radius:6px;padding:5px;font-size:11px}
   #selbox{position:absolute;border:2px dashed var(--acc);background:rgba(77,195,255,.14);pointer-events:none;display:none;z-index:11}
   #msg{position:absolute;right:10px;top:10px;z-index:9;background:rgba(10,16,32,.9);border:1px solid var(--line);border-radius:9px;padding:7px 11px;font-size:11px;color:var(--dim);max-width:300px}
@@ -94,17 +100,17 @@
       <div class="gh1">🎯 Gerar tile novo</div>
       <div class="gsub">Arraste sobre o mapa para marcar o que quer recriar.</div>
       <canvas id="gprev" width="200" height="200"></canvas>
-      <div class="grow"><span>Tipo</span>
-        <select id="gtipo">
-          <option value="chao">Chão (repete)</option>
-          <option value="arvore">Árvore / vegetação</option>
-          <option value="casa">Casa / construção</option>
-          <option value="objeto">Objeto solto</option>
-          <option value="borda">Borda / margem</option>
-          <option value="detalhe">Detalhe pequeno</option>
-        </select>
+      <div class="gsub" style="color:var(--warn)">1. O que é isso?</div>
+      <div id="gtipos">
+        <button data-v="chao">🟩<i>Chão</i></button>
+        <button data-v="arvore">🌳<i>Árvore</i></button>
+        <button data-v="casa">🏠<i>Casa</i></button>
+        <button data-v="objeto">🪵<i>Objeto</i></button>
+        <button data-v="borda">🌊<i>Borda</i></button>
+        <button data-v="detalhe">🌼<i>Detalhe</i></button>
       </div>
-      <div class="grow"><span>Nome</span><input id="gnome" placeholder="ex: arvore-3"></div>
+      <div class="gsub" style="color:var(--warn)">2. Nome do tile</div>
+      <input id="gnome" placeholder="ex: arvore-3" style="width:100%">
       <div class="gsub" id="ginfo">—</div>
       <button class="act" id="gcopy">📋 Copiar prompt</button>
       <button class="gh" id="gdown">⬇ Baixar recorte (anexar no GPT)</button>
@@ -160,7 +166,8 @@ state.secao = 'chao';
 let manifest = {};
 let TODOS = [];   // todos os arquivos disponíveis (manifest + uploads)
 function atualizaTodos(){
-  TODOS = [...new Set([].concat(...Object.values(manifest)), ...Object.keys(UPLOADS))];
+  // new Set() aceita UM iterável: os uploads precisam entrar no mesmo array
+  TODOS = [...new Set([ ...[].concat(...Object.values(manifest)), ...Object.keys(UPLOADS) ])];
 }
 function montaTabs(){
   const t = $('tabs'); t.innerHTML = '';
@@ -445,12 +452,23 @@ function atualizaCrop(){
       tw/N*ghost.width, th/N*ghost.height, 0,0, c.width, c.height);
   cropData={x0,y0,tw,th};
   $('ginfo').textContent = `${tw}x${th} tiles · ${(tw*39)}x${(th*39)}px no jogo`;
+  // sugere o tipo pelo tamanho do recorte (o usuário pode trocar)
+  if(!gtipo){
+    const sug = (tw<=1&&th<=1) ? 'detalhe' : (tw>=6||th>=6) ? 'casa' : (tw<=3&&th<=3) ? 'arvore' : 'objeto';
+    marcaTipo(sug);
+  }
   $('gen').classList.add('on');
 }
-$('gtipo').onchange=()=>{ if(cropData) $('ginfo').textContent = `${cropData.tw}x${cropData.th} tiles · ${(cropData.tw*39)}x${(cropData.th*39)}px no jogo`; };
+let gtipo = null;
+function marcaTipo(v){
+  gtipo = v;
+  document.querySelectorAll('#gtipos button').forEach(b=>b.classList.toggle('on', b.dataset.v===v));
+}
+document.querySelectorAll('#gtipos button').forEach(b=>b.onclick=()=>marcaTipo(b.dataset.v));
 $('gcopy').onclick=()=>{
   if(!cropData) return msg('marque uma área no mapa primeiro');
-  const tipo=$('gtipo').value;
+  if(!gtipo) return msg('escolha primeiro O QUE É (chão, árvore, casa…)');
+  const tipo=gtipo;
   const nome=($('gnome').value||'novo').replace(/[^a-z0-9-]/gi,'-').toLowerCase();
   const tam = `${cropData.tw}x${cropData.th} tiles (${cropData.tw*39}x${cropData.th*39} pixels no jogo)`;
   const txt = PROMPTS[tipo](nome, tam);
