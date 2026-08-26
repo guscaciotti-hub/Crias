@@ -4912,20 +4912,36 @@ function montaColisaoFina(base) {
           for (let dx = 0; dx < SUBCOL; dx++) fina[y * SUBCOL + dy][x * SUBCOL + dx] = 1;
   return fina;
 }
-// O personagem anda de tile em tile, então o que decide é o tile de destino.
-// A marcação é fina para você poder contornar: bloqueia se QUALQUER célula da
-// metade de baixo do tile — onde os pés ficam — estiver marcada. Assim dá para
-// marcar o beiral de um telhado sem bloquear o chão por onde se anda.
-function bloqueadoNaGrade(g, tx, ty) {
-  for (let sy = SUBCOL >> 1; sy < SUBCOL; sy++) {
-    const l = g[ty * SUBCOL + sy];
+// O personagem anda de tile em tile, mas a marcação é fina (quarto de tile).
+// Antes, QUALQUER quadradinho marcado na metade de baixo bloqueava o tile
+// inteiro — uma marcação que vazasse um dedo para o tile vizinho empurrava o
+// jogador um tile para longe do objeto. Agora são duas checagens separadas:
+//   FICAR:      só a caixa dos pés (colunas do meio × metade de baixo) decide
+//               se dá para estar no tile — vazamento na borda não expulsa.
+//   ATRAVESSAR: as células rentes à borda cruzada decidem se dá para passar —
+//               uma parede fininha desenhada na divisa continua sendo parede.
+function marcadoFino(g, cx, cy, sx0, sx1, sy0, sy1) {
+  for (let sy = sy0; sy <= sy1; sy++) {
+    const l = g[cy * SUBCOL + sy];
     if (!l) return true;
-    for (let sx = 0; sx < SUBCOL; sx++) if (l[tx * SUBCOL + sx]) return true;
+    for (let sx = sx0; sx <= sx1; sx++) if (l[cx * SUBCOL + sx]) return true;
   }
   return false;
 }
-function bloqueado(x, y) {
-  const tx = Math.floor(x), ty = Math.floor(y);
+function bloqueadoNaGrade(g, tx, ty) {
+  const c0 = SUBCOL >> 2, c1 = SUBCOL - 1 - (SUBCOL >> 2);   // colunas do meio
+  return marcadoFino(g, tx, ty, c0, c1, SUBCOL >> 1, SUBCOL - 1);
+}
+function travessiaBloqueada(g, fx, fy, tx, ty) {
+  // Só as bordas laterais entram aqui. A metade de CIMA do tile fica de fora
+  // de propósito, nos dois eixos: marca lá em cima é beiral/telhado na altura
+  // da cabeça, e o caminho por baixo dele continua livre — como sempre foi.
+  const meio = SUBCOL >> 1, fim = SUBCOL - 1;
+  if (tx > fx) return marcadoFino(g, fx, fy, fim, fim, meio, fim) || marcadoFino(g, tx, ty, 0, 0, meio, fim);
+  if (tx < fx) return marcadoFino(g, fx, fy, 0, 0, meio, fim) || marcadoFino(g, tx, ty, fim, fim, meio, fim);
+  return false;
+}
+function gradeAtual() {
   if (state && state.scene === 'sul') {
     if (!COLISAO_SUL) {
       const F = GRID * SUBCOL;
@@ -4936,10 +4952,16 @@ function bloqueado(x, y) {
           (l && l[Math.floor(x2 * (l.length / F))]) ? 1 : 0);
       });
     }
-    return bloqueadoNaGrade(COLISAO_SUL, tx, ty);
+    return COLISAO_SUL;
   }
   if (!COLISAO_FINA) COLISAO_FINA = montaColisaoFina(COLLISION);
-  return bloqueadoNaGrade(COLISAO_FINA, tx, ty);
+  return COLISAO_FINA;
+}
+function bloqueado(x, y) {
+  return bloqueadoNaGrade(gradeAtual(), Math.floor(x), Math.floor(y));
+}
+function travessiaBloqueadaEntre(fx, fy, tx, ty) {
+  return travessiaBloqueada(gradeAtual(), Math.floor(fx), Math.floor(fy), Math.floor(tx), Math.floor(ty));
 }
 // NPC ocupa o próprio tile: com passo de meia célula, comparar por igualdade
 // nunca casaria (o jogador para em .5 e o NPC está em inteiro)
@@ -5005,6 +5027,7 @@ function tryMove(dir) {
       return;
     }
     if (!canWalkTo(nx, ny)) return;
+    if (travessiaBloqueadaEntre(state.player.x, state.player.y, nx, ny)) return;
     movingTo = { fromX: state.player.x, fromY: state.player.y, toX: nx, toY: ny, startTime: performance.now() };
   }
 }

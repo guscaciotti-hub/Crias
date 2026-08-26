@@ -73,7 +73,8 @@
       <label>Grade <input type="checkbox" id="grade" checked></label>
       <label>Marcações <input type="range" id="opac" min="10" max="90" value="45"></label>
       <div class="row2"><button class="gh" id="fit">🔍 Ver tudo</button><button class="gh" id="auto">✨ Auto-colisão</button></div>
-      <div class="row2"><button class="gh" id="undo">↶ Desfazer</button><button class="gh" id="limpa">🧹 Limpar</button></div>
+      <div class="row2"><button class="gh" id="undo">↶ Desfazer</button><button class="gh" id="redo">↷ Refazer</button></div>
+      <div class="row2"><button class="gh" id="limpa" style="grid-column:1/-1">🧹 Limpar marcações</button></div>
       <div class="row2"><button class="gh" id="recarrega">↻ recarregar colisão do jogo</button></div>
       <div class="row2"><button class="gh" id="extrai">✂ extrair marcado como peça</button></div>
     </div>
@@ -207,6 +208,7 @@
 
     <div class="sec">
       <button class="act" id="pub">🚀 Publicar no jogo</button>
+      <button class="gh" id="puxa" style="width:100%;margin-top:6px">⤵ Trazer o que está no jogo</button>
       <div class="row2"><button class="gh" id="bkp">💾 Backup</button><button class="gh" id="rest">♻ Restaurar</button></div>
       <input type="file" id="bkpF" accept=".json" hidden>
       <div style="font-size:9px;color:var(--ok);text-align:center;margin-top:6px" id="auto2">salvando automaticamente</div>
@@ -728,11 +730,14 @@ function sincronizaBorracha(){
 $('remApaga').onclick=()=>{ st.apagando=!st.apagando; st.pegandoOrigem=false; sincronizaBorracha();
   desenhaMarcas();
   msg(st.apagando ? 'clique (ou arraste) em cima do remendo para tirar' : 'borracha desligada'); };
+// Toda remoção de remendo passa pelo snap(): eram as únicas ações do editor
+// sem volta no Ctrl+Z — um caminho inteiro pintado em forma livre é UM
+// remendo, e um clique aqui o engolia para sempre.
 $('remDesfaz').onclick=()=>{ if(!st.remendos.length) return msg('nenhum remendo');
-  st.remendos.pop(); desenhaMapaBase(); desenhaMarcas(); agendaSilhueta(); salvar(); msg('remendo removido'); };
+  snap(); st.remendos.pop(); desenhaMapaBase(); desenhaMarcas(); agendaSilhueta(); salvar(); msg('remendo removido (Ctrl+Z volta)'); };
 $('remLimpa').onclick=()=>{ if(!st.remendos.length) return msg('nenhum remendo');
   if(!confirm('Tirar todos os '+st.remendos.length+' remendos?')) return;
-  st.remendos=[]; desenhaMapaBase(); desenhaMarcas(); agendaSilhueta(); salvar(); msg('remendos removidos'); };
+  snap(); st.remendos=[]; desenhaMapaBase(); desenhaMarcas(); agendaSilhueta(); salvar(); msg('remendos removidos (Ctrl+Z volta)'); };
 $('orbT').oninput=e=>{st.orbe.tam=+e.target.value;$('orbTv').textContent=e.target.value;desenhaMarcas();salvar();};
 
 // O orbe pertence à cidade; nos outros mapas o modo some do menu
@@ -756,7 +761,7 @@ function estadoVazio(){
   st.colisao = Array.from({length:C},()=>Array(C).fill(0));
   st.frente  = Array.from({length:N*4},()=>Array(N*4).fill(0));
   st.pecas=[]; st.remendos=[]; st.sel=null; st.orbe={x:23.5,y:21.5,tam:9};
-  SILHUETA=null; HIST.length=0;
+  SILHUETA=null; HIST.length=0; REFAZ.length=0;
 }
 function trocaMapa(i){
   if(i===MAPA_ATUAL) return;
@@ -790,26 +795,40 @@ document.querySelectorAll('#modos button').forEach(b=>b.onclick=()=>{
 });
 
 // histórico
-const HIST=[];
+const HIST=[], REFAZ=[];
 // O desfazer guarda o estado inteiro: colisão, passa-atrás, orbe, peças e
-// remendos. Antes só guardava os três primeiros, então um remendo errado não
-// tinha volta.
-function snap(){
-  HIST.push(JSON.stringify({c:st.colisao,f:st.frente,o:st.orbe,p:st.pecas,rem:st.remendos}));
-  if(HIST.length>60)HIST.shift();
+// remendos. O desfeito vai para a pilha do REFAZER — desfazer demais nunca
+// perde nada, Ctrl+Y (ou o botão) traz de volta.
+function estadoAtual(){
+  return JSON.stringify({c:st.colisao,f:st.frente,o:st.orbe,p:st.pecas,rem:st.remendos});
 }
-function desfazer(){
-  if(!HIST.length) return msg('nada para desfazer');
-  const j=JSON.parse(HIST.pop());
+function aplicaEstado(j){
   if(Array.isArray(j.c)) st.colisao = j.c.length===C ? j.c : paraFina(j.c);
   if(Array.isArray(j.f) && j.f.length===N*4) st.frente=j.f;
   if(j.o) st.orbe=j.o;
   if(Array.isArray(j.p)) { st.pecas=j.p; st.sel=null; }
   if(Array.isArray(j.rem)) st.remendos=j.rem;
   desenhaMapaBase(); desenhaMarcas(); agendaSilhueta(); salvar();
-  msg('desfeito ('+HIST.length+' passos guardados)');
+}
+function snap(){
+  HIST.push(estadoAtual());
+  if(HIST.length>60)HIST.shift();
+  REFAZ.length=0;   // uma ação nova abre outro rumo: o refazer antigo morre
+}
+function desfazer(){
+  if(!HIST.length) return msg('nada para desfazer');
+  REFAZ.push(estadoAtual());
+  aplicaEstado(JSON.parse(HIST.pop()));
+  msg('desfeito ('+HIST.length+' passos atrás · Ctrl+Y refaz)');
+}
+function refazer(){
+  if(!REFAZ.length) return msg('nada para refazer');
+  HIST.push(estadoAtual());
+  aplicaEstado(JSON.parse(REFAZ.pop()));
+  msg('refeito ('+REFAZ.length+' passos à frente)');
 }
 $('undo').onclick=desfazer;
+$('redo').onclick=refazer;
 $('limpa').onclick=()=>{ if(!confirm('Apagar todas as marcações?'))return; snap();
   for(let y=0;y<C;y++)for(let x=0;x<C;x++) st.colisao[y][x]=0;
   for(let y=0;y<N*4;y++)for(let x=0;x<N*4;x++) st.frente[y][x]=0; desenhaMarcas(); agendaSilhueta(); salvar(); };
@@ -907,6 +926,7 @@ function remendoEm(fx,fy){
 function apagaRemendoEm(fx,fy){
   const i=remendoEm(fx,fy);
   if(i<0) return false;
+  snap();
   st.remendos.splice(i,1);
   desenhaMapaBase(); desenhaMarcas(fx,fy);
   return true;
@@ -1117,7 +1137,9 @@ window.addEventListener('mouseup',()=>{
   remIni=null; remOrigemIni=null; remUltimo=null; remLaco=null; remRet=null;
 });
 window.addEventListener('keydown',e=>{
+  if((e.ctrlKey||e.metaKey) && e.key.toLowerCase()==='z' && e.shiftKey){ e.preventDefault(); refazer(); return; }
   if((e.ctrlKey||e.metaKey) && e.key.toLowerCase()==='z'){ e.preventDefault(); desfazer(); return; }
+  if((e.ctrlKey||e.metaKey) && e.key.toLowerCase()==='y'){ e.preventDefault(); refazer(); return; }
   if((e.ctrlKey||e.metaKey) && st.modo==='pecas'){
     const k=e.key.toLowerCase();
     if(k==='c'){ e.preventDefault(); copiarPeca(); return; }
@@ -1258,8 +1280,38 @@ $('orbAuto').onclick=()=>{
   }
   desenhaMarcas(); agendaSilhueta(); salvar(); msg('silhueta do orbe marcada ('+Math.round(n/16)+' tiles)');
 };
+// Rede de segurança: busca a última versão PUBLICADA (a que o jogo está
+// usando agora) e carrega no editor. É o caminho de volta quando algo se
+// perde por aqui — o que o jogo mostra nunca some sozinho.
+$('puxa').onclick=async()=>{
+  if(!confirm('Trazer a versão que está NO JOGO para o editor?\nO que está na tela será substituído (Ctrl+Z desfaz).')) return;
+  try{
+    msg('buscando a versão publicada…');
+    const r = await fetch(SB+'/storage/v1/object/public/mapas/'+mapaAtual().arquivo+'?t='+Date.now());
+    if(!r.ok) throw new Error('este mapa ainda não foi publicado');
+    const j = await r.json();
+    snap();
+    if(Array.isArray(j.colisao)) st.colisao = j.colisao.length===C ? j.colisao : paraFina(j.colisao);
+    if(Array.isArray(j.frente)){
+      if(j.frente.length===N*4) st.frente=j.frente;
+      else if(j.frente.length===N){
+        st.frente = Array.from({length:N*4},()=>Array(N*4).fill(0));
+        for(let y=0;y<N;y++) for(let x=0;x<N;x++) if(j.frente[y][x])
+          for(let dy=0;dy<4;dy++) for(let dx=0;dx<4;dx++) st.frente[y*4+dy][x*4+dx]=1;
+      }
+    }
+    if(j.orbe) st.orbe=j.orbe;
+    if(Array.isArray(j.pecas)) { st.pecas=j.pecas; st.sel=null; }
+    if(Array.isArray(j.remendos)) st.remendos=j.remendos;
+    // tiles publicados que não existem mais aqui voltam pelo endereço na nuvem
+    if(j.tiles) for(const n in j.tiles) if(!UP[n]) UP[n]=j.tiles[n];
+    desenhaMapaBase(); desenhaMarcas(); agendaSilhueta(); salvar();
+    msg('✅ trazido do jogo: '+st.remendos.length+' remendos e '+st.pecas.length+' peças');
+  }catch(e){ msg('erro: '+(e.message||e)); }
+};
 $('bkp').onclick=()=>{
-  const b=new Blob([JSON.stringify({colisao:st.colisao,frente:st.frente,orbe:st.orbe})],{type:'application/json'});
+  const b=new Blob([JSON.stringify({colisao:st.colisao,frente:st.frente,orbe:st.orbe,
+    pecas:st.pecas,remendos:st.remendos,tiles:UP})],{type:'application/json'});
   const a=document.createElement('a'); a.href=URL.createObjectURL(b);
   a.download='crias-mapa-'+new Date().toISOString().slice(0,10)+'.json'; a.click();
   msg('backup baixado');
@@ -1276,7 +1328,9 @@ $('bkpF').onchange=e=>{ const f=e.target.files[0]; if(!f)return;
     }
     if(j.orbe)st.orbe=j.orbe;
     if(Array.isArray(j.pecas)) st.pecas=j.pecas;
-    desenhaMarcas(); agendaSilhueta(); salvar(); msg('backup restaurado'); }catch(err){ msg('arquivo inválido'); } };
+    if(Array.isArray(j.remendos)) st.remendos=j.remendos;
+    if(j.tiles) for(const n in j.tiles) if(!UP[n]) UP[n]=j.tiles[n];
+    desenhaMapaBase(); desenhaMarcas(); agendaSilhueta(); salvar(); msg('backup restaurado'); }catch(err){ msg('arquivo inválido'); } };
   r.readAsText(f); };
 
 // ── COPIAR / DUPLICAR / CORTAR peças ───────────────────────────────────
