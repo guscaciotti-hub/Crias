@@ -86,7 +86,18 @@
         <button class="gh" id="apara">✂ aparar bordas</button>
         <button class="gh" id="recorta">✂ recortar parte</button>
       </div>
-      <div class="hint" style="margin:0;padding:0">Clique coloca · clique na peça seleciona · arrasta move · alças redimensionam e giram.<br>
+      <div class="hint" style="margin:10px 0 4px;padding:0;font-weight:800;color:var(--txt)">Quem fica na frente de quem</div>
+      <div class="row2">
+        <button class="gh" id="prTras">⬇ mandar pra trás</button>
+        <button class="gh" id="prFrente">⬆ trazer pra frente</button>
+      </div>
+      <div class="row2">
+        <button class="gh" id="prFundo">⤓ lá pro fundo</button>
+        <button class="gh" id="prTopo">⤒ lá pra cima</button>
+      </div>
+      <div class="hint" style="margin:0;padding:0">Selecione a peça e mande pra trás até ela sumir atrás da outra.
+      Atalho: <b>[</b> e <b>]</b>.</div>
+      <div class="hint" style="margin:8px 0 0;padding:0">Clique coloca · clique na peça seleciona · arrasta move · alças redimensionam e giram.<br>
       <b>Ctrl+D</b> duplica · <b>Ctrl+C/V</b> copia · <b>Del</b> apaga · <b>F</b> manda pra frente do jogador</div>
     </div>
 
@@ -471,6 +482,28 @@ document.querySelectorAll('#remFormas button').forEach(b=>b.onclick=()=>{
     retangulo:'arraste de um canto ao outro da área',
   }[st.remForma] || ('arraste para carimbar em formato '+st.remForma));
 });
+// A ordem da lista é a ordem de desenho: quem vem depois cobre quem veio antes.
+// Mover a peça na lista é, literalmente, mandar pra trás ou pra frente.
+function ordena(passo){
+  if(st.sel==null) return msg('selecione uma peça primeiro');
+  const i=st.sel;
+  let j;
+  if(passo==='fundo') j=0;
+  else if(passo==='topo') j=st.pecas.length-1;
+  else j=Math.max(0, Math.min(st.pecas.length-1, i+passo));
+  if(j===i) return msg(passo<0||passo==='fundo' ? 'já está no fundo' : 'já está na frente');
+  snap();
+  const [p]=st.pecas.splice(i,1);
+  st.pecas.splice(j,0,p);
+  st.sel=j;
+  desenhaMarcas(); salvar();
+  msg('peça ' + (j+1) + ' de ' + st.pecas.length + ' na ordem de desenho');
+}
+$('prTras').onclick   = ()=>ordena(-1);
+$('prFrente').onclick = ()=>ordena(+1);
+$('prFundo').onclick  = ()=>ordena('fundo');
+$('prTopo').onclick   = ()=>ordena('topo');
+
 $('remOrigem').onclick=()=>{ st.pegandoOrigem=true; st.apagando=false; sincronizaBorracha();
   msg('clique num pedaço limpo do chão para copiar dali'); };
 function sincronizaBorracha(){
@@ -797,6 +830,8 @@ window.addEventListener('keydown',e=>{
   }
   if(e.key==='Escape'&&recortando){ recortando=false; recA=recB=null; desenhaMarcas(); msg('recorte cancelado'); return; }
   if(st.modo==='pecas'&&st.sel!=null){
+    if(e.key==='['){ e.preventDefault(); ordena(-1); return; }
+    if(e.key===']'){ e.preventDefault(); ordena(+1); return; }
     if(e.key==='Delete'){ snap(); st.pecas.splice(st.sel,1); st.sel=null; desenhaMarcas(); salvar(); return; }
     if(e.key==='f'||e.key==='F'){ snap(); const p=st.pecas[st.sel]; p.frente=!p.frente;
       desenhaMarcas(); salvar(); msg(p.frente?'peça COBRE o jogador':'peça fica atrás do jogador'); return; }
