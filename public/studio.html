@@ -160,6 +160,11 @@
         serviço <b>multi-vista</b> não adivinha nada — a geometria sai muito melhor.
         No Meshy procure <b>Multi-Image to 3D</b>; no Tripo, <b>Multiview</b>.
         <br><br>
+        <b style="color:var(--bad)">Erro comum:</b> não suba a folha inteira no serviço de 3D.
+        Ele modela o que enxerga na imagem — a folha vira uma massa com 12 bonecos grudados.
+        Suba <b>um arquivo só</b>: o <code>-frente.png</code> se o serviço for de imagem única,
+        ou os quatro se for multi-vista.
+        <br><br>
         E olha: para o boneco andando no mapa, esta folha <b>já é tudo</b> — o jogo desenha
         48×60 pixels, não precisa de 3D nenhum. O 3D compensa na tela de batalha, onde ele
         aparece grande.
@@ -192,7 +197,8 @@
     </div>
     <div class="hint" style="margin-bottom:12px;line-height:2">
       <b style="color:#e8f1ff">a.</b> Abre um dos sites abaixo e entra em <b>Image to 3D</b><br>
-      <b style="color:#e8f1ff">b.</b> Sobe o <b>PNG limpo</b> que você baixou no passo 1<br>
+      <b style="color:#e8f1ff">b.</b> Sobe <b>UM</b> PNG limpo — se você recortou uma folha,
+      é o <code>-frente.png</code>. Nunca a folha inteira: ele modelaria os 12 bonecos juntos<br>
       <b style="color:#e8f1ff">c.</b> Espera gerar e <b>baixa em formato GLB</b> (não OBJ, não FBX)<br>
       <b style="color:#e8f1ff">d.</b> Volta aqui e solta o arquivo no passo 3, logo abaixo
     </div>
@@ -534,7 +540,8 @@ async function baixaLote(mapa, molde) {
   }
 }
 $('bBaixaSheet').onclick = () => baixaLote(quadros, (p,n) => p + '-' + n + '.png');
-$('bBaixa3D').onclick   = () => baixaLote(vistas3D, (p,n) => p + '-vista-' + n.replace('-0','') + '.png');
+const PT = { 'down-0':'frente', 'up-0':'costas', 'left-0':'esquerda', 'right-0':'direita' };
+$('bBaixa3D').onclick   = () => baixaLote(vistas3D, (p,n) => p + '-' + (PT[n] || n) + '.png');
 
 // ══════════ 2 · MODELO 3D ══════════
 let glbBlob = null;
