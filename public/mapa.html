@@ -1,0 +1,786 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>CRIAS — Editor do Mapa</title>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<style>
+  :root{--bg:#0b1020;--pan:#141b30;--line:#26314e;--txt:#dce6f5;--dim:#8ab0dd;--acc:#4dc3ff;
+        --col:#ff5a5a;--fre:#ffd54a;--ok:#3ddc84;--orb:#a78bfa}
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--txt);font:13px/1.45 system-ui,sans-serif;overflow:hidden}
+  #app{display:flex;height:100vh}
+  #side{width:250px;background:var(--pan);border-right:1px solid var(--line);display:flex;flex-direction:column;overflow-y:auto}
+  h1{font-size:15px;margin:12px 12px 2px}h1 span{color:var(--acc)}
+  .hint{font-size:11px;color:var(--dim);margin:0 12px 10px;line-height:1.5}
+  .sec{padding:10px 12px;border-top:1px solid var(--line)}
+  .sec h2{font-size:10px;color:var(--dim);text-transform:uppercase;letter-spacing:.09em;margin:0 0 8px}
+  .modo{display:flex;flex-direction:column;gap:6px}
+  .modo button{background:#0d1424;border:1px solid var(--line);color:var(--txt);border-radius:8px;
+    padding:9px;font-size:12px;font-weight:700;cursor:pointer;text-align:left;display:flex;align-items:center;gap:8px}
+  .modo button .dot{width:12px;height:12px;border-radius:3px;flex:0 0 auto}
+  .modo button.on{border-width:2px}
+  .modo button.on[data-m=colisao]{border-color:var(--col);background:rgba(255,90,90,.12)}
+  .modo button.on[data-m=frente]{border-color:var(--fre);background:rgba(255,213,74,.12)}
+  .modo button.on[data-m=orbe]{border-color:var(--orb);background:rgba(167,139,250,.12)}
+  label{font-size:11px;color:var(--dim);display:flex;align-items:center;justify-content:space-between;gap:8px;margin:7px 0}
+  input[type=range]{width:110px}
+  button.act{background:var(--ok);border:0;color:#04121f;border-radius:8px;padding:10px;font-weight:800;font-size:12px;cursor:pointer;width:100%}
+  button.gh{background:transparent;border:1px solid var(--line);color:var(--dim);border-radius:7px;padding:7px;font-size:11px;cursor:pointer;width:100%}
+  .row2{display:flex;gap:6px;margin-top:6px}
+  #stage{flex:1;position:relative;overflow:hidden;background:#070b16;cursor:crosshair}
+  #wrap{position:absolute;transform-origin:0 0}
+  canvas{position:absolute;left:0;top:0}
+  #top{position:absolute;left:10px;top:10px;z-index:9;background:rgba(10,16,32,.92);border:1px solid var(--line);
+    border-radius:9px;padding:7px 12px;display:flex;gap:14px;align-items:center;font-size:11px}
+  #top b{color:var(--acc)}
+  #msg{position:absolute;right:10px;top:10px;z-index:9;background:rgba(10,16,32,.92);border:1px solid var(--line);
+    border-radius:9px;padding:7px 12px;font-size:11px;color:var(--dim);max-width:330px}
+</style>
+</head>
+<body>
+<div id="app">
+  <div id="side">
+    <h1>CRIAS — <span>Mapa</span></h1>
+    <div class="hint">Marque onde o jogador <b>não passa</b>, onde ele <b>some por trás</b> e onde fica o <b>orbe</b>.</div>
+
+    <div class="sec" id="secModos">
+      <h2>O que estou marcando</h2>
+      <div class="modo" id="modos">
+        <button data-m="colisao" class="on"><span class="dot" style="background:var(--col)"></span>Colisão — não passa</button>
+        <button data-m="frente"><span class="dot" style="background:var(--fre)"></span>Passa atrás — some</button>
+        <button data-m="orbe"><span class="dot" style="background:var(--orb)"></span>Posição do orbe</button>
+        <button data-m="pecas"><span class="dot" style="background:var(--ok)"></span>Peças — colocar coisas</button>
+        <button data-m="gerar"><span class="dot" style="background:var(--acc)"></span>Gerar tile novo</button>
+      </div>
+    </div>
+    <div class="sec" id="secPincel">
+      <label>Pincel <input type="range" id="brush" min="1" max="8" value="1"><b id="brushv" style="color:var(--acc)">1</b></label>
+      <div class="hint" style="margin:6px 0 0;padding:0"><b>Clique</b> alterna a célula (marca/apaga) · <b>arrastar</b> sempre marca · <b>Shift</b> apaga.
+      No modo <b>Passa atrás</b> o pincel é fino e redondo: contorne só a forma (ex: o orbe), sem pegar o que está em volta.</div>
+    </div>
+
+    <div class="sec" id="secVer">
+      <h2>Ver</h2>
+      <label>Grade <input type="checkbox" id="grade" checked></label>
+      <label>Marcações <input type="range" id="opac" min="10" max="90" value="45"></label>
+      <div class="row2"><button class="gh" id="fit">🔍 Ver tudo</button><button class="gh" id="auto">✨ Auto-colisão</button></div>
+      <div class="row2"><button class="gh" id="undo">↶ Desfazer</button><button class="gh" id="limpa">🧹 Limpar</button></div>
+      <div class="row2"><button class="gh" id="recarrega">↻ recarregar colisão do jogo</button></div>
+      <div class="row2"><button class="gh" id="extrai">✂ extrair marcado como peça</button></div>
+    </div>
+
+    <div class="sec" id="secPecas" style="display:none">
+      <h2>Peças</h2>
+      <div id="pal" style="display:grid;grid-template-columns:repeat(2,1fr);gap:6px;max-height:260px;overflow-y:auto"></div>
+      <div class="row2"><button class="gh" id="up">+ enviar tiles</button></div>
+      <input type="file" id="file" accept="image/*" multiple hidden>
+      <label>Tamanho <input type="range" id="tam" min="20" max="1200" value="100"><b id="tamv" style="color:var(--ok)">100%</b></label>
+      <div class="row2">
+        <button class="gh" id="dup">⧉ duplicar (Ctrl+D)</button>
+        <button class="gh" id="apagaP">🗑 apagar (Del)</button>
+      </div>
+      <div class="row2">
+        <button class="gh" id="apara">✂ aparar bordas</button>
+        <button class="gh" id="recorta">✂ recortar parte</button>
+      </div>
+      <div class="hint" style="margin:0;padding:0">Clique coloca · clique na peça seleciona · arrasta move · alças redimensionam e giram.<br>
+      <b>Ctrl+D</b> duplica · <b>Ctrl+C/V</b> copia · <b>Del</b> apaga · <b>F</b> manda pra frente do jogador</div>
+    </div>
+
+    <div class="sec" id="secGerar" style="display:none">
+      <h2>Gerar tile</h2>
+      <div class="hint" style="margin:0 0 8px;padding:0">Arraste sobre o mapa para marcar o que quer recriar.</div>
+      <div style="height:120px;display:flex;align-items:center;justify-content:center;background:#070b16;border:1px solid var(--line);border-radius:8px;overflow:hidden">
+        <canvas id="gprev" width="180" height="120" style="max-width:100%;max-height:100%;pointer-events:none"></canvas>
+      </div>
+      <div id="gtipos" style="display:grid;grid-template-columns:repeat(3,1fr);gap:5px;margin-top:8px"></div>
+      <input id="gnome" placeholder="nome (ex: arvore-3)" style="width:100%;margin-top:6px;background:#0d1424;border:1px solid var(--line);color:var(--txt);border-radius:6px;padding:6px;font-size:11px">
+      <div class="hint" id="ginfo" style="margin:6px 0;padding:0">—</div>
+      <button class="gh" id="gcopy">📋 copiar prompt</button>
+      <button class="gh" id="gdown" style="margin-top:5px">⬇ baixar recorte</button>
+    </div>
+
+    <div class="sec" id="secOrbe">
+      <h2>Orbe</h2>
+      <label>Tamanho <input type="range" id="orbT" min="1" max="30" value="9"><b id="orbTv" style="color:var(--orb)">9</b></label>
+      <button class="gh" id="orbIr" style="margin-top:6px">🎯 ir até o orbe</button>
+      <button class="gh" id="orbAuto" style="margin-top:5px">✨ marcar passa-atrás do orbe</button>
+      <div class="hint" style="margin:6px 0 0;padding:0">Marca automaticamente a silhueta do orbe (só onde ele é opaco).</div>
+    </div>
+
+    <div class="sec">
+      <button class="act" id="pub">🚀 Publicar no jogo</button>
+      <div class="row2"><button class="gh" id="bkp">💾 Backup</button><button class="gh" id="rest">♻ Restaurar</button></div>
+      <input type="file" id="bkpF" accept=".json" hidden>
+      <div style="font-size:9px;color:var(--ok);text-align:center;margin-top:6px" id="auto2">salvando automaticamente</div>
+    </div>
+  </div>
+
+  <div id="stage">
+    <div id="top"><b id="modoAtual">Colisão</b><span id="pos">—</span><span id="stats"></span></div>
+    <div id="msg">Arraste para marcar. O mapa já vem com a colisão atual do jogo.</div>
+    <div id="wrap">
+      <canvas id="cMapa"></canvas>
+      <canvas id="cMarca"></canvas>
+    </div>
+  </div>
+</div>
+<script>
+const N=48, TP=40, $=i=>document.getElementById(i);
+const st = {
+  colisao: Array.from({length:N},()=>Array(N).fill(0)),
+  // passa-atrás em resolução fina (4x): permite acompanhar o contorno real
+  // do orbe/telhado em vez de apagar o tile quadrado inteiro
+  frente:  Array.from({length:N*4},()=>Array(N*4).fill(0)),
+  orbe: {x:23.5, y:21.5, tam:9},
+  modo:'colisao', brush:1, zoom:1, panX:0, panY:0,
+  pecas: [],          // {t,x,y,s,rot,frente}
+  sel: null,          // índice da peça selecionada
+  tile: null,         // tile escolhido na paleta
+};
+const UP = {};        // nome -> dataURL dos tiles enviados
+const IMGS = {};
+function img(n){ if(!IMGS[n]){ const i=new Image(); i.src=UP[n]||('/map-kit/'+n); i.onload=desenhaMarcas; IMGS[n]=i; } return IMGS[n]; }
+const cM=$('cMapa'), cK=$('cMarca');
+[cM,cK].forEach(c=>{c.width=N*TP;c.height=N*TP;});
+const gM=cM.getContext('2d'), gK=cK.getContext('2d');
+$('wrap').style.width=$('wrap').style.height=(N*TP)+'px';
+
+const mapa=new Image(); mapa.onload=()=>{ gM.drawImage(mapa,0,0,N*TP,N*TP); }; mapa.src='/mapa-oficial.jpg?t='+Date.now();
+const orbeImg=new Image(); orbeImg.onload=desenhaMarcas; orbeImg.src='/orbe.png';
+
+// colisão original do jogo (usada no primeiro acesso e pelo botão de recarregar)
+let COL_JOGO = null;
+function buscaColisaoJogo(){
+  return fetch('/game.html').then(r=>r.text()).then(t=>{
+    const m=t.match(/const COLLISION = \[([\s\S]*?)\];/);
+    if(!m) return null;
+    const linhas=m[1].match(/\[([\d,\s]+)\]/g)||[];
+    if(linhas.length!==N) return null;
+    COL_JOGO = linhas.map(l=>l.replace(/[\[\]]/g,'').split(',').map(v=>+v?1:0));
+    return COL_JOGO;
+  }).catch(()=>null);
+}
+buscaColisaoJogo().then(col=>{
+  const salvo = localStorage.getItem('crias_mapa');
+  if(col && !salvo){
+    st.colisao = col.map(l=>[...l]);
+    msg('colisão atual do jogo carregada — ajuste o que precisar');
+  }
+  carregar(); desenhaMarcas();
+});
+// Recorta do mapa tudo que está marcado de amarelo, remove o chão em volta
+// e devolve como TILE transparente — vira peça da camada 2.
+$('extrai').onclick=()=>{
+  if(!(mapa.complete&&mapa.naturalWidth)) return msg('mapa ainda carregando');
+  const F=N*4;
+  let x0=F,y0=F,x1=-1,y1=-1;
+  for(let y=0;y<F;y++){ const ln=st.frente[y]; if(!ln) continue;
+    for(let x=0;x<F;x++) if(ln[x]){ if(x<x0)x0=x; if(x>x1)x1=x; if(y<y0)y0=y; if(y>y1)y1=y; } }
+  if(x1<0) return msg('marque algo de amarelo primeiro');
+  const w=x1-x0+1, h=y1-y0+1;
+  const esc=Math.min(4, 900/Math.max(w,h));            // resolução do recorte
+  const cw=Math.round(w*esc), ch=Math.round(h*esc);
+  const c=document.createElement('canvas'); c.width=cw; c.height=ch;
+  const g=c.getContext('2d');
+  g.drawImage(mapa, x0/F*mapa.width, y0/F*mapa.height, w/F*mapa.width, h/F*mapa.height, 0,0,cw,ch);
+  try{
+    const d=g.getImageData(0,0,cw,ch), px=d.data;
+    // chão = média dos pixels não marcados na borda da região
+    let sr=0,sg=0,sb=0,n=0;
+    for(let y=y0;y<=y1;y++) for(let x=x0;x<=x1;x++){
+      const ln=st.frente[y]; if(!ln||ln[x]) continue;
+      const viz = (st.frente[y][x-1]||st.frente[y][x+1]||(st.frente[y-1]&&st.frente[y-1][x])||(st.frente[y+1]&&st.frente[y+1][x]));
+      if(!viz) continue;
+      const cx=Math.round((x-x0)*esc), cy=Math.round((y-y0)*esc);
+      if(cx<0||cy<0||cx>=cw||cy>=ch) continue;
+      const k=(cy*cw+cx)*4; sr+=px[k]; sg+=px[k+1]; sb+=px[k+2]; n++;
+    }
+    const gr=n?sr/n:0, gg=n?sg/n:0, gb=n?sb/n:0;
+    for(let cy=0;cy<ch;cy++) for(let cx=0;cx<cw;cx++){
+      const mx=Math.floor(x0+cx/esc), my=Math.floor(y0+cy/esc);
+      const k=(cy*cw+cx)*4;
+      const dentro = st.frente[my] && st.frente[my][mx];
+      if(!dentro){ px[k+3]=0; continue; }              // fora da marcação: transparente
+      const dist=Math.abs(px[k]-gr)+Math.abs(px[k+1]-gg)+Math.abs(px[k+2]-gb);
+      if(n && dist < 46) px[k+3]=0;                     // parecido com o chão: some
+    }
+    g.putImageData(d,0,0);
+  }catch(e){ return msg('não consegui recortar: '+e.message); }
+  const nome='up-recorte-'+Date.now().toString(36)+'.png';
+  UP[nome]=c.toDataURL('image/png');
+  // já entra como peça na camada da frente, no lugar de onde foi recortada
+  snap();
+  st.pecas.push({ t:nome, x:(x0+x1)/2/4, y:(y0+y1)/2/4, s:h/4, rot:0, frente:true });
+  st.sel=st.pecas.length-1;
+  paleta(); desenhaMarcas(); salvar();
+  msg('peça extraída do mapa ('+cw+'x'+ch+') e posta na camada da frente');
+};
+
+$('recarrega').onclick=async()=>{
+  const col = COL_JOGO || await buscaColisaoJogo();
+  if(!col) return msg('não consegui ler a colisão do jogo');
+  snap();
+  st.colisao = col.map(l=>[...l]);
+  desenhaMarcas(); salvar();
+  msg('colisão do jogo recarregada ('+st.colisao.flat().filter(Boolean).length+' células)');
+};
+
+function msg(t){ $('msg').textContent=t; }
+function desenhaMarcas(){
+  gK.clearRect(0,0,N*TP,N*TP);
+  const a=+$('opac').value/100;
+  gK.globalAlpha=a;
+  gK.fillStyle='#ff3b3b';
+  for(let y=0;y<N;y++)for(let x=0;x<N;x++) if(st.colisao[y][x]) gK.fillRect(x*TP,y*TP,TP,TP);
+  gK.fillStyle='#ffd54a';
+  const F=N*4, sub=TP/4;
+  for(let y=0;y<F;y++)for(let x=0;x<F;x++) if(st.frente[y][x]) gK.fillRect(x*sub,y*sub,sub,sub);
+  gK.globalAlpha=1;
+  // peças colocadas (atrás e na frente marcadas por cor)
+  st.pecas.forEach((p,i)=>{
+    const im=img(p.t); if(!(im.complete&&im.naturalWidth)) return;
+    const h=p.s*TP, w=h*(im.naturalWidth/im.naturalHeight);
+    gK.save();
+    gK.translate(p.x*TP, p.y*TP);
+    if(p.rot) gK.rotate(p.rot*Math.PI/180);
+    gK.drawImage(im,-w/2,-h/2,w,h);
+    gK.restore();
+    if(st.sel===i){
+      gK.strokeStyle=p.frente?'#ffd54a':'#39e08a'; gK.lineWidth=2; gK.setLineDash([5,3]);
+      gK.strokeRect(p.x*TP-w/2, p.y*TP-h/2, w, h); gK.setLineDash([]);
+      const s2=Math.max(9,13/st.zoom);
+      gK.fillStyle='#ffd54a'; gK.fillRect(p.x*TP+w/2-s2/2, p.y*TP+h/2-s2/2, s2, s2);
+      gK.fillStyle='#a78bfa'; gK.beginPath();
+      gK.arc(p.x*TP, p.y*TP-h/2-Math.max(16,20/st.zoom), s2*0.6, 0, 6.283); gK.fill();
+    }
+  });
+
+  // orbe
+  const o=st.orbe, w=o.tam*TP, h=o.tam*TP;
+  if(orbeImg.complete&&orbeImg.naturalWidth){
+    gK.globalAlpha=.9;
+    const hh=h, ww=hh*(orbeImg.naturalWidth/orbeImg.naturalHeight);
+    gK.save();
+    gK.translate(o.x*TP, o.y*TP);
+    if(o.rot) gK.rotate(o.rot*Math.PI/180);
+    gK.drawImage(orbeImg, -ww/2, -hh/2, ww, hh);
+    gK.restore();
+    gK.globalAlpha=1;
+  }
+  // caixa e alças do orbe (só no modo Orbe, para não poluir os outros)
+  if(st.modo==='orbe'){
+    const ow=(orbeImg.complete&&orbeImg.naturalWidth)
+      ? h*(orbeImg.naturalWidth/orbeImg.naturalHeight) : w;
+    const bx=o.x*TP-ow/2, by=o.y*TP-h/2;
+    gK.strokeStyle='#a78bfa'; gK.lineWidth=2; gK.setLineDash([6,4]);
+    gK.strokeRect(bx, by, ow, h); gK.setLineDash([]);
+    const s2=Math.max(10,14/st.zoom);
+    // alça de tamanho (canto inferior direito)
+    gK.fillStyle='#ffd54a'; gK.fillRect(bx+ow-s2/2, by+h-s2/2, s2, s2);
+    gK.strokeStyle='#20180a'; gK.lineWidth=1.5; gK.strokeRect(bx+ow-s2/2, by+h-s2/2, s2, s2);
+    // alça de girar (acima)
+    const gy=by-Math.max(20,26/st.zoom);
+    gK.strokeStyle='#a78bfa'; gK.lineWidth=2; gK.setLineDash([3,3]);
+    gK.beginPath(); gK.moveTo(o.x*TP, by); gK.lineTo(o.x*TP, gy); gK.stroke(); gK.setLineDash([]);
+    gK.fillStyle='#a78bfa'; gK.beginPath(); gK.arc(o.x*TP, gy, s2*0.6, 0, 6.283); gK.fill();
+  }
+  if($('grade').checked){
+    gK.strokeStyle='rgba(255,255,255,.10)'; gK.lineWidth=1;
+    for(let i=0;i<=N;i++){
+      gK.beginPath();gK.moveTo(i*TP,0);gK.lineTo(i*TP,N*TP);gK.stroke();
+      gK.beginPath();gK.moveTo(0,i*TP);gK.lineTo(N*TP,i*TP);gK.stroke();
+    }
+  }
+  const nc=st.colisao.flat().filter(Boolean).length;
+  const nf=st.frente.flat().filter(Boolean).length;
+  $('stats').textContent = `${nc} bloqueados · ${Math.round(nf/16)} tiles de passa-atrás`;
+}
+$('grade').onchange=$('opac').oninput=desenhaMarcas;
+$('brush').oninput=e=>{st.brush=+e.target.value;$('brushv').textContent=e.target.value;};
+$('orbT').oninput=e=>{st.orbe.tam=+e.target.value;$('orbTv').textContent=e.target.value;desenhaMarcas();salvar();};
+
+document.querySelectorAll('#modos button').forEach(b=>b.onclick=()=>{
+  document.querySelectorAll('#modos button').forEach(x=>x.classList.remove('on'));
+  b.classList.add('on'); st.modo=b.dataset.m;
+  $('modoAtual').textContent = {colisao:'Colisão',frente:'Passa atrás',orbe:'Orbe',pecas:'Peças',gerar:'Gerar tile'}[st.modo];
+  $('secPecas').style.display = st.modo==='pecas' ? '' : 'none';
+  $('secGerar').style.display = st.modo==='gerar' ? '' : 'none';
+  $('secOrbe').style.display  = st.modo==='orbe'  ? '' : 'none';
+  // pincel e ferramentas de mapa só fazem sentido ao marcar
+  $('secPincel').style.display = (st.modo==='colisao'||st.modo==='frente') ? '' : 'none';
+  $('secVer').style.display    = (st.modo==='pecas'||st.modo==='gerar') ? 'none' : '';
+  // leva o painel até a seção do modo escolhido
+  const alvo = {pecas:'secPecas', gerar:'secGerar', orbe:'secOrbe'}[st.modo];
+  if(alvo) setTimeout(()=>$(alvo).scrollIntoView({block:'nearest', behavior:'smooth'}), 60);
+  if(st.modo!=='pecas'){ st.sel=null; desenhaMarcas(); }
+  msg(st.modo==='orbe' ? 'clique para posicionar o orbe' : 'clique/arraste para marcar · Shift apaga');
+});
+
+// histórico
+const HIST=[];
+function snap(){ HIST.push(JSON.stringify({c:st.colisao,f:st.frente,o:st.orbe})); if(HIST.length>40)HIST.shift(); }
+$('undo').onclick=()=>{ if(!HIST.length) return msg('nada para desfazer');
+  const j=JSON.parse(HIST.pop());
+  if(j.c) st.colisao=j.c;
+  if(Array.isArray(j.f) && j.f.length===N*4) st.frente=j.f;
+  if(j.o) st.orbe=j.o;
+  desenhaMarcas(); salvar(); };
+$('limpa').onclick=()=>{ if(!confirm('Apagar todas as marcações?'))return; snap();
+  for(let y=0;y<N;y++)for(let x=0;x<N;x++) st.colisao[y][x]=0;
+  for(let y=0;y<N*4;y++)for(let x=0;x<N*4;x++) st.frente[y][x]=0; desenhaMarcas(); salvar(); };
+
+// auto-colisão pelas cores do mapa (água, rocha, construções)
+$('auto').onclick=()=>{
+  snap();
+  const c=document.createElement('canvas'); c.width=c.height=N;
+  const g=c.getContext('2d'); g.drawImage(mapa,0,0,N,N);
+  const d=g.getImageData(0,0,N,N).data; let n=0;
+  for(let y=0;y<N;y++)for(let x=0;x<N;x++){
+    const i=(y*N+x)*4, r=d[i],gg=d[i+1],b=d[i+2];
+    const agua = b>70 && b>r*1.4 && b>gg*1.1;
+    const rocha = r>g && r<95 && (r-b)>15;
+    const escuro = (r+gg+b) < 120;
+    if(agua||rocha||escuro){ st.colisao[y][x]=1; n++; }
+  }
+  desenhaMarcas(); salvar(); msg('auto-colisão sugeriu '+n+' células (ajuste o que quiser)');
+};
+
+// pintura
+let pintando=false, arrastando=false, lx=0,ly=0;
+const stage=$('stage'), wrap=$('wrap');
+function T(){ wrap.style.transform=`translate(${st.panX}px,${st.panY}px) scale(${st.zoom})`; }
+function tile(ev){ const r=wrap.getBoundingClientRect();
+  return [ (ev.clientX-r.left)/(TP*st.zoom), (ev.clientY-r.top)/(TP*st.zoom) ]; }
+function pecaEm(fx,fy){
+  for(let i=st.pecas.length-1;i>=0;i--){
+    const p=st.pecas[i], im=img(p.t); if(!(im.complete&&im.naturalWidth)) continue;
+    const h=p.s, w=h*(im.naturalWidth/im.naturalHeight);
+    if(fx>=p.x-w/2 && fx<=p.x+w/2 && fy>=p.y-h/2 && fy<=p.y+h/2) return i;
+  }
+  return -1;
+}
+function alcaPeca(fx,fy){
+  if(st.sel==null) return null;
+  const p=st.pecas[st.sel], im=img(p.t); if(!(im.complete&&im.naturalWidth)) return null;
+  const h=p.s, w=h*(im.naturalWidth/im.naturalHeight), r=0.45;
+  if(Math.hypot(fx-(p.x+w/2), fy-(p.y+h/2))<r) return 'tam';
+  if(Math.hypot(fx-p.x, fy-(p.y-h/2-0.5))<r) return 'girar';
+  return null;
+}
+function marca(fx,fy,apagar){
+  if(st.modo==='orbe'){ st.orbe.x=fx; st.orbe.y=fy; desenhaMarcas(); return; }
+  if(st.modo==='frente'){
+    // pincel redondo em resolução fina (4 sub-células por tile)
+    const F=N*4, cx=fx*4, cy=fy*4, r=st.brush*0.7;
+    for(let dy=-Math.ceil(r);dy<=Math.ceil(r);dy++)
+      for(let dx=-Math.ceil(r);dx<=Math.ceil(r);dx++){
+        if(dx*dx+dy*dy > r*r) continue;
+        const X=Math.floor(cx+dx), Y=Math.floor(cy+dy);
+        if(X>=0&&Y>=0&&X<F&&Y<F) st.frente[Y][X]= apagar?0:1;
+      }
+    desenhaMarcas(); return;
+  }
+  // pincel redondo: tamanho 1 marca exatamente a célula sob o cursor
+  const x=Math.floor(fx), y=Math.floor(fy), r=(st.brush-1)/2;
+  const R=Math.ceil(r);
+  for(let dy=-R;dy<=R;dy++)for(let dx=-R;dx<=R;dx++){
+    if(dx*dx+dy*dy > r*r + 0.3) continue;
+    const X=x+dx, Y=y+dy;
+    if(X>=0&&Y>=0&&X<N&&Y<N) st.colisao[Y][X]= apagar?0:1;
+  }
+  desenhaMarcas();
+}
+let movP=false, escP=null, base=null, apagandoTraco=false, cliqueSimples=null;
+stage.addEventListener('mousedown',e=>{
+  if(e.button===1||e.altKey){ arrastando=true; lx=e.clientX; ly=e.clientY; return; }
+  const [fx,fy]=tile(e);
+  if(fx<0||fy<0||fx>=N||fy>=N){ arrastando=true; lx=e.clientX; ly=e.clientY; return; }
+
+  if(st.modo==='gerar'){ selA=[fx,fy]; selB=[fx,fy]; pintando=true; return; }
+
+  if(st.modo==='orbe'){
+    const o=st.orbe;
+    const h=o.tam, ow=(orbeImg.complete&&orbeImg.naturalWidth)
+      ? h*(orbeImg.naturalWidth/orbeImg.naturalHeight) : h;
+    const bx=o.x-ow/2, by=o.y-h/2, r=0.6;
+    if(Math.hypot(fx-(bx+ow), fy-(by+h))<r){          // alça de tamanho
+      snap(); escP='orbeTam'; base={fx,fy,s:o.tam}; return;
+    }
+    if(Math.hypot(fx-o.x, fy-(by-0.6))<r){            // alça de girar
+      snap(); escP='orbeRot'; base={fx,fy,rot:o.rot||0}; return;
+    }
+    snap(); movP='orbe'; base={fx,fy,px:o.x,py:o.y}; return;
+  }
+
+  if(st.modo==='pecas' && recortando){
+    recA=[fx,fy]; recB=[fx,fy]; pintando=true; return;
+  }
+  if(st.modo==='pecas'){
+    const a=alcaPeca(fx,fy);
+    if(a){ snap(); escP=a; const p=st.pecas[st.sel];
+      base={fx,fy,s:p.s,rot:p.rot||0}; return; }
+    const i=pecaEm(fx,fy);
+    if(i>=0){ snap(); st.sel=i; movP=true; const p=st.pecas[i];
+      base={fx,fy,px:p.x,py:p.y}; desenhaMarcas(); return; }
+    if(st.tile){ snap();
+      st.pecas.push({t:st.tile, x:fx, y:fy, s:(+$('tam').value)/100*3, rot:0, frente:false});
+      st.sel=st.pecas.length-1; desenhaMarcas(); salvar(); return; }
+    st.sel=null; desenhaMarcas(); return;
+  }
+
+  // Alternar vale só para o CLIQUE parado: ao arrastar, sempre marca.
+  // (Com o mapa quase todo marcado, um arrasto iniciado sobre célula marcada
+  // apagava áreas inteiras sem querer.)
+  const jaMarcado = st.modo==='colisao'
+    ? !!(st.colisao[Math.floor(fy)] && st.colisao[Math.floor(fy)][Math.floor(fx)])
+    : !!(st.frente[Math.floor(fy*4)] && st.frente[Math.floor(fy*4)][Math.floor(fx*4)]);
+  apagandoTraco = e.shiftKey;
+  cliqueSimples = { fx, fy, jaMarcado, arrastou:false };
+  snap(); pintando=true;
+  if(e.shiftKey) marca(fx,fy,true);
+});
+window.addEventListener('mousemove',e=>{
+  if(arrastando){ st.panX+=e.clientX-lx; st.panY+=e.clientY-ly; lx=e.clientX; ly=e.clientY; T(); return; }
+  const [fx,fy]=tile(e);
+  $('pos').textContent=(fx>=0&&fy>=0&&fx<N&&fy<N)?`${Math.floor(fx)}, ${Math.floor(fy)}`:'—';
+  if(movP==='orbe'&&base){
+    st.orbe.x=base.px+(fx-base.fx); st.orbe.y=base.py+(fy-base.fy);
+    desenhaMarcas(); return;
+  }
+  if(escP==='orbeTam'&&base){
+    st.orbe.tam=Math.max(1, Math.min(30, base.s + ((fx-base.fx)+(fy-base.fy))/2));
+    $('orbT').value=Math.round(st.orbe.tam); $('orbTv').textContent=Math.round(st.orbe.tam);
+    desenhaMarcas(); return;
+  }
+  if(escP==='orbeRot'&&base){
+    st.orbe.rot=Math.round(Math.atan2(fy-st.orbe.y, fx-st.orbe.x)*180/Math.PI+90);
+    desenhaMarcas(); return;
+  }
+  if(movP&&st.sel!=null&&base){ const p=st.pecas[st.sel];
+    p.x=base.px+(fx-base.fx); p.y=base.py+(fy-base.fy); desenhaMarcas(); return; }
+  if(escP&&st.sel!=null&&base){ const p=st.pecas[st.sel];
+    if(escP==='tam') p.s=Math.max(.3, base.s + ((fx-base.fx)+(fy-base.fy))/2);
+    else { p.rot=Math.round(Math.atan2(fy-p.y, fx-p.x)*180/Math.PI+90); }
+    desenhaMarcas(); return; }
+  if(pintando&&recortando){ recB=[fx,fy]; desenhaMarcas();
+    gK.strokeStyle='#4dc3ff'; gK.lineWidth=2; gK.setLineDash([5,4]);
+    gK.strokeRect(Math.min(recA[0],recB[0])*TP, Math.min(recA[1],recB[1])*TP,
+      Math.abs(recB[0]-recA[0])*TP, Math.abs(recB[1]-recA[1])*TP);
+    gK.setLineDash([]); return; }
+  if(pintando&&st.modo==='gerar'){ selB=[fx,fy]; desenhaSel(); return; }
+  if(pintando&&fx>=0&&fy>=0&&fx<N&&fy<N){
+    if(cliqueSimples){
+      const dist=Math.hypot(fx-cliqueSimples.fx, fy-cliqueSimples.fy);
+      if(dist>0.35) cliqueSimples.arrastou=true;   // virou traço: sempre marca
+    }
+    marca(fx,fy,apagandoTraco);
+  }
+});
+window.addEventListener('mouseup',()=>{
+  // clique parado sobre célula marcada = apaga aquela célula (alternar)
+  if(pintando && cliqueSimples && !cliqueSimples.arrastou && !apagandoTraco){
+    marca(cliqueSimples.fx, cliqueSimples.fy, cliqueSimples.jaMarcado);
+  }
+  cliqueSimples=null;
+  if(pintando&&recortando){ aplicaRecorte(); }
+  if(pintando&&st.modo==='gerar') atualizaCrop();
+  if(pintando||movP||escP) salvar();
+  pintando=false;arrastando=false;movP=false;escP=null;base=null;
+});
+window.addEventListener('keydown',e=>{
+  if((e.ctrlKey||e.metaKey) && st.modo==='pecas'){
+    const k=e.key.toLowerCase();
+    if(k==='c'){ e.preventDefault(); copiarPeca(); return; }
+    if(k==='v'){ e.preventDefault(); colarPeca(); return; }
+    if(k==='d'){ e.preventDefault(); if(st.sel!=null){ copiarPeca(); colarPeca(); } return; }
+  }
+  if(e.key==='Escape'&&recortando){ recortando=false; recA=recB=null; desenhaMarcas(); msg('recorte cancelado'); return; }
+  if(st.modo==='pecas'&&st.sel!=null){
+    if(e.key==='Delete'){ snap(); st.pecas.splice(st.sel,1); st.sel=null; desenhaMarcas(); salvar(); return; }
+    if(e.key==='f'||e.key==='F'){ snap(); const p=st.pecas[st.sel]; p.frente=!p.frente;
+      desenhaMarcas(); salvar(); msg(p.frente?'peça COBRE o jogador':'peça fica atrás do jogador'); return; }
+    if(e.key==='Escape'){ st.sel=null; desenhaMarcas(); return; }
+  }
+  if(st.modo==='orbe'){
+    const p=.25;
+    if(e.key==='ArrowLeft'){ st.orbe.x-=p; desenhaMarcas(); salvar(); e.preventDefault(); }
+    if(e.key==='ArrowRight'){ st.orbe.x+=p; desenhaMarcas(); salvar(); e.preventDefault(); }
+    if(e.key==='ArrowUp'){ st.orbe.y-=p; desenhaMarcas(); salvar(); e.preventDefault(); }
+    if(e.key==='ArrowDown'){ st.orbe.y+=p; desenhaMarcas(); salvar(); e.preventDefault(); }
+  }
+});
+stage.addEventListener('wheel',e=>{
+  e.preventDefault();
+  const f=e.deltaY<0?1.12:1/1.12, z=Math.min(5,Math.max(.2,st.zoom*f));
+  const r=wrap.getBoundingClientRect();
+  st.panX-=(e.clientX-r.left)*(z/st.zoom-1); st.panY-=(e.clientY-r.top)*(z/st.zoom-1);
+  st.zoom=z; T();
+},{passive:false});
+function verTudo(){ const r=stage.getBoundingClientRect();
+  st.zoom=Math.min(r.width,r.height)/(N*TP)*.96;
+  st.panX=(r.width-N*TP*st.zoom)/2; st.panY=(r.height-N*TP*st.zoom)/2; T(); }
+$('fit').onclick=verTudo;
+
+// salvar / publicar
+let _t=null;
+function salvar(){ clearTimeout(_t); _t=setTimeout(()=>{
+  try{ localStorage.setItem('crias_mapa', JSON.stringify({c:st.colisao,f:st.frente,o:st.orbe,p:st.pecas,u:UP}));
+    $('auto2').textContent='salvo '+new Date().toLocaleTimeString('pt-BR').slice(0,5);
+  }catch(e){ msg('não consegui salvar — use o Backup'); } },600); }
+function carregar(){ const d=localStorage.getItem('crias_mapa'); if(!d)return;
+  try{
+    const j=JSON.parse(d);
+    if(Array.isArray(j.c) && j.c.length===N) st.colisao=j.c;
+    // marcação antiga era 48x48; agora é 192x192 (4x) — converte para não
+    // quebrar o desenho ao abrir um save anterior
+    if(Array.isArray(j.f) && j.f.length===N*4) st.frente=j.f;
+    else if(Array.isArray(j.f) && j.f.length===N){
+      for(let y=0;y<N;y++) for(let x=0;x<N;x++) if(j.f[y][x])
+        for(let dy=0;dy<4;dy++) for(let dx=0;dx<4;dx++) st.frente[y*4+dy][x*4+dx]=1;
+    }
+    if(j.o)st.orbe=j.o;
+    if(Array.isArray(j.p)) st.pecas=j.p;
+    Object.assign(UP, j.u||{});
+    $('orbT').value=st.orbe.tam; $('orbTv').textContent=st.orbe.tam;
+  }catch(e){ console.warn('save antigo ignorado', e); } }
+
+const SB='https://gmycqvvvglexbtbqkjzi.supabase.co', KEY='sb_publishable_N4DdqinjzjnMBWsik5qj2A_ksPBX9Av';
+let sb=null;
+$('pub').onclick=async()=>{
+  try{
+    sb = sb || window.supabase.createClient(SB,KEY);
+    msg('publicando…');
+    const dados = JSON.stringify({colisao:st.colisao, frente:st.frente, orbe:st.orbe,
+      pecas:st.pecas, tiles:UP});
+    const r = await sb.storage.from('mapas').upload('mapa-config.json', new Blob([dados],{type:'application/json'}),
+      {upsert:true, contentType:'application/json', cacheControl:'0'});
+    if(r.error) throw r.error;
+    msg('✅ publicado! Abra o jogo e recarregue.');
+  }catch(e){ msg('erro: '+(e.message||e)); }
+};
+$('orbIr').onclick=()=>{
+  const r=stage.getBoundingClientRect();
+  st.zoom=1.2;
+  st.panX=r.width/2 - st.orbe.x*TP*st.zoom;
+  st.panY=r.height/2 - st.orbe.y*TP*st.zoom;
+  T(); msg('orbe em '+st.orbe.x.toFixed(1)+', '+st.orbe.y.toFixed(1));
+};
+$('orbAuto').onclick=()=>{
+  if(!(orbeImg.complete&&orbeImg.naturalWidth)) return msg('orbe ainda carregando');
+  snap();
+  const o=st.orbe, F=N*4;
+  const oh=o.tam, ow=oh*(orbeImg.naturalWidth/orbeImg.naturalHeight);
+  const c=document.createElement('canvas'); c.width=Math.round(ow*4); c.height=Math.round(oh*4);
+  const g=c.getContext('2d'); g.drawImage(orbeImg,0,0,c.width,c.height);
+  const d=g.getImageData(0,0,c.width,c.height).data; let n=0;
+  const x0=Math.round((o.x-ow/2)*4), y0=Math.round((o.y-oh/2)*4);
+  for(let yy=0; yy<c.height; yy++) for(let xx=0; xx<c.width; xx++){
+    if(d[(yy*c.width+xx)*4+3] < 60) continue;
+    if(yy > c.height*0.62) continue;          // só a metade de cima cobre o jogador
+    const X=x0+xx, Y=y0+yy;
+    if(X>=0&&Y>=0&&X<F&&Y<F){ st.frente[Y][X]=1; n++; }
+  }
+  desenhaMarcas(); salvar(); msg('silhueta do orbe marcada ('+Math.round(n/16)+' tiles)');
+};
+$('bkp').onclick=()=>{
+  const b=new Blob([JSON.stringify({colisao:st.colisao,frente:st.frente,orbe:st.orbe})],{type:'application/json'});
+  const a=document.createElement('a'); a.href=URL.createObjectURL(b);
+  a.download='crias-mapa-'+new Date().toISOString().slice(0,10)+'.json'; a.click();
+  msg('backup baixado');
+};
+$('rest').onclick=()=>$('bkpF').click();
+$('bkpF').onchange=e=>{ const f=e.target.files[0]; if(!f)return;
+  const r=new FileReader(); r.onload=()=>{ try{ const j=JSON.parse(r.result);
+    snap();
+    if(j.colisao) st.colisao=j.colisao;
+    if(Array.isArray(j.frente) && j.frente.length===N*4) st.frente=j.frente;
+    else if(Array.isArray(j.frente) && j.frente.length===N){
+      for(let y=0;y<N;y++) for(let x=0;x<N;x++) if(j.frente[y][x])
+        for(let dy=0;dy<4;dy++) for(let dx=0;dx<4;dx++) st.frente[y*4+dy][x*4+dx]=1;
+    }
+    if(j.orbe)st.orbe=j.orbe;
+    if(Array.isArray(j.pecas)) st.pecas=j.pecas;
+    desenhaMarcas(); salvar(); msg('backup restaurado'); }catch(err){ msg('arquivo inválido'); } };
+  r.readAsText(f); };
+
+// ── COPIAR / DUPLICAR / CORTAR peças ───────────────────────────────────
+let copiada = null;
+function copiarPeca(){
+  if(st.sel==null) return msg('selecione uma peça primeiro');
+  copiada = {...st.pecas[st.sel]};
+  msg('copiado: '+copiada.t+' — Ctrl+V cola com o mesmo tamanho');
+}
+function colarPeca(dx=1.5, dy=0){
+  if(!copiada) return msg('nada copiado (Ctrl+C numa peça)');
+  snap();
+  st.pecas.push({...copiada, x:copiada.x+dx, y:copiada.y+dy});
+  st.sel=st.pecas.length-1;
+  desenhaMarcas(); salvar(); msg('peça duplicada');
+}
+$('dup').onclick=()=>{ if(st.sel==null) return msg('selecione uma peça'); copiarPeca(); colarPeca(); };
+$('apagaP').onclick=()=>{ if(st.sel==null) return msg('selecione uma peça');
+  snap(); st.pecas.splice(st.sel,1); st.sel=null; desenhaMarcas(); salvar(); msg('peça apagada'); };
+
+// apara as bordas transparentes do tile (sobra de fundo em volta do desenho)
+$('apara').onclick=()=>{
+  if(st.sel==null) return msg('selecione uma peça');
+  const p=st.pecas[st.sel], im=img(p.t);
+  if(!(im.complete&&im.naturalWidth)) return msg('imagem ainda carregando');
+  const c=document.createElement('canvas'); c.width=im.naturalWidth; c.height=im.naturalHeight;
+  const g=c.getContext('2d'); g.drawImage(im,0,0);
+  try{
+    const d=g.getImageData(0,0,c.width,c.height).data;
+    let x0=c.width,y0=c.height,x1=-1,y1=-1;
+    for(let y=0;y<c.height;y++)for(let x=0;x<c.width;x++){
+      if(d[(y*c.width+x)*4+3]>25){ if(x<x0)x0=x; if(x>x1)x1=x; if(y<y0)y0=y; if(y>y1)y1=y; }
+    }
+    if(x1<0) return msg('imagem vazia');
+    const w=x1-x0+1, h=y1-y0+1;
+    if(w===c.width && h===c.height) return msg('nada a aparar — já está justo');
+    const o=document.createElement('canvas'); o.width=w; o.height=h;
+    o.getContext('2d').drawImage(c, x0,y0,w,h, 0,0,w,h);
+    const nome = p.t.replace(/\.png$/,'') + '-aparado.png';
+    UP[nome]=o.toDataURL('image/png');
+    snap(); p.t=nome; delete IMGS[nome];
+    paleta(); desenhaMarcas(); salvar();
+    msg('bordas aparadas ('+c.width+'x'+c.height+' → '+w+'x'+h+')');
+  }catch(e){ msg('não consegui aparar: '+e.message); }
+};
+
+// recorta uma parte do tile: arraste sobre a peça para escolher o que fica
+let recortando=false, recA=null, recB=null;
+$('recorta').onclick=()=>{
+  if(st.sel==null) return msg('selecione uma peça');
+  recortando=true; recA=recB=null;
+  msg('arraste sobre a peça a área que deve FICAR (Esc cancela)');
+};
+function aplicaRecorte(){
+  if(!recA||!recB||st.sel==null){ recortando=false; return; }
+  const p=st.pecas[st.sel], im=img(p.t);
+  const h=p.s, w=h*(im.naturalWidth/im.naturalHeight);
+  const bx=p.x-w/2, by=p.y-h/2;
+  // fração da peça selecionada -> pixels da imagem
+  const fx0=Math.max(0,Math.min(1,(Math.min(recA[0],recB[0])-bx)/w));
+  const fx1=Math.max(0,Math.min(1,(Math.max(recA[0],recB[0])-bx)/w));
+  const fy0=Math.max(0,Math.min(1,(Math.min(recA[1],recB[1])-by)/h));
+  const fy1=Math.max(0,Math.min(1,(Math.max(recA[1],recB[1])-by)/h));
+  const sw=Math.round((fx1-fx0)*im.naturalWidth), sh=Math.round((fy1-fy0)*im.naturalHeight);
+  if(sw<4||sh<4){ recortando=false; recA=recB=null; desenhaMarcas(); return msg('área muito pequena'); }
+  const c=document.createElement('canvas'); c.width=sw; c.height=sh;
+  c.getContext('2d').drawImage(im, Math.round(fx0*im.naturalWidth), Math.round(fy0*im.naturalHeight), sw, sh, 0,0,sw,sh);
+  const nome = p.t.replace(/\.png$/,'') + '-corte.png';
+  UP[nome]=c.toDataURL('image/png');
+  snap();
+  delete IMGS[nome];
+  p.t=nome;
+  p.s = h*(fy1-fy0);
+  p.x = bx + (fx0+fx1)/2*w;
+  p.y = by + (fy0+fy1)/2*h;
+  recortando=false; recA=recB=null;
+  paleta(); desenhaMarcas(); salvar(); msg('peça recortada ('+sw+'x'+sh+')');
+}
+
+// ── PALETA e UPLOAD de tiles ───────────────────────────────────────────
+let KIT=[];
+fetch('/map-kit/manifest.json').then(r=>r.json()).then(m=>{
+  KIT=[].concat(...Object.values(m)); paleta();
+}).catch(()=>paleta());
+function paleta(){
+  const p=$('pal'); p.innerHTML='';
+  const lista=[...new Set([...KIT, ...Object.keys(UP)])].sort();
+  if(!lista.length){ p.innerHTML='<div class="hint" style="grid-column:1/-1">Envie tiles com o botão abaixo.</div>'; return; }
+  for(const f of lista){
+    const d=document.createElement('div');
+    d.style.cssText='aspect-ratio:1;border:2px solid '+(st.tile===f?'var(--ok)':'transparent')+
+      ';border-radius:8px;overflow:hidden;cursor:pointer;background:#0a0f1c;padding:2px';
+    d.innerHTML='<img src="'+(UP[f]||('/map-kit/'+f))+'" style="width:100%;height:100%;object-fit:contain">';
+    d.onclick=()=>{ st.tile = st.tile===f ? null : f; paleta();
+      msg(st.tile?'clique no mapa para colocar':'nenhum tile escolhido'); };
+    p.appendChild(d);
+  }
+}
+$('up').onclick=()=>$('file').click();
+$('file').onchange=e=>{
+  const fs=[...e.target.files]; let n=0;
+  fs.forEach(f=>{
+    const r=new FileReader();
+    r.onload=()=>{
+      const im=new Image();
+      im.onload=()=>{
+        // remove fundo magenta e reduz
+        const MX=640, k=Math.min(1,MX/Math.max(im.width,im.height));
+        const c=document.createElement('canvas'); c.width=Math.round(im.width*k); c.height=Math.round(im.height*k);
+        const g=c.getContext('2d'); g.drawImage(im,0,0,c.width,c.height);
+        try{ const d=g.getImageData(0,0,c.width,c.height), px=d.data;
+          for(let i=0;i<px.length;i+=4){ const R=px[i],G=px[i+1],B=px[i+2];
+            if(R>140&&B>140&&G<R*0.62&&G<B*0.62) px[i+3]=0; }
+          g.putImageData(d,0,0);
+        }catch(err){}
+        const nome='up-'+f.name.replace(/\s*\(\d+\)/,'').replace(/(\.png)+$/,'').replace(/[^\w.-]+/g,'-')+'.png';
+        UP[nome]=c.toDataURL('image/png');
+        if(++n===fs.length){ paleta(); salvar(); msg(fs.length+' tile(s) adicionados'); }
+      };
+      im.src=r.result;
+    };
+    r.readAsDataURL(f);
+  });
+};
+
+// ── GERAR TILE (recorte + prompt) ──────────────────────────────────────
+let selA=null, selB=null, crop=null, gtipo=null;
+const TIPOS=[['chao','🟩 Chão'],['arvore','🌳 Árvore'],['casa','🏠 Casa'],['objeto','🪵 Objeto'],['borda','🌊 Borda'],['detalhe','🌼 Detalhe']];
+TIPOS.forEach(([v,l])=>{ const b=document.createElement('button');
+  b.textContent=l; b.dataset.v=v;
+  b.style.cssText='background:#0d1424;border:1px solid var(--line);color:var(--dim);border-radius:6px;padding:6px 2px;font-size:9px;cursor:pointer';
+  b.onclick=()=>{ gtipo=v; document.querySelectorAll('#gtipos button').forEach(x=>{
+    x.style.background = x.dataset.v===v ? 'var(--acc)':'#0d1424';
+    x.style.color = x.dataset.v===v ? '#04121f':'var(--dim)'; }); };
+  $('gtipos').appendChild(b); });
+function desenhaSel(){ desenhaMarcas();
+  if(!selA||!selB) return;
+  const x0=Math.min(selA[0],selB[0]),y0=Math.min(selA[1],selB[1]);
+  const x1=Math.max(selA[0],selB[0]),y1=Math.max(selA[1],selB[1]);
+  gK.strokeStyle='#4dc3ff'; gK.lineWidth=2; gK.setLineDash([6,4]);
+  gK.strokeRect(x0*TP,y0*TP,(x1-x0)*TP,(y1-y0)*TP); gK.setLineDash([]);
+}
+function atualizaCrop(){
+  if(!selA||!selB) return;
+  const x0=Math.floor(Math.min(selA[0],selB[0])), y0=Math.floor(Math.min(selA[1],selB[1]));
+  const x1=Math.ceil(Math.max(selA[0],selB[0])), y1=Math.ceil(Math.max(selA[1],selB[1]));
+  const tw=Math.max(1,x1-x0), th=Math.max(1,y1-y0);
+  const c=$('gprev'), g=c.getContext('2d');
+  const LIM=180, esc=Math.min(LIM/tw, LIM/th, 60);
+  c.width=Math.round(tw*esc); c.height=Math.round(th*esc);
+  if(mapa.complete) g.drawImage(mapa, x0/N*mapa.width, y0/N*mapa.height, tw/N*mapa.width, th/N*mapa.height, 0,0,c.width,c.height);
+  crop={x0,y0,tw,th};
+  $('ginfo').textContent=`${tw}x${th} tiles · ${tw*39}x${th*39}px no jogo`;
+}
+const BASE_P=(tipo,tam)=>({
+ chao:`Crie uma TEXTURA DE CHÃO seamless (repete nas 4 bordas) baseada no recorte anexado, 512x512, vista de cima, iluminação uniforme, sem objetos, sem texto. Mesmo material e cores do recorte.`,
+ arvore:`Crie UMA ÁRVORE isolada igual à do recorte anexado, vista de cima com volume, fundo MAGENTA #FF00FF, sem sombra no chão, nada tocando as bordas.`,
+ casa:`Crie UMA CONSTRUÇÃO igual à do recorte anexado (mesmo telhado, mesmas cores), vista top-down 3/4, fundo MAGENTA #FF00FF, sem sombra no chão. Proporção ${tam}.`,
+ objeto:`Crie UM OBJETO isolado igual ao do recorte anexado, vista de cima, fundo MAGENTA #FF00FF, sem sombra no chão.`,
+ borda:`Crie uma MOLDURA DE BORDA (faixa de transição) igual à do recorte anexado; só a faixa, todo o resto MAGENTA #FF00FF, 512x512.`,
+ detalhe:`Crie um DETALHE pequeno (tufo/flores/pedrinhas) igual ao do recorte anexado, isolado, fundo MAGENTA #FF00FF.`,
+}[tipo] + `
+
+COERÊNCIA (obrigatório): use EXATAMENTE a mesma paleta, brilho, contraste e direção de luz do recorte anexado. Estilo render 3D estilizado, NÃO pixel art. Sem texto, sem moldura.`);
+$('gcopy').onclick=()=>{
+  if(!crop) return msg('marque uma área no mapa primeiro');
+  if(!gtipo) return msg('escolha o tipo primeiro');
+  navigator.clipboard.writeText(BASE_P(gtipo, `${crop.tw}:${crop.th}`));
+  msg('prompt copiado — anexe o recorte no GPT');
+};
+$('gdown').onclick=()=>{
+  if(!crop) return msg('marque uma área primeiro');
+  $('gprev').toBlob(b=>{ const a=document.createElement('a'); a.href=URL.createObjectURL(b);
+    a.download='ref-'+($('gnome').value||'recorte')+'.png'; a.click(); });
+};
+
+verTudo(); desenhaMarcas();
+</script>
+</body>
+</html>

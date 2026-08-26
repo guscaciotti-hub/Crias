@@ -1,0 +1,101 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Crias — Prompts prontos</title>
+<style>
+  :root { --bg:#0a0e1a; --card:#131a2e; --line:#243250; --txt:#dce6f5; --dim:#8ab0dd; --acc:#4dc3ff; }
+  * { box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
+  body { margin:0; background:var(--bg); color:var(--txt); font:15px/1.55 system-ui,sans-serif; padding:16px 14px 60px; }
+  h1 { font-size:20px; margin:0 0 2px; } h1 span { color:var(--acc); }
+  .sub { color:var(--dim); font-size:13px; margin-bottom:16px; }
+  .how { background:var(--card); border:1px solid var(--line); border-radius:12px; padding:14px; margin-bottom:20px; font-size:14px; }
+  .how b { color:var(--acc); }
+  .how ol { margin:8px 0 0; padding-left:20px; } .how li { margin:5px 0; }
+  h2 { font-size:13px; color:var(--dim); text-transform:uppercase; letter-spacing:.08em; margin:24px 0 10px; }
+  .item { background:var(--card); border:1px solid var(--line); border-radius:12px; padding:12px 14px; margin-bottom:10px;
+          display:flex; align-items:center; gap:12px; }
+  .item .nm { flex:1; font-weight:700; }
+  .item .ds { display:block; font-weight:400; font-size:12px; color:var(--dim); margin-top:2px; }
+  button { background:var(--acc); border:0; color:#04121f; border-radius:9px; padding:11px 15px; font-size:13px;
+           font-weight:800; cursor:pointer; white-space:nowrap; }
+  button.done { background:#3ddc84; }
+  .done-tag { color:#3ddc84; }
+</style>
+</head>
+<body>
+<h1>Crias — <span>Prompts prontos</span></h1>
+<div class="sub">Copiar → colar no ChatGPT → subir a imagem no GitHub. Só isso.</div>
+
+<div class="how">
+  <b>Como usar</b>
+  <ol>
+    <li>Toca em <b>Copiar</b> no que você quer criar</li>
+    <li>Cola no ChatGPT e manda gerar a imagem</li>
+    <li>Salva a imagem com o nome indicado (ex: <code>aerix.png</code>)</li>
+    <li>Sobe no GitHub (Add file → Upload files) e me avisa: <b>"subi o aerix"</b></li>
+  </ol>
+</div>
+
+<h2>🐺 Monstros que faltam</h2>
+<div id="mons"></div>
+
+<h2>🧍 Personagem novo</h2>
+<div id="chars"></div>
+
+<script>
+const BASE_MON = `Arte de criatura original para jogo RPG de colecionar monstros, pixel art 16-bit detalhado e vibrante.
+Pose de batalha de corpo inteiro, vista 3/4, encarando levemente para a direita, centralizada.
+Fundo VERDE CHROMA #00FF00 sólido. Sem sombra no chão, sem borda, sem texto.
+A criatura ocupa ~80% da altura e nada (nem efeitos) toca as bordas.
+Criatura: `;
+
+const MONSTROS = [
+  ['aerix','Drake aéreo azul-claro, veloz, corpo esguio com asas membranosas e trilhas de vento ao redor'],
+  ['voltalon','Falcão elétrico dourado, penas crepitando com raios, olhos brancos brilhantes'],
+  ['aquafy','Espírito aquático luminoso, corpo translúcido azul que brilha por dentro, formas fluidas'],
+  ['terron','Golem ancestral de pedra marrom, musgo nas juntas, punhos enormes, runas antigas'],
+  ['shadowyn','Espectro roxo das sombras, corpo etéreo com fumaça escura, olhos violeta brilhantes'],
+  ['florax','Guardião de floresta feito de vinhas e madeira viva, folhas brotando, olhos verdes brilhantes'],
+  ['glacius','Espírito do gelo azul-claro, corpo de cristal com vapor gelado saindo, presas de gelo'],
+  ['ferrus','Golem de ferro cinza metálico, placas de armadura, engrenagens visíveis, núcleo brilhante'],
+  ['psychon','Ser psíquico rosa/magenta, corpo etéreo flutuante, orbes de energia mental orbitando'],
+  ['luminos','Guardião de luz dourado, corpo radiante, halo de luz, asas de energia brilhante'],
+  ['toxyl','Serpente venenosa verde-lima, escamas brilhantes, gotas de veneno, presas grandes'],
+  ['tempestix','Raptor da tormenta índigo, penas afiadas, relâmpagos ao redor, veloz e agressivo'],
+  ['drakon','Dragão primordial laranja, escamas de lava, chifres grandes, fogo saindo da boca — imponente e raro'],
+];
+
+const CHAR = `Spritesheet única, grade FIXA de 4 colunas × 3 linhas (12 células iguais).
+Cada célula: 256×256px (total 1024×768). Fundo VERDE CHROMA #00FF00 sólido.
+Personagem SEMPRE do mesmo tamanho, centralizado, pés na mesma altura em todas as células.
+Ordem: linha 1 = frente (parado, passo esquerdo, passo direito, extra) | linha 2 = costas (mesma ordem)
+| linha 3 = perfil esquerdo parado, perfil esquerdo andando, SENTADO no chão, perfil direito parado.
+Sem sombra no chão, sem borda, sem texto. Pixel art 16-bit detalhado.
+Personagem: `;
+
+function card(container, nome, arquivo, desc, texto) {
+  const d = document.createElement('div');
+  d.className = 'item';
+  d.innerHTML = '<div class="nm">' + nome + '<span class="ds">' + desc + '</span></div>';
+  const b = document.createElement('button');
+  b.textContent = 'Copiar';
+  b.onclick = () => {
+    navigator.clipboard.writeText(texto);
+    b.textContent = '✓ copiado'; b.classList.add('done');
+    setTimeout(() => { b.textContent = 'Copiar'; b.classList.remove('done'); }, 2000);
+  };
+  d.appendChild(b);
+  container.appendChild(d);
+}
+
+MONSTROS.forEach(([id, desc]) =>
+  card(document.getElementById('mons'), id, id, 'salvar como ' + id + '.png', BASE_MON + desc + '.'));
+
+card(document.getElementById('chars'), 'Personagem novo', 'char6',
+  'salvar como char6.png — troque a descrição no final do prompt',
+  CHAR + '[DESCREVA AQUI — ex: treinadora ruiva de jaqueta azul com mochila]');
+</script>
+</body>
+</html>

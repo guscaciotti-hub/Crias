@@ -1,0 +1,1461 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>CRIAS — Construtor de Mapas</title>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<style>
+  :root{--bg:#0b1020;--pan:#141b30;--line:#26314e;--txt:#dce6f5;--dim:#8ab0dd;--acc:#4dc3ff;--ok:#3ddc84;--warn:#ffa94d;--bad:#ff6b6b}
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--txt);font:13px/1.45 system-ui,sans-serif;overflow:hidden}
+  #app{display:flex;height:100vh}
+  #side{width:262px;background:var(--pan);border-right:1px solid var(--line);display:flex;flex-direction:column}
+  #side h1{font-size:15px;margin:12px 12px 2px}#side h1 span{color:var(--acc)}
+  .hint{font-size:11px;color:var(--dim);margin:0 12px 8px}
+  .tabs{display:flex;flex-wrap:wrap;border-bottom:1px solid var(--line)}
+  .tabs button{min-width:33.33%}
+  .tabs button{flex:1;background:none;border:0;color:var(--dim);padding:9px 2px;font-size:11px;font-weight:700;cursor:pointer;border-bottom:2px solid transparent}
+  .tabs button.on{color:var(--acc);border-bottom-color:var(--acc)}
+  #pal{flex:1 1 auto;min-height:300px;overflow-y:auto;padding:8px;display:grid;
+       grid-template-columns:repeat(2,1fr);gap:7px;align-content:start}
+  .tile{position:relative;aspect-ratio:1;border:2px solid transparent;border-radius:8px;overflow:hidden;
+        cursor:pointer;background:#0a0f1c;padding:3px}
+  .tile img{width:100%;height:100%;object-fit:contain;display:block}   /* peça inteira, sem corte */
+  .tile.on{border-color:var(--acc);box-shadow:0 0 0 2px rgba(77,195,255,.25)}
+  .tile b{position:absolute;left:0;right:0;bottom:0;font-size:9px;font-weight:600;background:rgba(0,0,0,.72);padding:1px 2px;text-align:center;white-space:nowrap;overflow:hidden}
+  .livre{grid-column:1/-1;font-size:10px;font-weight:700;text-align:center;padding:7px 4px;border-radius:7px;
+    border:1px dashed var(--line);color:var(--dim);cursor:pointer;margin-bottom:2px}
+  .livre.on{border-color:var(--ok);color:var(--ok);background:rgba(61,220,132,.10);border-style:solid}
+  .grp{grid-column:1/-1;font-size:10px;color:var(--dim);text-transform:uppercase;letter-spacing:.08em;margin:6px 0 0}
+  #ctrl{border-top:1px solid var(--line);padding:8px 10px;display:flex;flex-direction:column;gap:5px;
+        flex:0 0 auto;max-height:46vh;overflow-y:auto}
+  #ctrl label{font-size:10px}
+  #ctrl button.gh{padding:5px;font-size:10px}
+  #ctrl button.act{padding:7px;font-size:11px}
+  #side{overflow:hidden}
+  label{font-size:11px;color:var(--dim);display:flex;align-items:center;gap:6px;justify-content:space-between}
+  input[type=range]{width:120px}
+  button.act{background:var(--acc);border:0;color:#04121f;border-radius:7px;padding:8px;font-weight:800;font-size:12px;cursor:pointer;width:100%}
+  button.gh{background:transparent;border:1px solid var(--line);color:var(--dim);border-radius:7px;padding:7px;font-size:11px;cursor:pointer;width:100%}
+  .row2{display:flex;gap:6px}
+  #stage{flex:1;position:relative;overflow:hidden;background:#070b16}
+  #wrap{position:absolute;transform-origin:0 0}
+  canvas{position:absolute;left:0;top:0;image-rendering:pixelated}
+  #top{position:absolute;left:10px;top:10px;z-index:9;background:rgba(10,16,32,.9);border:1px solid var(--line);border-radius:9px;padding:7px 11px;display:flex;gap:12px;align-items:center;font-size:11px}
+  #top b{color:var(--acc)}
+  .tool{background:#1a2542;border:1px solid var(--line);color:var(--txt);border-radius:6px;padding:5px 9px;font-size:11px;font-weight:700;cursor:pointer}
+  .tool.on{background:var(--acc);color:#04121f;border-color:var(--acc)}
+  #fab{position:absolute;z-index:14;display:none;gap:5px;transform:translate(-50%,0)}
+  #fab.on{display:flex}
+  #fab button{background:rgba(12,18,36,.96);border:1px solid var(--acc);color:var(--acc);
+    border-radius:8px;padding:6px 10px;font-size:11px;font-weight:700;cursor:pointer;white-space:nowrap}
+  #fab button.frente{background:var(--warn);border-color:var(--warn);color:#231800}
+  #fab button:hover{filter:brightness(1.15)}
+  #adj{position:absolute;right:10px;top:50px;z-index:13;width:250px;max-height:calc(100vh - 80px);
+    overflow-y:auto;background:rgba(12,18,36,.98);border:1px solid var(--warn);border-radius:11px;
+    padding:12px;display:none;flex-direction:column;gap:8px;box-shadow:0 8px 28px rgba(0,0,0,.55)}
+  #adj > *{flex:0 0 auto;width:100%}
+  #adj.on{display:flex}
+  #gen{position:absolute;right:10px;top:50px;z-index:12;width:250px;max-height:calc(100vh - 80px);
+    overflow-y:auto;background:rgba(12,18,36,.98);border:1px solid var(--acc);border-radius:11px;
+    padding:12px;display:none;flex-direction:column;gap:8px;box-shadow:0 8px 28px rgba(0,0,0,.55)}
+  #gen.on{display:flex}
+  #gen > *{flex:0 0 auto;width:100%}
+  .gh1{font-size:12px;font-weight:800;color:var(--acc)}
+  .gsub{font-size:10px;color:var(--dim);line-height:1.45}
+  /* caixa fixa: a prévia nunca empurra nem cobre o resto do painel */
+  .prevbox{height:150px;display:flex;align-items:center;justify-content:center;
+    background:#070b16;border:1px solid var(--line);border-radius:8px;overflow:hidden}
+  #gprev{pointer-events:none;max-width:100%;max-height:100%;width:auto;height:auto;
+    display:block;image-rendering:auto}
+  .grow{display:flex;align-items:center;gap:6px;font-size:11px;color:var(--dim)}
+  .grow span{width:38px}
+  #gtipos{display:grid;grid-template-columns:repeat(3,1fr);gap:5px}
+  #gtipos button{background:#0d1424;border:1px solid var(--line);color:var(--dim);border-radius:7px;
+    padding:6px 2px;font-size:16px;cursor:pointer;display:flex;flex-direction:column;align-items:center;gap:2px}
+  #gtipos button i{font-size:9px;font-style:normal;font-weight:700}
+  #gtipos button.on{background:var(--acc);color:#04121f;border-color:var(--acc)}
+  #gen input{background:#0d1424;border:1px solid var(--line);color:var(--txt);border-radius:6px;padding:6px;font-size:11px}
+  .grow select,.grow input{flex:1;background:#0d1424;border:1px solid var(--line);color:var(--txt);border-radius:6px;padding:5px;font-size:11px}
+  #selbox{position:absolute;border:2px dashed var(--acc);background:rgba(77,195,255,.14);pointer-events:none;display:none;z-index:11}
+  #msg{position:absolute;right:10px;top:10px;z-index:9;background:rgba(10,16,32,.9);border:1px solid var(--line);border-radius:9px;padding:7px 11px;font-size:11px;color:var(--dim);max-width:300px}
+</style>
+</head>
+<body>
+<div id="app">
+  <div id="side">
+    <h1>CRIAS — <span>Construtor</span></h1>
+    <div class="hint">Pinte por cima do mapa original (fantasma) para reproduzi-lo tile a tile.</div>
+    <div class="tabs" id="tabs"></div>
+    <div id="pal"></div>
+    <div id="ctrl">
+      <label>Fantasma <input type="range" id="ghost" min="0" max="100" value="55"></label>
+      <label>Grade <input type="checkbox" id="grid" checked></label>
+      <label>Colisão <input type="checkbox" id="showcol"></label>
+      <label title="LIGADO: tudo que você coloca vira peça que move e redimensiona. DESLIGADO: chão preenche a célula da grade (para pintar áreas grandes)">
+        Peça livre <input type="checkbox" id="pecalivre" checked></label>
+      <label>Pincel <input type="range" id="brush" min="1" max="6" value="1"></label>
+      <label title="Escurece e esfria os tiles para casar com o clima do mapa">Harmonizar <input type="range" id="harm" min="0" max="100" value="0"></label>
+      <label id="lbtam" title="Tamanho com que o próximo objeto será colocado">Tamanho <input type="range" id="tam" min="30" max="2000" value="100"><b id="tamv" style="color:var(--acc);font-size:10px">100%</b></label>
+      <div class="row2">
+        <button class="gh" id="undo">↶ Desfazer</button>
+        <button class="gh" id="redo">↷ Refazer</button>
+      </div>
+      <div class="row2">
+        <button class="gh" id="copiar" title="Ctrl+C">⧉ Copiar</button>
+        <button class="gh" id="colar" title="Ctrl+V — cola onde o mouse estiver">⧉ Colar</button>
+      </div>
+      <div class="row2">
+        <button class="gh" id="up">+ tiles</button>
+        <button class="gh" id="auto">Auto-colisão</button>
+      </div>
+      <button class="act" id="pub" style="background:var(--ok)">🚀 Publicar no jogo</button>
+      <button class="gh" id="exp">⬇ Exportar arquivos</button>
+      <div class="row2">
+        <button class="gh" id="save">Salvar</button>
+        <button class="gh" id="load">Abrir</button>
+      </div>
+      <div style="font-size:9px;color:var(--ok);text-align:center" id="auto2">salvando automaticamente</div>
+      <div class="row2">
+        <button class="gh" id="bkp" title="Baixa TUDO: projeto, tiles, mapa e colisão">💾 Backup completo</button>
+        <button class="gh" id="rest" title="Restaura um backup .json">♻ Restaurar</button>
+      </div>
+      <input type="file" id="bkpFile" accept=".json" hidden>
+      <div class="row2">
+        <button class="gh" id="zerar" style="border-color:var(--warn);color:var(--warn)">🧹 Zerar mapa</button>
+        <button class="gh" id="despub" style="border-color:var(--bad);color:var(--bad)">Despublicar</button>
+      </div>
+      <input type="file" id="file" accept="image/*" multiple hidden>
+    </div>
+  </div>
+  <div id="stage">
+    <div id="top">
+      <button class="tool on" data-t="pincel">✏️ Pincel</button>
+      <button class="tool" data-t="balde">🪣 Balde</button>
+      <button class="tool" data-t="borracha">🧽 Borracha</button>
+      <button class="tool" data-t="conta">💧 Conta-gotas</button>
+      <button class="tool" data-t="mao">✋ Mover</button>
+      <button class="tool" data-t="recorte">🎯 Gerar tile</button>
+      <button class="tool" data-t="ajustar">✥ Ajustar</button>
+      <button class="tool" id="fit" style="background:#1a2542">🔍 Ver tudo</button>
+      <span id="pos">—</span>
+    </div>
+    <div id="selbox"></div>
+    <div id="msg">Pontos verdes nos cantos deformam livre · azuis esticam · amarela proporcional · seta roxa gira · Ctrl+C/V copia tudo.</div>
+    <div id="fab">
+      <button id="fabFrente" title="Alterna se este objeto cobre o personagem">⬆ vem pra frente</button>
+      <button id="fabDup" title="Duplicar com o mesmo tamanho (Ctrl+D)">⧉</button>
+      <button id="fabDel" title="Apagar (Del)">🗑</button>
+    </div>
+    <div id="adj">
+      <div class="gh1">✥ Ajustar objeto</div>
+      <div class="gsub" id="adjnome">—</div>
+      <div class="gsub">Arraste no mapa para mover livre · setas ajustam fino</div>
+      <div class="grow"><span>Tam.</span><input type="range" id="adjesc" min="30" max="2000" value="100"></div>
+      <div class="gsub" id="adjinfo">—</div>
+      <div class="grow" style="gap:5px">
+        <button class="gh" id="adjreset" style="flex:1">↺ centro</button>
+        <button class="gh" id="adjdel" style="flex:1;border-color:var(--bad);color:var(--bad)">apagar</button>
+      </div>
+      <button class="gh" id="adjclose">fechar</button>
+    </div>
+    <div id="gen">
+      <div class="gh1">🎯 Gerar tile novo</div>
+      <div class="gsub">Arraste sobre o mapa para marcar o que quer recriar.</div>
+      <div class="prevbox"><canvas id="gprev" width="200" height="200"></canvas></div>
+      <div class="gsub" style="color:var(--warn);font-weight:700;margin-top:2px">1 · O que é isso?</div>
+      <div id="gtipos">
+        <button data-v="chao">🟩<i>Chão</i></button>
+        <button data-v="arvore">🌳<i>Árvore</i></button>
+        <button data-v="casa">🏠<i>Casa</i></button>
+        <button data-v="objeto">🪵<i>Objeto</i></button>
+        <button data-v="borda">🌊<i>Borda</i></button>
+        <button data-v="detalhe">🌼<i>Detalhe</i></button>
+      </div>
+      <div class="gsub" style="color:var(--warn);font-weight:700;margin-top:4px">2 · Nome do tile</div>
+      <input id="gnome" placeholder="ex: arvore-3" style="width:100%">
+      <div class="gsub" id="ginfo">—</div>
+      <button class="act" id="gcopy">📋 Copiar prompt</button>
+      <button class="gh" id="gdown">⬇ Baixar recorte (anexar no GPT)</button>
+      <button class="gh" id="gclose">fechar</button>
+    </div>
+    <div id="wrap">
+      <canvas id="cGhost"></canvas>
+      <canvas id="cTer"></canvas>
+      <canvas id="cObj"></canvas>
+      <canvas id="cFre"></canvas>
+      <canvas id="cGrid"></canvas>
+    </div>
+  </div>
+</div>
+<script>
+const N = 48, TP = 40;              // 48x48 tiles, 40px por tile na tela
+const $ = i => document.getElementById(i);
+const state = {
+  terreno: Array.from({length:N},()=>Array(N).fill(null)),
+  objeto:  Array.from({length:N},()=>Array(N).fill(null)),
+  frente:  Array.from({length:N},()=>Array(N).fill(null)),
+  colisao: Array.from({length:N},()=>Array(N).fill(0)),
+  layer:'terreno', tool:'pincel', sel:null, brush:1, zoom:1, panX:0, panY:0,
+};
+// Os tiles enviados vão para o IndexedDB: em localStorage as imagens (vários
+// MB em base64) estouram a cota e o save falhava em silêncio.
+let _db = null;
+function db(){
+  if(_db) return Promise.resolve(_db);
+  return new Promise((ok,err)=>{
+    const r = indexedDB.open('criasEditor', 1);
+    r.onupgradeneeded = () => { const d=r.result; if(!d.objectStoreNames.contains('tiles')) d.createObjectStore('tiles'); };
+    r.onsuccess = () => { _db=r.result; ok(_db); };
+    r.onerror = () => err(r.error);
+  });
+}
+async function dbSalvaTile(nome, dataUrl){
+  const d = await db();
+  return new Promise((ok,err)=>{
+    const t=d.transaction('tiles','readwrite');
+    t.objectStore('tiles').put(dataUrl, nome);
+    t.oncomplete=ok; t.onerror=()=>err(t.error);
+  });
+}
+async function dbCarregaTiles(){
+  try{
+    const d = await db();
+    return await new Promise((ok,err)=>{
+      const t=d.transaction('tiles','readonly'), st=t.objectStore('tiles');
+      const ks=st.getAllKeys(), vs=st.getAll();
+      t.oncomplete=()=>{ const o={}; ks.result.forEach((k,i)=>o[k]=vs.result[i]); ok(o); };
+      t.onerror=()=>err(t.error);
+    });
+  }catch(e){ return {}; }
+}
+
+const IMGS = {};                    // nome -> Image
+const UPLOADS = {};                 // nome -> dataURL (tiles enviados aqui)
+
+// ── canvases ────────────────────────────────────────────────────────────
+const cs = ['cGhost','cTer','cObj','cFre','cGrid'].map(id=>{
+  const c=$(id); c.width=N*TP; c.height=N*TP; return c;
+});
+const [gGhost,gTer,gObj,gFre,gGrid] = cs.map(c=>c.getContext('2d'));
+$('wrap').style.width = $('wrap').style.height = (N*TP)+'px';
+
+// mapa fantasma (o original, para traçar por cima)
+const ghost = new Image();
+ghost.onload = () => { gGhost.drawImage(ghost,0,0,N*TP,N*TP); };
+ghost.src = '/mapa-oficial.jpg';
+$('ghost').oninput = e => { $('cGhost').style.opacity = e.target.value/100; };
+$('cGhost').style.opacity = .55;
+
+// ── paleta ──────────────────────────────────────────────────────────────
+// Seções da paleta: cada aba tem sua própria lista e a camada em que pinta.
+// 'match' filtra os arquivos do manifest/uploads que pertencem à seção.
+const SECOES = [
+  { id:'chao',    nome:'Chão',     camada:'terreno', match:f=>f.startsWith('tile-'), pre:'tile-' },
+  { id:'bordas',  nome:'Bordas',   camada:'terreno', match:f=>f.startsWith('margem-')||f.startsWith('meiofio-'), pre:'margem-' },
+  { id:'arvores', nome:'Árvores',  camada:'objeto',  match:f=>/^prop-(arvore|pinheiro|arbusto|mato)/.test(f), pre:'prop-arvore-' },
+  { id:'casas',   nome:'Casas',    camada:'objeto',  match:f=>/^prop-(casa|arena|predio|shop|cupula|loja|torre)/.test(f), pre:'prop-casa-' },
+  { id:'objetos', nome:'Objetos',  camada:'objeto',  match:f=>f.startsWith('prop-')&&!/^prop-(arvore|pinheiro|arbusto|mato|casa|arena|predio|shop|cupula|loja|torre)/.test(f), pre:'prop-obj-' },
+  { id:'detalhes',nome:'Detalhes', camada:'terreno', match:f=>f.startsWith('det-'), pre:'det-' },
+  { id:'colisao', nome:'Colisão',  camada:'colisao', match:()=>false },
+];
+state.secao = 'chao';
+let manifest = {};
+let TODOS = [];   // todos os arquivos disponíveis (manifest + uploads)
+function atualizaTodos(){
+  // new Set() aceita UM iterável: os uploads precisam entrar no mesmo array
+  TODOS = [...new Set([ ...[].concat(...Object.values(manifest)), ...Object.keys(UPLOADS) ])];
+}
+function montaTabs(){
+  const t = $('tabs'); t.innerHTML = '';
+  for(const sec of SECOES){
+    const b = document.createElement('button');
+    b.textContent = sec.nome;
+    b.className = state.secao === sec.id ? 'on' : '';
+    b.onclick = () => { state.secao = sec.id; state.layer = sec.camada; montaTabs(); paleta(); pintaGrid(); };
+    t.appendChild(b);
+  }
+}
+fetch('/map-kit/manifest.json').then(r=>r.json()).then(async m=>{
+  manifest=m; montaTabs();
+  await carregaProjeto();          // mapa E tiles voltam automaticamente
+});
+
+// Uma célula de objeto é 'arquivo.png' (simples) ou {t,dx,dy,s} quando o
+// usuário ajusta posição/tamanho livremente com a ferramenta ✥.
+function oInfo(c){
+  if(!c) return null;
+  const o = (typeof c === 'string') ? {t:c,dx:0,dy:0,s:1} : c;
+  if(o.sx === undefined) o.sx = 1;   // esticar só a largura
+  if(o.sy === undefined) o.sy = 1;   // esticar só a altura
+  if(o.rot === undefined) o.rot = 0; // ângulo em graus
+  return o;
+}
+function oNome(c){ const i=oInfo(c); return i ? i.t : null; }
+
+function nomeCurto(f){ return f.replace(/^(tile|prop|det|margem|meiofio)-/,'').replace('.png',''); }
+// Harmonização: aplica o clima do mapa (escuro/azulado) aos tiles claros,
+// para o que você pinta não destoar do resto da cena.
+const HARM_CACHE = {};
+function harmoniza(im, forca){
+  if(!forca) return im;
+  const k = im.src.slice(-60) + '|' + forca;
+  if(HARM_CACHE[k]) return HARM_CACHE[k];
+  const c=document.createElement('canvas'); c.width=im.naturalWidth; c.height=im.naturalHeight;
+  const g=c.getContext('2d'); g.drawImage(im,0,0);
+  try{
+    const d=g.getImageData(0,0,c.width,c.height), px=d.data, f=forca/100;
+    for(let i=0;i<px.length;i+=4){
+      if(px[i+3]===0) continue;
+      const r=px[i], gg=px[i+1], b=px[i+2];
+      const lum=r*0.3+gg*0.55+b*0.15;
+      px[i]  = r*(1-f) + (r*0.60+lum*0.06)*f;
+      px[i+1]= gg*(1-f) + (gg*0.62+lum*0.05)*f;
+      px[i+2]= b*(1-f) + (b*0.78+lum*0.14+12)*f;
+    }
+    g.putImageData(d,0,0);
+  }catch(e){ return im; }
+  const out=new Image(); out.src=c.toDataURL('image/png');
+  HARM_CACHE[k]=out; return out;
+}
+function imgH(nome){
+  let im = imgDe(nome);
+  if(!im.complete || !im.naturalWidth) return im;
+  // props (prop-/margem-/det-) vêm com chroma magenta; chão não
+  if(!nome.startsWith('tile-')){
+    const t = tiraChroma(im);
+    if(t.complete && t.naturalWidth) im = t;
+  }
+  const f = +($('harm')?.value || 0);
+  if(!f) return im;
+  const h = harmoniza(im, f);
+  return (h.complete && h.naturalWidth) ? h : im;
+}
+
+// Remove o fundo MAGENTA (#FF00FF) dos props e suaviza o spill nas bordas.
+// Sem isso, a peça entra no mapa com o retângulo rosa em volta.
+const CHROMA_CACHE = {};
+function tiraChroma(im){
+  const k = im.src.slice(-70);
+  if(CHROMA_CACHE[k]) return CHROMA_CACHE[k];
+  const c=document.createElement('canvas'); c.width=im.naturalWidth; c.height=im.naturalHeight;
+  const g=c.getContext('2d'); g.drawImage(im,0,0);
+  try{
+    const d=g.getImageData(0,0,c.width,c.height), px=d.data;
+    let achou=false;
+    for(let i=0;i<px.length;i+=4){
+      const r=px[i], gg=px[i+1], b=px[i+2];
+      if(r>140 && b>140 && gg < r*0.62 && gg < b*0.62){ px[i+3]=0; achou=true; }
+      else if(r>gg && b>gg && gg>100){          // de-spill nas bordas
+        const sp=Math.min(r,b)-gg;
+        if(sp>0 && sp<130){ px[i]=r-sp*0.85; px[i+2]=b-sp*0.85; }
+      }
+    }
+    if(!achou){ CHROMA_CACHE[k]=im; return im; }   // não era chroma: mantém
+    g.putImageData(d,0,0);
+  }catch(e){ return im; }
+  const out=new Image(); out.src=c.toDataURL('image/png');
+  out.onload=()=>{ pintaTer(); pintaObj(); pintaFre(); };
+  CHROMA_CACHE[k]=out; return out;
+}
+
+function imgDe(nome){
+  if(!IMGS[nome]){ const i=new Image(); i.src = UPLOADS[nome] || ('/map-kit/'+nome); IMGS[nome]=i;
+    i.onload=()=>{ pintaTer(); pintaObj(); }; }
+  return IMGS[nome];
+}
+function paleta(){
+  const p = $('pal'); p.innerHTML='';
+  const sec = SECOES.find(s=>s.id===state.secao);
+  if(sec.camada==='colisao'){
+    p.innerHTML = '<div class="grp" style="line-height:1.7">Clique = bloquear (vermelho)<br>Shift+clique = liberar<br>Ctrl+Z desfaz<br><br>“Auto-colisão” marca objetos, água e penhasco de uma vez.</div>';
+    return;
+  }
+  // Chip de mão livre: sem tile escolhido, cliques só selecionam/movem
+  const livre=document.createElement('div');
+  livre.className='livre'+(state.sel?'':' on');
+  livre.textContent = state.sel ? '✋ soltar tile — hoje o clique PINTA' : '✋ mão livre — clique seleciona objetos';
+  livre.onclick=()=>{ state.sel=null; paleta(); msg('mão livre: clique nos objetos para mover/ajustar'); };
+  p.appendChild(livre);
+
+  const lista = TODOS.filter(sec.match).sort();
+  if(!lista.length){
+    p.innerHTML = '<div class="grp" style="line-height:1.6">Nenhum tile nesta seção.<br>Use “+ tiles” para enviar.</div>';
+    return;
+  }
+  for(const f of lista){
+    const d=document.createElement('div'); d.className='tile'+(state.sel===f?' on':'');
+    d.innerHTML='<img src="'+(UPLOADS[f]||('/map-kit/'+f))+'"><b>'+nomeCurto(f)+'</b>';
+    if(!f.startsWith('tile-')){
+      const _im=imgDe(f);
+      const aplicar=()=>{ const t=tiraChroma(_im); if(t!==_im) d.querySelector('img').src=t.src; };
+      if(_im.complete&&_im.naturalWidth) aplicar(); else _im.addEventListener('load',aplicar,{once:true});
+    }
+    d.onclick=()=>{
+      // clicar no tile já escolhido desmarca (volta à mão livre)
+      if(state.sel===f){ state.sel=null; paleta(); msg('mão livre: cliques só selecionam'); return; }
+      state.sel=f;
+      // escolher um tile volta ao Pincel: senão o clique no mapa não coloca nada
+      if(state.tool!=='pincel'&&state.tool!=='balde'){
+        state.tool='pincel';
+        document.querySelectorAll('.tool').forEach(x=>x.classList.toggle('on', x.dataset.t==='pincel'));
+      }
+      paleta();
+    };
+    p.appendChild(d);
+  }
+}
+document.querySelectorAll('.tool').forEach(b=>b.onclick=()=>{
+  document.querySelectorAll('.tool').forEach(x=>x.classList.remove('on'));
+  b.classList.add('on'); state.tool=b.dataset.t;
+});
+
+// ── desenho das camadas ─────────────────────────────────────────────────
+// Uma textura de chão cobre TEX_TILES x TEX_TILES células: espremer os 512px
+// dentro de um tile de 40px transformava pedras grandes em tijolinhos.
+const TEX_TILES = 4;
+const PAT_CACHE = {};
+function padrao(nome, ctx){
+  const k = nome + '|' + (($('harm')&&$('harm').value)||0);
+  if(PAT_CACHE[k]) return PAT_CACHE[k];
+  const im = imgH(nome);
+  if(!(im.complete && im.naturalWidth)) return null;
+  const lado = TP * TEX_TILES;
+  const c = document.createElement('canvas'); c.width=c.height=lado;
+  c.getContext('2d').drawImage(im, 0, 0, lado, lado);
+  const pat = ctx.createPattern(c, 'repeat');
+  PAT_CACHE[k] = pat; return pat;
+}
+function pintaTer(){
+  gTer.clearRect(0,0,N*TP,N*TP);
+  // agrupa por textura: um fill por tipo, com o padrão ancorado no mundo
+  const porTipo = {};
+  for(let y=0;y<N;y++)for(let x=0;x<N;x++){
+    const t=state.terreno[y][x]; if(!t) continue;
+    (porTipo[t] = porTipo[t] || []).push([x,y]);
+  }
+  for(const [t, cels] of Object.entries(porTipo)){
+    const pat = padrao(t, gTer);
+    if(pat){
+      gTer.fillStyle = pat;
+      for(const [x,y] of cels) gTer.fillRect(x*TP, y*TP, TP, TP);
+    } else {
+      const im=imgH(t);
+      if(im.complete&&im.naturalWidth) for(const [x,y] of cels) gTer.drawImage(im,x*TP,y*TP,TP,TP);
+    }
+  }
+}
+function pintaObj(){
+  gObj.clearRect(0,0,N*TP,N*TP);
+  const ordem=[];
+  for(let y=0;y<N;y++)for(let x=0;x<N;x++) if(state.objeto[y][x]) ordem.push([x,y,state.objeto[y][x]]);
+  for(const [x,y,c] of ordem){
+    const o=oInfo(c), im=imgH(o.t); if(!(im.complete&&im.naturalWidth)) continue;
+    const bb=caixaDe('objeto',x,y); if(!bb) continue;
+    const w=bb.w, h=bb.h;
+    desenhaPeca(gObj, o, im, bb.x, bb.y, w, h);
+    if(selObj && selObj.l==='objeto' && selObj.x===x && selObj.y===y){
+      const bx=x*TP+TP/2-w/2+o.dx*TP, by=y*TP+TP-h+o.dy*TP;
+      gObj.strokeStyle='#ffd54a'; gObj.lineWidth=2; gObj.setLineDash([5,3]);
+      gObj.strokeRect(bx, by, w, h); gObj.setLineDash([]);
+      // alças: canto = proporcional · direita = largura · base = altura
+      const s2=Math.max(9, 13/state.zoom);
+      const marca=(mx,my,cor)=>{ gObj.fillStyle=cor; gObj.fillRect(mx-s2/2,my-s2/2,s2,s2);
+        gObj.strokeStyle='#20180a'; gObj.lineWidth=1.5; gObj.setLineDash([]);
+        gObj.strokeRect(mx-s2/2,my-s2/2,s2,s2); };
+      marca(bx+w, by+h, '#ffd54a');          // proporcional
+      marca(bx+w, by+h/2, '#7ee0ff');        // largura
+      marca(bx+w/2, by+h, '#7ee0ff');        // altura
+      // pontos de deformação livre nos 4 cantos
+      const c4 = cantosDe(o, bx, by, w, h);
+      gObj.setLineDash([4,3]); gObj.strokeStyle='rgba(120,255,180,.9)'; gObj.lineWidth=1.5;
+      gObj.beginPath(); gObj.moveTo(c4[0][0],c4[0][1]);
+      for(let i=1;i<4;i++) gObj.lineTo(c4[i][0],c4[i][1]);
+      gObj.closePath(); gObj.stroke(); gObj.setLineDash([]);
+      for(const [px2,py2] of c4){
+        gObj.fillStyle='#39e08a';
+        gObj.beginPath(); gObj.arc(px2,py2,s2*0.55,0,6.283); gObj.fill();
+        gObj.strokeStyle='#0b3a22'; gObj.lineWidth=1.5; gObj.stroke();
+      }
+      // seta de girar, acima do topo
+      const gy = by - Math.max(22, 28/state.zoom);
+      gObj.strokeStyle='#a78bfa'; gObj.lineWidth=2; gObj.setLineDash([3,3]);
+      gObj.beginPath(); gObj.moveTo(bx+w/2, by); gObj.lineTo(bx+w/2, gy); gObj.stroke(); gObj.setLineDash([]);
+      gObj.fillStyle='#a78bfa';
+      gObj.beginPath(); gObj.arc(bx+w/2, gy, s2*0.72, 0.55, 5.2); gObj.stroke();
+      gObj.beginPath();                       // ponta da seta
+      gObj.moveTo(bx+w/2+s2*0.72, gy-s2*0.35);
+      gObj.lineTo(bx+w/2+s2*1.15, gy-s2*0.05);
+      gObj.lineTo(bx+w/2+s2*0.55, gy+s2*0.30);
+      gObj.closePath(); gObj.fill();
+    }
+  }
+}
+function pintaFre(){
+  gFre.clearRect(0,0,N*TP,N*TP);
+  for(let y=0;y<N;y++)for(let x=0;x<N;x++){
+    const c=state.frente[y][x]; if(!c) continue;
+    const o=oInfo(c), im=imgH(o.t); if(!(im.complete&&im.naturalWidth)) continue;
+    const bb=caixaDe('frente',x,y); if(!bb) continue;
+    const w=bb.w, h=bb.h, bx=bb.x, by=bb.y;
+    desenhaPeca(gFre, o, im, bx, by, w, h);
+    if(selObj && selObj.l==='frente' && selObj.x===x && selObj.y===y){
+      gFre.strokeStyle='#ffd54a'; gFre.lineWidth=2; gFre.setLineDash([5,3]);
+      gFre.strokeRect(bx,by,w,h); gFre.setLineDash([]);
+      const s2=Math.max(9,13/state.zoom);
+      gFre.fillStyle='#ffd54a'; gFre.fillRect(bx+w-s2/2, by+h-s2/2, s2, s2);
+    }
+    // marca visual: só no editor, para saber o que cobre o personagem
+    gFre.strokeStyle='rgba(255,200,60,.85)'; gFre.setLineDash([4,3]); gFre.lineWidth=1.5;
+    gFre.strokeRect(x*TP+1, y*TP+1, TP-2, TP-2); gFre.setLineDash([]);
+  }
+}
+function pintaGrid(){
+  gGrid.clearRect(0,0,N*TP,N*TP);
+  if($('showcol').checked||state.layer==='colisao'){
+    gGrid.fillStyle='rgba(255,60,60,.34)';
+    for(let y=0;y<N;y++)for(let x=0;x<N;x++) if(state.colisao[y][x]) gGrid.fillRect(x*TP,y*TP,TP,TP);
+  }
+  if($('grid').checked){
+    gGrid.strokeStyle='rgba(255,255,255,.10)'; gGrid.lineWidth=1;
+    for(let i=0;i<=N;i++){
+      gGrid.beginPath(); gGrid.moveTo(i*TP,0); gGrid.lineTo(i*TP,N*TP); gGrid.stroke();
+      gGrid.beginPath(); gGrid.moveTo(0,i*TP); gGrid.lineTo(N*TP,i*TP); gGrid.stroke();
+    }
+  }
+}
+$('grid').onchange=$('showcol').onchange=()=>{ pintaGrid(); pintaArea(); };
+$('brush').oninput=e=>state.brush=+e.target.value;
+$('harm').oninput=()=>{ for(const k in PAT_CACHE) delete PAT_CACHE[k]; pintaTer(); pintaObj(); pintaFre(); };
+$('tam').oninput=e=>{ $('tamv').textContent=e.target.value+'%'; };
+$('pecalivre').onchange=e=>{
+  msg(e.target.checked
+    ? 'Peça livre ON: tudo que colocar move e redimensiona'
+    : 'Peça livre OFF: chão preenche a célula (bom para áreas grandes com o balde)');
+};
+
+// ── histórico (Ctrl+Z / Ctrl+Y) ─────────────────────────────────────────
+const HIST = [], REDO = [];
+function snapshot(){
+  HIST.push(JSON.stringify({t:state.terreno,o:state.objeto,f:state.frente,c:state.colisao}));
+  if(HIST.length>60) HIST.shift();
+  REDO.length = 0;
+}
+function restaura(json){
+  const j = JSON.parse(json);
+  state.terreno=j.t; state.objeto=j.o; state.colisao=j.c;
+  pintaTer(); pintaObj(); pintaFre(); pintaGrid();
+}
+function desfazer(){
+  if(!HIST.length) return msg('nada para desfazer');
+  REDO.push(JSON.stringify({t:state.terreno,o:state.objeto,f:state.frente,c:state.colisao}));
+  restaura(HIST.pop());
+  msg('desfeito ('+HIST.length+' passos restantes)');
+}
+function refazer(){
+  if(!REDO.length) return msg('nada para refazer');
+  HIST.push(JSON.stringify({t:state.terreno,o:state.objeto,f:state.frente,c:state.colisao}));
+  restaura(REDO.pop());
+  msg('refeito');
+}
+window.addEventListener('keydown',e=>{
+  const k = e.key.toLowerCase();
+  if((e.ctrlKey||e.metaKey) && k==='c'){ e.preventDefault(); copiarPeca(); return; }
+  if((e.ctrlKey||e.metaKey) && k==='v'){ e.preventDefault(); colarPeca(); return; }
+  if((e.ctrlKey||e.metaKey) && k==='d'){ e.preventDefault(); copiarPeca(); colarPeca(); return; }
+  if((e.ctrlKey||e.metaKey) && k==='z' && !e.shiftKey){ e.preventDefault(); desfazer(); }
+  else if((e.ctrlKey||e.metaKey) && (k==='y' || (k==='z'&&e.shiftKey))){ e.preventDefault(); refazer(); }
+});
+
+// ── interação ───────────────────────────────────────────────────────────
+let pintando=false, arrastando=false, lx=0, ly=0, espaco=false;
+const stage=$('stage'), wrap=$('wrap');
+function aplicaTransform(){
+  wrap.style.transform=`translate(${state.panX}px,${state.panY}px) scale(${state.zoom})`;
+  if(selObj) posFab();
+}
+function tileDe(ev){
+  const r=wrap.getBoundingClientRect();
+  return [Math.floor((ev.clientX-r.left)/(TP*state.zoom)), Math.floor((ev.clientY-r.top)/(TP*state.zoom))];
+}
+function aplica(x,y){
+  const b=state.brush, meia=Math.floor(b/2);
+  for(let dy=0;dy<b;dy++)for(let dx=0;dx<b;dx++){
+    const X=x+dx-meia, Y=y+dy-meia;
+    if(X<0||Y<0||X>=N||Y>=N) continue;
+    if(state.layer==='colisao'){ state.colisao[Y][X]= window.event&&window.event.shiftKey?0:1; continue; }
+    if(state.tool==='borracha') state[state.layer][Y][X]=null;
+    else if(state.tool==='conta'){
+      const cel=state[state.layer][Y][X];
+      if(cel){ state.sel=oNome(cel)||state.sel;
+        const oi=oInfo(cel); if(oi&&$('tam')){ $('tam').value=Math.round(oi.s*100); $('tamv').textContent=Math.round(oi.s*100)+'%'; } }
+      paleta(); return;
+    }
+    else if(state.sel){
+      // objetos guardam posição/escala próprias desde o início — evita
+      // depender de conversão posterior ao ajustar
+      const escNova = (+($('tam')?.value || 100))/100;
+      // "Peça livre": mesmo um tile de chão entra como objeto solto, podendo
+      // ser movido e redimensionado depois
+      const comoPeca = $('pecalivre') && $('pecalivre').checked;
+      if(state.layer==='terreno' && !comoPeca) state[state.layer][Y][X] = state.sel;
+      else if(state.layer==='terreno' && comoPeca) state.objeto[Y][X] = {t:state.sel, dx:0, dy:0, s:escNova};
+      else {
+        state[state.layer][Y][X] = {t:state.sel, dx:0, dy:0, s:escNova};
+      }
+    }
+  }
+  if(state.layer==='terreno'){ pintaTer(); pintaObj(); }   // peça livre cai em objetos
+  else if(state.layer==='objeto') pintaObj();
+  else if(state.layer==='frente') pintaFre();
+  pintaGrid(); autoSalva();
+}
+function balde(x,y){
+  const L=state[state.layer];
+  const alvo=oNome(L[y][x]) || null;
+  const novoSel = state.tool==='borracha' ? null
+    : (state.layer==='terreno' ? state.sel : {t:state.sel, dx:0, dy:0, s:(+($('tam')?.value||100))/100});
+  if(alvo===oNome(novoSel)) return;
+  const fila=[[x,y]], vis=new Set();
+  while(fila.length){
+    const [a,b2]=fila.pop(), k=a+','+b2;
+    if(a<0||b2<0||a>=N||b2>=N||vis.has(k)||(oNome(L[b2][a])||null)!==alvo) continue;
+    vis.add(k); L[b2][a] = (novoSel && typeof novoSel==='object') ? {...novoSel} : novoSel;
+    fila.push([a+1,b2],[a-1,b2],[a,b2+1],[a,b2-1]);
+  }
+  if(state.layer==='terreno') pintaTer();
+  else if(state.layer==='frente') pintaFre();
+  else pintaObj();
+  autoSalva();
+}
+// ── ÁREA DE CHÃO: 3 cliques selecionam a região contígua da mesma textura,
+// que passa a ser movida em bloco (setas/arraste) ou apagada.
+let areaSel = null;           // {tiles:Set('x,y'), tex, ox, oy}
+function regiaoDe(x,y){
+  const tex = state.terreno[y] && state.terreno[y][x];
+  if(!tex) return null;
+  const vis=new Set(), fila=[[x,y]];
+  while(fila.length){
+    const [a,b2]=fila.pop(), k=a+','+b2;
+    if(a<0||b2<0||a>=N||b2>=N||vis.has(k)) continue;
+    if(state.terreno[b2][a]!==tex) continue;
+    vis.add(k); fila.push([a+1,b2],[a-1,b2],[a,b2+1],[a,b2-1]);
+  }
+  return {tiles:vis, tex, ox:0, oy:0};
+}
+function pintaArea(){
+  if(!areaSel) return;
+  gGrid.save();
+  gGrid.fillStyle='rgba(255,213,74,.22)';
+  gGrid.strokeStyle='#ffd54a'; gGrid.lineWidth=2; gGrid.setLineDash([6,4]);
+  for(const k of areaSel.tiles){
+    const [x,y]=k.split(',').map(Number);
+    gGrid.fillRect((x+areaSel.ox)*TP,(y+areaSel.oy)*TP,TP,TP);
+  }
+  gGrid.setLineDash([]); gGrid.restore();
+}
+function moveArea(dx,dy){
+  if(!areaSel) return;
+  snapshot();
+  const orig=[...areaSel.tiles].map(k=>k.split(',').map(Number));
+  for(const [x,y] of orig) state.terreno[y][x]=null;
+  const novos=new Set();
+  for(const [x,y] of orig){
+    const X=x+dx, Y=y+dy;
+    if(X>=0&&Y>=0&&X<N&&Y<N){ state.terreno[Y][X]=areaSel.tex; novos.add(X+','+Y); }
+  }
+  areaSel.tiles=novos;
+  pintaTer(); pintaGrid(); pintaArea(); autoSalva();
+}
+function soltaArea(){ areaSel=null; pintaGrid(); }
+
+let _cliques=0, _cliqueT=null;
+stage.addEventListener('click', e=>{
+  _cliques++;
+  clearTimeout(_cliqueT);
+  _cliqueT = setTimeout(()=>{ _cliques=0; }, 450);
+  if(_cliques>=3){
+    _cliques=0;
+    const [x,y]=tileDe(e);
+    if(x<0||y<0||x>=N||y>=N) return;
+    const r=regiaoDe(x,y);
+    if(r){ areaSel=r; selObj=null; mostraAjuste();
+      pintaGrid(); pintaArea();
+      msg('área de chão selecionada ('+r.tiles.size+' células) — setas movem, Del apaga, Esc solta');
+    } else msg('não há chão pintado aqui');
+  }
+});
+
+// Duplo clique seleciona o objeto sob o cursor mesmo com um tile escolhido
+stage.addEventListener('dblclick',e=>{
+  const [x,y]=tileDe(e); if(x<0||y<0||x>=N||y>=N) return;
+  const achou=achaObj(x,y);
+  if(achou){ selObj=achou; mostraAjuste(); pintaObj(); pintaFre();
+    msg('objeto selecionado — arraste para mover, alça redimensiona'); }
+});
+stage.addEventListener('mousedown',e=>{
+  if(e.button===1||espaco||state.tool==='mao'){ arrastando=true; lx=e.clientX; ly=e.clientY; e.preventDefault(); return; }
+  const [x,y]=tileDe(e);
+  // fora da grade: arrastar move o mapa (evita cliques mortos nas margens)
+  if(x<0||y<0||x>=N||y>=N){
+    if(!state.sel){ arrastando=true; lx=e.clientX; ly=e.clientY; stage.style.cursor='grabbing'; }
+    return;
+  }
+  if(state.tool==='recorte'){ selA=[x,y]; selB=[x,y]; pintando=true; desenhaSel(); return; }
+  // Pincel também manipula: clicar num objeto já colocado seleciona e arrasta;
+  // a alça na diagonal (canto inferior direito) redimensiona. Sem trocar de modo.
+  if(state.tool==='pincel' || state.tool==='ajustar'){
+    const naAlca = selObj && alcaHit(e);
+    if(naAlca){
+      snapshot(); redimensionando=naAlca;
+      const o=oInfo(state[selObj.l][selObj.y][selObj.x]);
+      escBase={mx:e.clientX,my:e.clientY,s:o.s,sx:o.sx,sy:o.sy,rot:o.rot,
+               quad:(o.quad||[[0,0],[0,0],[0,0],[0,0]]).map(q=>[...q])};
+      return;
+    }
+    // REGRA: com um tile escolhido na paleta, o clique PINTA (mesmo por cima).
+    // Sem tile escolhido (mão livre), o clique SELECIONA o objeto do mapa.
+    if(!state.sel || state.tool==='ajustar'){
+      const achouAgora = achaObj(x,y);
+      if(achouAgora){
+        selObj=achouAgora; snapshot(); movendo=true;
+        const o=oInfo(state[achouAgora.l][achouAgora.y][achouAgora.x]);
+        movBase={mx:e.clientX,my:e.clientY,dx:o.dx,dy:o.dy};
+        mostraAjuste(); pintaObj(); pintaFre();
+        return;
+      }
+      // Sem tile e sem objeto sob o cursor: arrastar move o MAPA — é o gesto
+      // natural, em vez de obrigar a trocar para a ferramenta ✋
+      if(selObj){ selObj=null; mostraAjuste(); pintaObj(); pintaFre(); }
+      arrastando=true; lx=e.clientX; ly=e.clientY;
+      stage.style.cursor='grabbing';
+      return;
+    }
+  }
+  if(false){
+    const achou=null;
+    if(achou){ selObj=achou; snapshot(); movendo=true;
+      const o=oInfo(state[achou.l][achou.y][achou.x]);
+      movBase={mx:e.clientX,my:e.clientY,dx:o.dx,dy:o.dy};
+      mostraAjuste(); pintaObj(); pintaFre();
+    } else { selObj=null; mostraAjuste(); pintaObj(); pintaFre(); msg('clique em cima de um objeto'); }
+    return;
+  }
+  if(state.tool==='conta'){ aplica(x,y); return; }
+  snapshot();
+  if(state.tool==='balde'&&state.layer!=='colisao'){ balde(x,y); pintaGrid(); return; }
+  pintando=true; aplica(x,y);
+});
+window.addEventListener('mousemove',e=>{
+  if(arrastando){ state.panX+=e.clientX-lx; state.panY+=e.clientY-ly; lx=e.clientX; ly=e.clientY; aplicaTransform(); return; }
+  const [x,y]=tileDe(e);
+  $('pos').textContent = (x>=0&&y>=0&&x<N&&y<N) ? `${x}, ${y}` : '—';
+  if(x>=0&&y>=0&&x<N&&y<N) ultimoTile={x,y};   // destino do Ctrl+V
+  if(redimensionando&&selObj&&escBase){
+    const z=TP*state.zoom;
+    const dx2=(e.clientX-escBase.mx)/z, dy2=(e.clientY-escBase.my)/z;
+    if(redimensionando.startsWith && redimensionando.startsWith('canto')){
+      const i=+redimensionando.slice(5);
+      setObj(o=>{
+        o.quad = o.quad ? o.quad.map(q=>[...q]) : [[0,0],[0,0],[0,0],[0,0]];
+        o.quad[i] = [escBase.quad[i][0] + dx2, escBase.quad[i][1] + dy2];
+      });
+      return;
+    }
+    if(redimensionando==='girar'){
+      // ângulo entre o centro da peça e o cursor
+      const b2=caixaSel(), r=wrap.getBoundingClientRect(), z=state.zoom;
+      const cx2=r.left+(b2.x+b2.w/2)*z, cy2=r.top+(b2.y+b2.h/2)*z;
+      let ang=Math.atan2(e.clientY-cy2, e.clientX-cx2)*180/Math.PI + 90;
+      if(e.shiftKey) ang=Math.round(ang/15)*15;      // Shift trava de 15 em 15
+      setObj(o=>o.rot=Math.round(ang));
+      return;
+    }
+    if(redimensionando==='larg')      setObj(o=>o.sx=Math.max(0.15, escBase.sx + dx2/3));
+    else if(redimensionando==='alt')  setObj(o=>o.sy=Math.max(0.15, escBase.sy + dy2/3));
+    else {
+      const d=((e.clientX-escBase.mx)+(e.clientY-escBase.my))/2;
+      setObj(o=>o.s=Math.max(0.3, Math.min(20, escBase.s + d/60)));
+      const v=Math.round(oInfo(state[selObj.l][selObj.y][selObj.x]).s*100);
+      if($('tam')){ $('tam').value=v; $('tamv').textContent=v+'%'; }
+    }
+    return;
+  }
+  if(!pintando&&!movendo&&!redimensionando&&!arrastando){
+    const a=selObj && alcaHit(e);
+    if(a) stage.style.cursor = a==='larg' ? 'ew-resize' : a==='alt' ? 'ns-resize'
+                              : a==='girar' ? 'grab'
+                              : (a.startsWith&&a.startsWith('canto')) ? 'crosshair' : 'nwse-resize';
+    else if(!state.sel && x>=0&&y>=0&&x<N&&y<N && !achaObj(x,y)) stage.style.cursor='grab';
+    else stage.style.cursor='default';
+  }
+  if(movendo&&selObj&&movBase){
+    const z=TP*state.zoom;
+    setObj(o=>{ o.dx=movBase.dx+(e.clientX-movBase.mx)/z; o.dy=movBase.dy+(e.clientY-movBase.my)/z; });
+    return;
+  }
+  if(pintando&&state.tool==='recorte'&&x>=0&&y>=0&&x<N&&y<N){ selB=[x,y]; desenhaSel(); return; }
+  if(pintando&&x>=0&&y>=0&&x<N&&y<N) aplica(x,y);
+});
+window.addEventListener('mouseup',()=>{
+  if(pintando&&state.tool==='recorte') atualizaCrop();
+  pintando=false;arrastando=false;movendo=false;redimensionando=false;
+  stage.style.cursor='default';
+});
+function desenhaSel(){
+  if(!selA||!selB) return;
+  const x0=Math.min(selA[0],selB[0]), y0=Math.min(selA[1],selB[1]);
+  const x1=Math.max(selA[0],selB[0]), y1=Math.max(selA[1],selB[1]);
+  const r=wrap.getBoundingClientRect(), sr=stage.getBoundingClientRect(), z=TP*state.zoom;
+  const b=$('selbox');
+  b.style.display='block';
+  b.style.left=(r.left-sr.left+x0*z)+'px';
+  b.style.top=(r.top-sr.top+y0*z)+'px';
+  b.style.width=((x1-x0+1)*z)+'px';
+  b.style.height=((y1-y0+1)*z)+'px';
+}
+function verTudo(){
+  const r = stage.getBoundingClientRect();
+  state.zoom = Math.min(r.width, r.height) / (N*TP) * 0.96;
+  state.panX = (r.width  - N*TP*state.zoom)/2;
+  state.panY = (r.height - N*TP*state.zoom)/2;
+  aplicaTransform();
+}
+$('fit').onclick = verTudo;
+window.addEventListener('keydown',e=>{
+  if(e.key==='Escape'){ if(areaSel){ soltaArea(); return; }
+    if(selObj){ selObj=null; mostraAjuste(); pintaObj(); pintaFre(); return; } }
+  if(areaSel){
+    const p2 = e.shiftKey ? 4 : 1;
+    if(e.key==='ArrowLeft'){ moveArea(-p2,0); e.preventDefault(); return; }
+    if(e.key==='ArrowRight'){ moveArea(p2,0); e.preventDefault(); return; }
+    if(e.key==='ArrowUp'){ moveArea(0,-p2); e.preventDefault(); return; }
+    if(e.key==='ArrowDown'){ moveArea(0,p2); e.preventDefault(); return; }
+    if(e.key==='Delete'){ snapshot();
+      for(const k of areaSel.tiles){ const [x,y]=k.split(',').map(Number); state.terreno[y][x]=null; }
+      soltaArea(); pintaTer(); autoSalva(); msg('área apagada'); return; }
+  }
+  if(e.code==='Space'){espaco=true;e.preventDefault();}
+  if(selObj && state.tool==='ajustar'){
+    const f=e.shiftKey?0.25:0.05;
+    if(e.key==='ArrowLeft'){ setObj(o=>o.dx-=f); e.preventDefault(); return; }
+    if(e.key==='ArrowRight'){ setObj(o=>o.dx+=f); e.preventDefault(); return; }
+    if(e.key==='ArrowUp'){ setObj(o=>o.dy-=f); e.preventDefault(); return; }
+    if(e.key==='ArrowDown'){ setObj(o=>o.dy+=f); e.preventDefault(); return; }
+    if(e.key==='Delete'){ $('adjdel').click(); return; }
+  }
+  if(selObj && (e.key==='r'||e.key==='R') && !e.ctrlKey && !e.metaKey){
+    setObj(o=>o.rot=((o.rot||0) + (e.shiftKey?-15:15))%360); return;
+  }
+  if(selObj && e.key==='Delete'){ $('adjdel').click(); return; }
+  const passo = 90;
+  if(e.key==='ArrowLeft'){ state.panX+=passo; aplicaTransform(); e.preventDefault(); }
+  if(e.key==='ArrowRight'){ state.panX-=passo; aplicaTransform(); e.preventDefault(); }
+  if(e.key==='ArrowUp'){ state.panY+=passo; aplicaTransform(); e.preventDefault(); }
+  if(e.key==='ArrowDown'){ state.panY-=passo; aplicaTransform(); e.preventDefault(); }
+  if(e.key==='0'){ verTudo(); }
+});
+window.addEventListener('keyup',e=>{ if(e.code==='Space')espaco=false; });
+stage.addEventListener('wheel',e=>{
+  e.preventDefault();
+  const f=e.deltaY<0?1.12:1/1.12, z=Math.min(4,Math.max(.25,state.zoom*f));
+  const r=wrap.getBoundingClientRect();
+  state.panX -= (e.clientX-r.left)*(z/state.zoom-1);
+  state.panY -= (e.clientY-r.top)*(z/state.zoom-1);
+  state.zoom=z; aplicaTransform();
+},{passive:false});
+
+// ── GERADOR DE PROMPT: recorta o mapa original e monta o pedido certo ──
+let selA=null, selB=null, cropData=null;
+const COERENCIA = `
+COERÊNCIA COM A CENA (obrigatório — a peça será montada junto das outras):
+- Use EXATAMENTE a mesma paleta, temperatura de cor, brilho e contraste do recorte anexado.
+  Se o recorte é uma cena noturna/azulada, a peça também é noturna/azulada — NÃO entregue
+  em cores de dia claro nem supersaturadas.
+- Mesmo nível de detalhe e mesma nitidez do recorte, sem estilizar mais nem menos.
+- Mesma direção de luz do recorte (canto superior esquerdo).`;
+
+const PROMPTS = {
+  chao: (n,t)=>`Crie uma TEXTURA DE CHÃO para o tileset de um jogo RPG, baseada no recorte anexado.
+Recrie o MESMO material/cor do recorte (é uma remasterização, não um design novo).
+
+OBRIGATÓRIO:
+- SEAMLESS: repete perfeitamente nas 4 bordas, sem emenda visível
+- Imagem quadrada 512x512, textura preenchendo a imagem inteira
+- Vista DE CIMA (top-down), iluminação neutra e uniforme, sem sombras direcionais
+- Sem objetos grandes, sem texto, sem moldura
+- Estilo: render 3D estilizado de jogo moderno, materiais com relevo e profundidade, cores vibrantes
+${COERENCIA}
+Este tile ocupa ${t} no mapa.`,
+  arvore: (n,t)=>`Crie UMA ÁRVORE/VEGETAÇÃO isolada para o tileset de um jogo RPG, baseada no recorte anexado.
+Recrie a MESMA espécie, formato e cor que aparece no recorte (remasterização, não design novo).
+
+OBRIGATÓRIO:
+- UM único elemento, centralizado, ocupando ~85% da imagem
+- Vista DE CIMA (top-down) com volume: iluminação vinda do canto superior esquerdo
+- SEM sombra projetada no chão (o jogo desenha a sombra)
+- Fundo MAGENTA CHROMA #FF00FF sólido
+- Nada tocando as bordas da imagem, sem texto
+- Estilo: render 3D estilizado, copa volumétrica, cores vibrantes
+${COERENCIA}
+Tamanho no jogo: ocupa cerca de ${t}.`,
+  casa: (n,t)=>`Crie UMA CONSTRUÇÃO isolada para o tileset de um jogo RPG, baseada no recorte anexado.
+Recrie a MESMA construção do recorte: mesmo formato de telhado, mesmas cores, mesma identidade
+(é uma remasterização em 3D, não um prédio novo).
+
+OBRIGATÓRIO:
+- Vista TOP-DOWN 3/4: telhado dominante visto de cima + fachada frontal estreita embaixo (porta e janelas)
+- Volumétrica, iluminação do canto superior esquerdo, sombras suaves internas
+- SEM sombra projetada no chão
+- Fundo MAGENTA CHROMA #FF00FF sólido, nada tocando as bordas, sem texto
+- Janelas com luz acesa aconchegante
+- Estilo: render 3D estilizado de jogo moderno, materiais ricos (madeira, telha, pedra com relevo)
+${COERENCIA}
+Proporção da imagem: ${t.split(' ')[0]} (largura:altura em tiles do jogo).`,
+  objeto: (n,t)=>`Crie UM OBJETO isolado para o tileset de um jogo RPG, baseado no recorte anexado.
+Recrie o MESMO objeto do recorte (mesma forma, mesmas cores) em versão 3D melhorada.
+
+OBRIGATÓRIO:
+- Objeto único, centralizado, vista de cima com leve 3/4
+- Iluminação do canto superior esquerdo, SEM sombra projetada no chão
+- Fundo MAGENTA CHROMA #FF00FF sólido, nada tocando as bordas, sem texto
+- Estilo: render 3D estilizado, volumétrico, cores vibrantes
+${COERENCIA}
+Tamanho no jogo: ${t}.`,
+  borda: (n,t)=>`Crie uma MOLDURA DE BORDA para o tileset de um jogo RPG, baseada no recorte anexado.
+É a faixa de transição entre dois terrenos (ex: onde a água encontra a grama), no MESMO estilo do recorte.
+
+OBRIGATÓRIO:
+- A imagem contém APENAS a faixa decorativa da transição
+- Todo o resto (os dois lados da faixa) deve ser MAGENTA CHROMA #FF00FF puro
+- A faixa ocupa ~20% da imagem, posicionada conforme o recorte
+- Imagem quadrada 512x512, vista de cima, iluminação do canto superior esquerdo
+- Sem texto, sem grade
+- Estilo: render 3D estilizado, materiais com relevo
+${COERENCIA}`,
+  detalhe: (n,t)=>`Crie um DETALHE PEQUENO de chão para o tileset de um jogo RPG, baseado no recorte anexado.
+Recrie o mesmo elemento do recorte (tufo, flores, pedrinhas etc.), isolado.
+
+OBRIGATÓRIO:
+- Elemento único e pequeno, centralizado
+- Vista DE CIMA, iluminação do canto superior esquerdo, SEM sombra no chão
+- Fundo MAGENTA CHROMA #FF00FF sólido, nada tocando as bordas, sem texto
+- Estilo: render 3D estilizado, cores vibrantes
+${COERENCIA}
+Tamanho no jogo: ${t}.`,
+};
+const PREFIXO = { chao:'tile-', arvore:'prop-', casa:'prop-', objeto:'prop-', borda:'margem-', detalhe:'det-' };
+
+function fechaGen(){ $('gen').classList.remove('on'); $('selbox').style.display='none'; selA=selB=null; }
+$('gclose').onclick=fechaGen;
+
+function atualizaCrop(){
+  if(!selA||!selB) return;
+  const x0=Math.min(selA[0],selB[0]), y0=Math.min(selA[1],selB[1]);
+  const x1=Math.max(selA[0],selB[0]), y1=Math.max(selA[1],selB[1]);
+  const tw=x1-x0+1, th=y1-y0+1;
+  const c=$('gprev'), g=c.getContext('2d');
+  const LIM=200, esc=Math.min(LIM/tw, LIM/th, 40);
+  c.width=Math.max(40,Math.round(tw*esc)); c.height=Math.max(40,Math.round(th*esc));
+  g.clearRect(0,0,c.width,c.height);
+  if(ghost.complete) g.drawImage(ghost, x0/N*ghost.width, y0/N*ghost.height,
+      tw/N*ghost.width, th/N*ghost.height, 0,0, c.width, c.height);
+  cropData={x0,y0,tw,th};
+  $('ginfo').textContent = `${tw}x${th} tiles · ${(tw*39)}x${(th*39)}px no jogo`;
+  // sugere o tipo pelo tamanho do recorte (o usuário pode trocar)
+  if(!gtipo){
+    const sug = (tw<=1&&th<=1) ? 'detalhe' : (tw>=6||th>=6) ? 'casa' : (tw<=3&&th<=3) ? 'arvore' : 'objeto';
+    marcaTipo(sug);
+  }
+  $('adj').classList.remove('on'); $('fab').classList.remove('on');
+  $('gen').classList.add('on');
+}
+let gtipo = null;
+function marcaTipo(v){
+  gtipo = v;
+  document.querySelectorAll('#gtipos button').forEach(b=>b.classList.toggle('on', b.dataset.v===v));
+}
+document.querySelectorAll('#gtipos button').forEach(b=>b.onclick=()=>marcaTipo(b.dataset.v));
+$('gcopy').onclick=()=>{
+  if(!cropData) return msg('marque uma área no mapa primeiro');
+  if(!gtipo) return msg('escolha primeiro O QUE É (chão, árvore, casa…)');
+  const tipo=gtipo;
+  const nome=($('gnome').value||'novo').replace(/[^a-z0-9-]/gi,'-').toLowerCase();
+  const tam = `${cropData.tw}x${cropData.th} tiles (${cropData.tw*39}x${cropData.th*39} pixels no jogo)`;
+  const txt = PROMPTS[tipo](nome, tam);
+  navigator.clipboard.writeText(txt);
+  msg('prompt copiado! Anexe o recorte junto ao enviar. Salve como: '+PREFIXO[tipo]+nome+'.png');
+};
+$('gdown').onclick=()=>{
+  if(!cropData) return msg('marque uma área no mapa primeiro');
+  const nome=($('gnome').value||'recorte').replace(/[^a-z0-9-]/gi,'-').toLowerCase();
+  $('gprev').toBlob(b=>{ const a=document.createElement('a');
+    a.href=URL.createObjectURL(b); a.download='ref-'+nome+'.png'; a.click(); });
+};
+
+// ── COPIAR / COLAR (Ctrl+C / Ctrl+V) ───────────────────────────────────
+// Guarda a peça inteira (textura, escala e deslocamento) para repetir o
+// mesmo ajuste sem refazer tamanho a cada cópia.
+let areaTransf = null;   // {t, dx, dy, s, l}
+let ultimoTile = {x:24, y:24};
+function copiarPeca(){
+  if(!selObj){ msg('selecione uma peça primeiro (clique nela)'); return; }
+  const o = oInfo(state[selObj.l][selObj.y][selObj.x]);
+  areaTransf = {t:o.t, dx:o.dx, dy:o.dy, s:o.s, sx:o.sx, sy:o.sy, rot:o.rot, quad:o.quad?o.quad.map(q=>[...q]):null, l:selObj.l};
+  msg('copiado: ' + nomeCurto(o.t) + ' em ' + Math.round(o.s*100) + '% — Ctrl+V cola com o mesmo tamanho');
+}
+function colarPeca(){
+  if(!areaTransf){ msg('nada copiado ainda (Ctrl+C numa peça)'); return; }
+  const {x,y} = ultimoTile;
+  if(x<0||y<0||x>=N||y>=N) return;
+  snapshot();
+  const alvo = areaTransf.l==='frente' ? 'frente' : 'objeto';
+  state[alvo][y][x] = {t:areaTransf.t, dx:areaTransf.dx, dy:areaTransf.dy, s:areaTransf.s, sx:areaTransf.sx, sy:areaTransf.sy, rot:areaTransf.rot,
+    quad:areaTransf.quad?areaTransf.quad.map(q=>[...q]):null};
+  selObj = {l:alvo, x, y};
+  // o tamanho copiado também vira o padrão do próximo clique
+  if($('tam')){ $('tam').value=Math.round(areaTransf.s*100); $('tamv').textContent=Math.round(areaTransf.s*100)+'%'; }
+  pintaObj(); pintaFre(); mostraAjuste(); autoSalva();
+  msg('colado em ' + x + ',' + y + ' com ' + Math.round(areaTransf.s*100) + '%');
+}
+
+// ── AUTO-SAVE: nada do que o usuário faz pode se perder ────────────────
+let _autoT=null;
+function autoSalva(){
+  clearTimeout(_autoT);
+  _autoT = setTimeout(()=>{
+    try{
+      localStorage.setItem('crias_editor', JSON.stringify({
+        t:state.terreno, o:state.objeto, f:state.frente, c:state.colisao, em:Date.now()
+      }));
+      const el=$('auto2'); if(el){ el.textContent='salvo ' + new Date().toLocaleTimeString('pt-BR').slice(0,5); }
+    }catch(err){ msg('ATENÇÃO: não consegui salvar automaticamente — use 💾 Backup completo'); }
+  }, 700);
+}
+async function carregaProjeto(silencioso){
+  const d=localStorage.getItem('crias_editor');
+  Object.assign(UPLOADS, await dbCarregaTiles());
+  if(d){
+    try{
+      const j=JSON.parse(d);
+      if(j.t) state.terreno=j.t;
+      if(j.o) state.objeto=j.o;
+      if(j.f) state.frente=j.f;
+      if(j.c) state.colisao=j.c;
+    }catch(e){}
+  }
+  atualizaTodos(); paleta(); pintaTer(); pintaObj(); pintaFre(); pintaGrid();
+  if(!silencioso){
+    const n=state.terreno.flat().filter(Boolean).length + state.objeto.flat().filter(Boolean).length;
+    msg(n ? ('projeto recuperado: '+n+' peças no mapa') : 'mapa vazio — comece a pintar');
+  }
+}
+
+// ── AJUSTAR: move e redimensiona um objeto já colocado ─────────────────
+let selObj=null, movendo=false, movBase=null, redimensionando=false, escBase=null;
+// Um objeto recém-colocado já fica selecionado: o clique seguinte em cima
+// dele move em vez de pintar por cima.
+function jaSelecionado(a,x,y){
+  return selObj && a && selObj.l===a.l && selObj.x===a.x && selObj.y===a.y;
+}
+// retângulo do objeto selecionado na tela (para desenhar e testar a alça)
+function caixaSel(){ return selObj ? caixaDe(selObj.l, selObj.x, selObj.y) : null; }
+// devolve qual alça está sob o cursor: 'prop' | 'larg' | 'alt' | null
+function alcaHit(e){
+  const b=caixaSel(); if(!b) return null;
+  const r=wrap.getBoundingClientRect(), z=state.zoom;
+  const perto=(px,py)=>Math.hypot(e.clientX-(r.left+px*z), e.clientY-(r.top+py*z))<16;
+  if(perto(b.x+b.w, b.y+b.h)) return 'prop';
+  if(perto(b.x+b.w, b.y+b.h/2)) return 'larg';
+  if(perto(b.x+b.w/2, b.y+b.h)) return 'alt';
+  if(perto(b.x+b.w/2, b.y - Math.max(22,28/state.zoom))) return 'girar';
+  const o=oInfo(state[selObj.l][selObj.y][selObj.x]);
+  const c4=cantosDe(o, b.x, b.y, b.w, b.h);
+  for(let i=0;i<4;i++) if(perto(c4[i][0], c4[i][1])) return 'canto'+i;
+  return null;
+}
+// Tiles de chão colocados como peça livre são desenhados com a textura em
+// escala natural (recortada do padrão), não a imagem inteira espremida.
+function desenhaPeca(ctx2, o, im, bx, by, w, h){
+  if(o.rot){
+    ctx2.save();
+    ctx2.translate(bx + w/2, by + h/2);
+    ctx2.rotate(o.rot * Math.PI/180);
+    desenhaPecaBase(ctx2, o, im, -w/2, -h/2, w, h);
+    ctx2.restore();
+    return;
+  }
+  desenhaPecaBase(ctx2, o, im, bx, by, w, h);
+}
+// Desenha um triângulo da imagem mapeado para um triângulo de destino:
+// é o que permite deformar a peça puxando cada canto livremente.
+function triangulo(ctx2, im, s0,s1,s2, d0,d1,d2){
+  ctx2.save();
+  ctx2.beginPath();
+  ctx2.moveTo(d0[0],d0[1]); ctx2.lineTo(d1[0],d1[1]); ctx2.lineTo(d2[0],d2[1]);
+  ctx2.closePath(); ctx2.clip();
+  const den = s0[0]*(s2[1]-s1[1]) - s1[0]*s2[1] + s2[0]*s1[1] + (s1[0]-s2[0])*s0[1];
+  if(!den){ ctx2.restore(); return; }
+  const a = -(s0[1]*(d2[0]-d1[0]) - s1[1]*d2[0] + s2[1]*d1[0] + (s1[1]-s2[1])*d0[0])/den;
+  const b =  (s1[1]*d2[1] + s0[1]*(d1[1]-d2[1]) - s2[1]*d1[1] + (s2[1]-s1[1])*d0[1])/den;
+  const c =  (s0[0]*(d2[0]-d1[0]) - s1[0]*d2[0] + s2[0]*d1[0] + (s1[0]-s2[0])*d0[0])/den;
+  const d = -(s1[0]*d2[1] + s0[0]*(d1[1]-d2[1]) - s2[0]*d1[1] + (s2[0]-s1[0])*d0[1])/den;
+  const e =  (s0[0]*(s2[1]*d1[0] - s1[1]*d2[0]) + s0[1]*(s1[0]*d2[0] - s2[0]*d1[0])
+            + (s2[0]*s1[1] - s1[0]*s2[1])*d0[0])/den;
+  const f =  (s0[0]*(s2[1]*d1[1] - s1[1]*d2[1]) + s0[1]*(s1[0]*d2[1] - s2[0]*d1[1])
+            + (s2[0]*s1[1] - s1[0]*s2[1])*d0[1])/den;
+  ctx2.transform(a,b,c,d,e,f);
+  ctx2.drawImage(im,0,0);
+  ctx2.restore();
+}
+// Cantos da peça: base (retângulo) + deslocamento livre de cada ponto
+function cantosDe(o, bx, by, w, h){
+  const q = o.quad || [[0,0],[0,0],[0,0],[0,0]];
+  return [
+    [bx     + q[0][0]*TP, by     + q[0][1]*TP],   // superior esquerdo
+    [bx + w + q[1][0]*TP, by     + q[1][1]*TP],   // superior direito
+    [bx + w + q[2][0]*TP, by + h + q[2][1]*TP],   // inferior direito
+    [bx     + q[3][0]*TP, by + h + q[3][1]*TP],   // inferior esquerdo
+  ];
+}
+function temQuad(o){ return o.quad && o.quad.some(p=>p[0]||p[1]); }
+
+function desenhaPecaBase(ctx2, o, im, bx, by, w, h){
+  if(temQuad(o)){
+    const c4 = cantosDe(o, bx, by, w, h);
+    const W=im.naturalWidth, H=im.naturalHeight;
+    triangulo(ctx2, im, [0,0],[W,0],[W,H], c4[0],c4[1],c4[2]);
+    triangulo(ctx2, im, [0,0],[W,H],[0,H], c4[0],c4[2],c4[3]);
+    return;
+  }
+  if(o.t.startsWith('tile-')){
+    const lado = TP * TEX_TILES;
+    const tmp = document.createElement('canvas'); tmp.width=Math.max(1,Math.round(w)); tmp.height=Math.max(1,Math.round(h));
+    const tg = tmp.getContext('2d');
+    const pc = document.createElement('canvas'); pc.width=pc.height=lado;
+    pc.getContext('2d').drawImage(im,0,0,lado,lado);
+    const pt = tg.createPattern(pc,'repeat');
+    if(pt){ tg.fillStyle=pt; tg.fillRect(0,0,tmp.width,tmp.height); ctx2.drawImage(tmp,bx,by); return; }
+  }
+  ctx2.drawImage(im,bx,by,w,h);
+}
+
+// Caixa real de um objeto no mundo (mesma conta usada para desenhar)
+function caixaDe(l,x,y){
+  const c=state[l][y][x]; if(!c) return null;
+  const o=oInfo(c), im=imgDe(o.t);
+  if(!(im.complete&&im.naturalWidth)) return null;
+  const esc=(o.t.startsWith('prop-')?2.0:1)*o.s;
+  const h=TP*esc*o.sy, w=TP*esc*(im.naturalWidth/im.naturalHeight)*o.sx;
+  return { x:x*TP+TP/2-w/2+o.dx*TP, y:y*TP+TP-h+o.dy*TP, w, h };
+}
+// Acerta o objeto pela ÁREA DESENHADA, não pela vizinhança da âncora: peças
+// grandes (orbe a 520%, praça) eram impossíveis de clicar no meio.
+function achaObj(x,y){
+  const px=(x+0.5)*TP, py=(y+0.5)*TP;
+  let melhor=null;
+  for(const l of ['objeto','frente']){          // frente ganha por ser depois
+    for(let Y=0;Y<N;Y++) for(let X=0;X<N;X++){
+      if(!state[l][Y][X]) continue;
+      const b=caixaDe(l,X,Y); if(!b) continue;
+      if(px>=b.x && px<=b.x+b.w && py>=b.y && py<=b.y+b.h){
+        // entre sobrepostos, vence o desenhado por último (linha maior)
+        if(!melhor || l==='frente' || Y>=melhor.y) melhor={l,x:X,y:Y};
+      }
+    }
+  }
+  return melhor;
+}
+// Botão flutuante do objeto selecionado: manda pra frente / traz pra trás.
+function posFab(){
+  const f=$('fab'), b=caixaSel();
+  if(!selObj||!b){ f.classList.remove('on'); return; }
+  const r=wrap.getBoundingClientRect(), sr=stage.getBoundingClientRect(), z=state.zoom;
+  f.style.left=(r.left-sr.left+(b.x+b.w/2)*z)+'px';
+  f.style.top =(r.top -sr.top +(b.y-34)*z + (b.y*z<40?b.h*z+40:0))+'px';
+  const naFrente = selObj.l==='frente';
+  const bt=$('fabFrente');
+  bt.textContent = naFrente ? '⬇ mandar pra trás' : '⬆ trazer pra frente';
+  bt.classList.toggle('frente', naFrente);
+  f.classList.add('on');
+}
+$('fabFrente').onclick=()=>{
+  if(!selObj) return;
+  snapshot();
+  const de=selObj.l, para = de==='frente' ? 'objeto' : 'frente';
+  const cel=state[de][selObj.y][selObj.x];
+  state[de][selObj.y][selObj.x]=null;
+  state[para][selObj.y][selObj.x]=cel;
+  selObj={l:para, x:selObj.x, y:selObj.y};
+  pintaObj(); pintaFre(); mostraAjuste(); autoSalva();
+  msg(para==='frente' ? 'objeto agora COBRE o personagem' : 'objeto voltou para trás do personagem');
+};
+$('fabDup').onclick=()=>{
+  copiarPeca();
+  // cola ao lado, para a cópia não ficar escondida sob a original
+  const antes=ultimoTile;
+  ultimoTile={x:Math.min(N-1,selObj.x+2), y:selObj.y};
+  colarPeca(); ultimoTile=antes;
+};
+$('fabDel').onclick=()=>$('adjdel').click();
+
+function mostraAjuste(){
+  const a=$('adj');
+  if(!selObj){ a.classList.remove('on'); $('fab').classList.remove('on'); return; }
+  const o=oInfo(state[selObj.l][selObj.y][selObj.x]);
+  $('adjnome').textContent = nomeCurto(o.t) + '  ·  ' + (selObj.l==='frente'?'frente':'objeto');
+  $('adjesc').value = Math.round(o.s*100);
+  $('adjinfo').textContent = `${Math.round(o.s*100)}%  ·  L ${Math.round(o.sx*100)}%  A ${Math.round(o.sy*100)}%  ·  ${o.rot||0}°` + (temQuad(o)?'  ·  deformada':'');
+  $('gen').classList.remove('on');
+  a.classList.add('on');
+  posFab();
+}
+function setObj(mut){
+  if(!selObj) return;
+  const cur=oInfo(state[selObj.l][selObj.y][selObj.x]);
+  mut(cur);
+  state[selObj.l][selObj.y][selObj.x]=cur;
+  if(selObj.l==='frente') pintaFre(); else pintaObj();
+  mostraAjuste(); autoSalva();
+}
+$('adjesc').oninput=e=>setObj(o=>o.s=+e.target.value/100);
+$('adjdel').onclick=()=>{ if(!selObj) return; snapshot();
+  state[selObj.l][selObj.y][selObj.x]=null;
+  if(selObj.l==='frente') pintaFre(); else pintaObj();
+  selObj=null; mostraAjuste(); };
+$('adjreset').onclick=()=>setObj(o=>{o.dx=0;o.dy=0;o.s=1;o.sx=1;o.sy=1;o.rot=0;o.quad=null;});
+$('adjclose').onclick=()=>{ selObj=null; mostraAjuste(); pintaObj(); pintaFre(); };
+
+// ── upload de tiles ─────────────────────────────────────────────────────
+$('undo').onclick=desfazer; $('redo').onclick=refazer;
+$('copiar').onclick=copiarPeca; $('colar').onclick=colarPeca;
+$('up').onclick=()=>$('file').click();
+$('file').onchange=e=>{
+  const fs=[...e.target.files]; let n=0;
+  fs.forEach(f=>{
+    const r=new FileReader();
+    r.onload=()=>{
+      // o tile entra na SEÇÃO que está aberta (o prefixo define onde aparece)
+      const sec = SECOES.find(s=>s.id===state.secao) || SECOES[0];
+      let nome = f.name.replace(/\s*\(\d+\)/,'').replace(/(\.png)+$/,'').replace(/[^\w.-]+/g,'-');
+      nome = (sec.pre || 'tile-') + nome + '.png';
+      const img = new Image();
+      img.onload = async () => {
+        // reduz para no máximo 640px: no jogo os tiles são desenhados pequenos
+        const MX=640, esc=Math.min(1, MX/Math.max(img.width,img.height));
+        const c=document.createElement('canvas');
+        c.width=Math.round(img.width*esc); c.height=Math.round(img.height*esc);
+        c.getContext('2d').drawImage(img,0,0,c.width,c.height);
+        const url=c.toDataURL('image/png');
+        UPLOADS[nome]=url;
+        try{ await dbSalvaTile(nome, url); }catch(e){ msg('aviso: não consegui guardar '+nome); }
+        if(++n===fs.length){ atualizaTodos(); paleta();
+          msg(fs.length+' tile(s) salvos em '+(SECOES.find(s=>s.id===state.secao)||{}).nome); }
+      };
+      img.onerror = () => { if(++n===fs.length){ atualizaTodos(); paleta(); } };
+      img.src = r.result;
+    };
+    r.readAsDataURL(f);
+  });
+};
+function msg(t){ $('msg').textContent=t; }
+
+// ── auto-colisão + exportar + salvar ────────────────────────────────────
+$('auto').onclick=()=>{
+  snapshot();
+  let n=0;
+  for(let y=0;y<N;y++)for(let x=0;x<N;x++){
+    const t=state.terreno[y][x]||'';
+    const tn = typeof t === 'string' ? t : (t && t.t) || '';
+    const bloq = !!state.objeto[y][x] || tn.includes('agua') || tn.includes('penhasco');
+    if(bloq){ state.colisao[y][x]=1; n++; }
+  }
+  pintaGrid(); autoSalva(); msg('auto-colisão: '+n+' tiles bloqueados (objetos, água e penhasco)');
+};
+// ── render do mapa final (usado por exportar e publicar) ────────────────
+function renderCamada(campo, transparente){
+  const OUT=64, c=document.createElement('canvas'); c.width=c.height=N*OUT;
+  const g=c.getContext('2d');
+  for(let y=0;y<N;y++)for(let x=0;x<N;x++){
+    const c=state[campo][y][x]; if(!c) continue;
+    const o=oInfo(c), im=imgH(o.t); if(!im.complete) continue;
+    const esc=2.0*o.s, h=OUT*esc*o.sy, w=OUT*esc*(im.naturalWidth/im.naturalHeight)*o.sx;
+    const bx=x*OUT+OUT/2-w/2+o.dx*OUT, by=y*OUT+OUT-h+o.dy*OUT;
+    if(o.rot){ g.save(); g.translate(bx+w/2,by+h/2); g.rotate(o.rot*Math.PI/180); g.drawImage(im,-w/2,-h/2,w,h); g.restore(); }
+    else g.drawImage(im,bx,by,w,h);
+  }
+  return c;
+}
+function renderFinal(){
+  const OUT=64, c=document.createElement('canvas'); c.width=c.height=N*OUT;
+  const g=c.getContext('2d');
+  const porTipo={};
+  for(let y=0;y<N;y++)for(let x=0;x<N;x++){
+    const t=state.terreno[y][x]; if(!t) continue;
+    (porTipo[t]=porTipo[t]||[]).push([x,y]);
+  }
+  for(const [t,cels] of Object.entries(porTipo)){
+    const im=imgH(t); if(!(im.complete&&im.naturalWidth)) continue;
+    const lado=OUT*TEX_TILES;
+    const tc=document.createElement('canvas'); tc.width=tc.height=lado;
+    tc.getContext('2d').drawImage(im,0,0,lado,lado);
+    const pat=g.createPattern(tc,'repeat');
+    g.fillStyle=pat;
+    for(const [x,y] of cels) g.fillRect(x*OUT,y*OUT,OUT,OUT);
+  }
+  for(let y=0;y<N;y++)for(let x=0;x<N;x++){
+    const c=state.objeto[y][x]; if(!c) continue;
+    const o=oInfo(c), im=imgH(o.t); if(!im.complete) continue;
+    const esc=(o.t.startsWith('prop-')?2.0:1)*o.s;
+    const h=OUT*esc*o.sy, w=OUT*esc*(im.naturalWidth/im.naturalHeight)*o.sx;
+    if(temQuad(o)){
+      // deformação livre: mesma conta do editor, em escala de exportação
+      const bx3=x*OUT+OUT/2-w/2+o.dx*OUT, by3=y*OUT+OUT-h+o.dy*OUT;
+      const k=OUT/TP;
+      const q=o.quad, W2=im.naturalWidth, H2=im.naturalHeight;
+      const c4=[[bx3+q[0][0]*OUT, by3+q[0][1]*OUT],[bx3+w+q[1][0]*OUT, by3+q[1][1]*OUT],
+                [bx3+w+q[2][0]*OUT, by3+h+q[2][1]*OUT],[bx3+q[3][0]*OUT, by3+h+q[3][1]*OUT]];
+      triangulo(g, im, [0,0],[W2,0],[W2,H2], c4[0],c4[1],c4[2]);
+      triangulo(g, im, [0,0],[W2,H2],[0,H2], c4[0],c4[2],c4[3]);
+    } else if(o.t.startsWith('tile-')){
+      const lado=OUT*TEX_TILES;
+      const pc=document.createElement('canvas'); pc.width=pc.height=lado;
+      pc.getContext('2d').drawImage(im,0,0,lado,lado);
+      const tmp=document.createElement('canvas'); tmp.width=Math.max(1,Math.round(w)); tmp.height=Math.max(1,Math.round(h));
+      const tg=tmp.getContext('2d'); tg.fillStyle=tg.createPattern(pc,'repeat'); tg.fillRect(0,0,tmp.width,tmp.height);
+      const bx2=x*OUT+OUT/2-w/2+o.dx*OUT, by2=y*OUT+OUT-h+o.dy*OUT;
+      if(o.rot){ g.save(); g.translate(bx2+w/2,by2+h/2); g.rotate(o.rot*Math.PI/180); g.drawImage(tmp,-w/2,-h/2); g.restore(); }
+      else g.drawImage(tmp, bx2, by2);
+    } else {
+      const bx2=x*OUT+OUT/2-w/2+o.dx*OUT, by2=y*OUT+OUT-h+o.dy*OUT;
+      if(o.rot){ g.save(); g.translate(bx2+w/2,by2+h/2); g.rotate(o.rot*Math.PI/180); g.drawImage(im,-w/2,-h/2,w,h); g.restore(); }
+      else g.drawImage(im,bx2,by2,w,h);
+    }
+  }
+  return c;
+}
+
+// ── PUBLICAR: manda mapa + colisão para a nuvem; o jogo lê na hora ──────
+const SB_URL='https://gmycqvvvglexbtbqkjzi.supabase.co';
+const SB_KEY='sb_publishable_N4DdqinjzjnMBWsik5qj2A_ksPBX9Av';
+let sb=null;
+$('pub').onclick=async()=>{
+  try{
+    if(!window.supabase) return msg('biblioteca da nuvem não carregou — recarregue a página');
+    sb = sb || window.supabase.createClient(SB_URL, SB_KEY);
+    msg('publicando…');
+    const c = renderFinal();
+    const blob = await new Promise(r=>c.toBlob(r,'image/jpeg',.92));
+    let up = await sb.storage.from('mapas').upload('mapa-oficial.jpg', blob,
+      { upsert:true, contentType:'image/jpeg', cacheControl:'0' });
+    if(up.error) throw up.error;
+    // camada de frente (o que cobre o personagem) vai como PNG transparente
+    const fre = renderCamada('frente');
+    const freBlob = await new Promise(r=>fre.toBlob(r,'image/png'));
+    up = await sb.storage.from('mapas').upload('mapa-frente.png', freBlob,
+      { upsert:true, contentType:'image/png', cacheControl:'0' });
+    if(up.error) throw up.error;
+    const col = JSON.stringify(state.colisao);
+    up = await sb.storage.from('mapas').upload('collision.json', new Blob([col],{type:'application/json'}),
+      { upsert:true, contentType:'application/json', cacheControl:'0' });
+    if(up.error) throw up.error;
+    msg('✅ publicado! Abra o jogo e recarregue para ver.');
+    $('pub').textContent='✅ Publicado';
+    setTimeout(()=>$('pub').textContent='🚀 Publicar no jogo', 3000);
+  }catch(e){ msg('erro ao publicar: '+(e.message||e)); }
+};
+
+$('exp').onclick=async()=>{
+  const c = renderFinal();
+  c.toBlob(b=>{ const a=document.createElement('a'); a.href=URL.createObjectURL(b); a.download='mapa-novo.png'; a.click(); },'image/jpeg',.92);
+  renderCamada('frente').toBlob(b=>{ const a=document.createElement('a');
+    a.href=URL.createObjectURL(b); a.download='mapa-frente.png'; a.click(); },'image/png');
+  const col='const COLLISION = [\n'+state.colisao.map(r=>'  ['+r.join(',')+']').join(',\n')+'\n];';
+  const a2=document.createElement('a'); a2.href=URL.createObjectURL(new Blob([col],{type:'text/plain'}));
+  a2.download='collision.txt'; a2.click();
+  msg('exportado: mapa-novo.png + collision.txt — sobe os dois no GitHub');
+};
+// ── BACKUP COMPLETO: um .json com tudo que é preciso para reconstruir ──
+$('bkp').onclick=async()=>{
+  try{
+    msg('gerando backup…');
+    const bkp = {
+      versao: 2,
+      criadoEm: new Date().toISOString(),
+      grade: N,
+      terreno: state.terreno, objeto: state.objeto, frente: state.frente, colisao: state.colisao,
+      tiles: UPLOADS,                       // imagens próprias embutidas (base64)
+      kit: TODOS.filter(f=>!UPLOADS[f]),    // peças que vêm do repositório
+    };
+    const nome = 'crias-mapa-backup-' + new Date().toISOString().slice(0,19).replace(/[:T]/g,'-');
+    const baixa = (blob, arq) => { const a=document.createElement('a');
+      a.href=URL.createObjectURL(blob); a.download=arq; a.click(); };
+    baixa(new Blob([JSON.stringify(bkp)],{type:'application/json'}), nome + '.json');
+    // e também as imagens finais, para não depender de nada
+    renderFinal().toBlob(b=>baixa(b, nome + '-mapa.jpg'), 'image/jpeg', .92);
+    renderCamada('frente').toBlob(b=>baixa(b, nome + '-frente.png'), 'image/png');
+    baixa(new Blob(['const COLLISION = [\n'+state.colisao.map(r=>'  ['+r.join(',')+']').join(',\n')+'\n];'],
+      {type:'text/plain'}), nome + '-collision.txt');
+    msg('✅ backup baixado: .json (tudo) + mapa .jpg + frente .png + collision .txt');
+  }catch(e){ msg('erro no backup: '+(e.message||e)); }
+};
+$('rest').onclick=()=>$('bkpFile').click();
+$('bkpFile').onchange=e=>{
+  const f=e.target.files[0]; if(!f) return;
+  const r=new FileReader();
+  r.onload=async()=>{
+    try{
+      const j=JSON.parse(r.result);
+      if(!j.terreno) throw new Error('arquivo não parece um backup do editor');
+      snapshot();
+      state.terreno=j.terreno; state.objeto=j.objeto;
+      state.frente=j.frente||state.frente; state.colisao=j.colisao;
+      Object.assign(UPLOADS, j.tiles||{});
+      for(const [k,v] of Object.entries(j.tiles||{})){ try{ await dbSalvaTile(k,v); }catch(err){} }
+      atualizaTodos(); paleta(); pintaTer(); pintaObj(); pintaFre(); pintaGrid();
+      msg('✅ backup restaurado ('+Object.keys(j.tiles||{}).length+' tiles próprios)');
+    }catch(err){ msg('erro ao restaurar: '+(err.message||err)); }
+  };
+  r.readAsText(f);
+};
+
+$('zerar').onclick=()=>{
+  if(!confirm('Apagar TUDO que você pintou (terreno, objetos, frente e colisão)?')) return;
+  snapshot();
+  for(let y=0;y<N;y++)for(let x=0;x<N;x++){
+    state.terreno[y][x]=null; state.objeto[y][x]=null; state.frente[y][x]=null; state.colisao[y][x]=0;
+  }
+  selObj=null; mostraAjuste();
+  pintaTer(); pintaObj(); pintaFre(); pintaGrid();
+  msg('mapa zerado — Ctrl+Z desfaz se foi engano');
+};
+$('despub').onclick=async()=>{
+  if(!confirm('Remover o mapa publicado? O jogo volta ao mapa padrão.')) return;
+  try{
+    sb = sb || window.supabase.createClient(SB_URL, SB_KEY);
+    const r = await sb.storage.from('mapas').remove(['mapa-oficial.jpg','mapa-frente.png','collision.json']);
+    if(r.error) throw r.error;
+    msg('publicação removida — recarregue o jogo');
+  }catch(e){ msg('erro ao despublicar: '+(e.message||e)); }
+};
+$('save').onclick=async()=>{
+  try{
+    // grids no localStorage (leve); imagens já estão no IndexedDB
+    localStorage.setItem('crias_editor', JSON.stringify({t:state.terreno,o:state.objeto,f:state.frente,c:state.colisao}));
+    for(const [k,v] of Object.entries(UPLOADS)){ try{ await dbSalvaTile(k,v); }catch(e){} }
+    msg('projeto salvo ('+Object.keys(UPLOADS).length+' tiles próprios guardados)');
+    autoSalva();
+  }catch(e){ msg('erro ao salvar: '+(e.message||e)); }
+};
+$('load').onclick=()=>{
+  const d=localStorage.getItem('crias_editor'); if(!d) return msg('nenhum projeto salvo');
+  const j=JSON.parse(d);
+  state.terreno=j.t; state.objeto=j.o; state.colisao=j.c;
+  Object.assign(UPLOADS,j.u||{}); atualizaTodos();
+  paleta(); pintaTer(); pintaObj(); pintaGrid(); msg('projeto carregado');
+};
+pintaFre(); pintaGrid(); verTudo();
+</script>
+</body>
+</html>

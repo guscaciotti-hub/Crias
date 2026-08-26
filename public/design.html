@@ -1,0 +1,448 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>CRIAS — Database Oficial</title>
+<style>
+  :root { --bg:#0a0e1a; --card:#131a2e; --line:#243250; --txt:#dce6f5; --dim:#8ab0dd; --acc:#4dc3ff;
+          --gold:#ffd700; --ok:#3ddc84; --warn:#ffa94d; --cut:#ff6b6b; }
+  * { box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
+  body { margin:0; background:var(--bg); color:var(--txt); font:15px/1.6 system-ui,sans-serif; padding:16px 14px 70px; max-width:900px; margin:0 auto; }
+  h1 { font-size:22px; margin:0 0 2px; } h1 span { color:var(--acc); }
+  .sub { color:var(--dim); font-size:13px; margin-bottom:6px; }
+  .ver { color:var(--dim); font-size:11px; margin-bottom:20px; }
+  h2 { font-size:12px; color:var(--acc); text-transform:uppercase; letter-spacing:.1em;
+       margin:30px 0 12px; padding-bottom:7px; border-bottom:1px solid var(--line); }
+  .card { background:var(--card); border:1px solid var(--line); border-radius:12px; padding:14px; margin-bottom:12px; }
+  .loop { font-size:14px; line-height:2.1; }
+  .loop b { color:var(--acc); }
+  .arrow { color:var(--dim); margin:0 5px; }
+  table { width:100%; border-collapse:collapse; font-size:13px; }
+  th { text-align:left; color:var(--dim); font-size:11px; text-transform:uppercase; letter-spacing:.06em; padding:6px 8px; border-bottom:1px solid var(--line); }
+  td { padding:9px 8px; border-bottom:1px solid rgba(255,255,255,.05); vertical-align:middle; }
+  .r-comum { color:#a8b8cc; } .r-raro { color:#4dc3ff; } .r-lend { color:var(--gold); }
+  .tag { font-size:10px; padding:2px 7px; border-radius:20px; white-space:nowrap; font-weight:700; }
+  .t-ok { background:rgba(61,220,132,.15); color:var(--ok); }
+  .t-todo { background:rgba(255,169,77,.15); color:var(--warn); }
+  .t-cut { background:rgba(255,107,107,.15); color:var(--cut); }
+  button { background:var(--acc); border:0; color:#04121f; border-radius:8px; padding:8px 12px;
+           font-size:12px; font-weight:800; cursor:pointer; white-space:nowrap; }
+  button.done { background:var(--ok); }
+  button.ghost { background:transparent; border:1px solid var(--line); color:var(--dim); }
+  .cut-item { color:var(--dim); font-size:13px; padding:7px 0; border-bottom:1px solid rgba(255,255,255,.05); }
+  .cut-item b { color:var(--cut); }
+  .note { font-size:12px; color:var(--dim); margin-top:8px; }
+  .q { background:rgba(77,195,255,.08); border-left:3px solid var(--acc); padding:10px 12px; border-radius:0 8px 8px 0; font-size:13px; margin-top:10px; }
+  ol { padding-left:20px; } li { margin:5px 0; }
+</style>
+</head>
+<body>
+<h1>CRIAS — <span>Database Oficial</span></h1>
+<div class="sub">Fonte única de verdade do MVP. Tudo que não está aqui, não entra no lançamento.</div>
+<div class="ver">v1 · sistema de masmorras · sem captura</div>
+
+<h2>0 · Falta gerar (checklist de produção)</h2>
+<div class="card">
+  <table>
+    <tr><th>Grupo</th><th>Pendências</th><th>Onde estão os prompts</th></tr>
+    <tr><td>🗺️ <b>Mapa</b></td><td>✅ 14 recebidas e montadas · <b>Leva 2:</b> 12 margens de rio + 12 meios-fios da praça + 3 detalhes de chão + ponte, cachoeira, poste, cercas, arbusto, canteiro, adornos</td><td>Seção 8</td></tr>
+    <tr><td>🐺 <b>Crias</b></td><td>11 de 12 (só o Ignivar está pronto)</td><td>Seção 3</td></tr>
+    <tr><td>🌤️ <b>Ambiente</b></td><td>6 sprites (nuvens, pássaros, borboletas, folhas, névoa, luz) — <b>nuvem.png não chegou no GitHub</b>, re-sobe</td><td>Seção 10</td></tr>
+    <tr><td>🧍 <b>Personagem</b></td><td>char1 v2 com sentado em 4 direções (opcional, o atual funciona)</td><td>Seção 7</td></tr>
+  </table>
+  <div class="note">Ordem sugerida: subir as 14 do mapa → 7 novas do mapa → 11 crias → ambiente. A cada leva enviada, o Claude processa e integra.</div>
+</div>
+
+<h2>1 · Loop principal</h2>
+<div class="card loop">
+  <b>Loga</b> <span class="arrow">→</span> <b>Ganha Orbe</b> <span class="arrow">→</span> <b>Invoca Cria</b>
+  <span class="arrow">→</span> <b>Masmorra</b> <span class="arrow">→</span> <b>Fragmentos</b>
+  <span class="arrow">→</span> <b>Troca por Orbe</b> <span class="arrow">→</span> <span style="color:var(--dim)">volta ao início, mais forte</span>
+  <div class="note">O jogador anda livre pelo mundo, mas o progresso acontece na masmorra. Sem captura: crias vêm de orbes.</div>
+</div>
+
+<h2>2 · Orbes (3 níveis)</h2>
+<div class="card">
+  <table>
+    <tr><th>Orbe</th><th>Custo</th><th>Entrega</th></tr>
+    <tr><td class="r-comum">🔵 Comum</td><td>30 frag</td><td>Cria Comum (85%) ou Rara (15%)</td></tr>
+    <tr><td class="r-raro">🟣 Raro</td><td>90 frag</td><td>Cria Rara (80%) ou Lendária (20%)</td></tr>
+    <tr><td class="r-lend">🟡 Lendário</td><td>250 frag</td><td>Cria Lendária garantida</td></tr>
+  </table>
+  <div class="note">Fragmentos vêm só da masmorra. O NPC troca fragmentos por orbes — não vende mais nada.</div>
+</div>
+
+<h2>3 · Crias do MVP (12)</h2>
+<div class="card">
+  <table id="mons"><tr><th>Cria</th><th>Elemento</th><th>Raridade</th><th>Arte</th><th></th></tr></table>
+  <div class="note">6 comuns · 4 raras · 2 lendárias. Cada uma precisa de 1 imagem (botão copia o prompt pronto).</div>
+</div>
+
+<h2>4 · Masmorra</h2>
+<div class="card">
+  <table>
+    <tr><th>Sala</th><th>Inimigos</th><th>Nível</th><th>Fragmentos</th></tr>
+    <tr><td>1</td><td>2 crias comuns</td><td>1–3</td><td>5</td></tr>
+    <tr><td>2</td><td>2 crias comuns</td><td>3–5</td><td>8</td></tr>
+    <tr><td>3</td><td>3 crias (1 rara)</td><td>5–8</td><td>12</td></tr>
+    <tr><td>4</td><td>3 crias (2 raras)</td><td>8–12</td><td>18</td></tr>
+    <tr><td>5</td><td>👑 Chefe</td><td>15</td><td>40 + Orbe Raro</td></tr>
+  </table>
+  <div class="note">Zerou a masmorra da Cidade 1 → abre o portal. Salas dão XP e fortalecem a cria a cada avanço.</div>
+</div>
+
+<h2>5 · Mundo</h2>
+<div class="card">
+  <table>
+    <tr><th>Local</th><th>O que tem</th></tr>
+    <tr><td><b>Cidade 1</b> (Nexus)</td><td>Guia · NPC Masmorra · NPC Troca · NPC PvP</td></tr>
+    <tr><td><b>Caverna</b></td><td>Passagem: entrou de um lado, sai na Cidade 2</td></tr>
+    <tr><td><b>Cidade 2</b></td><td>Desbloqueada ao zerar a masmorra 1 (conteúdo pós-MVP)</td></tr>
+  </table>
+</div>
+
+<h2>6 · NPCs</h2>
+<div class="card">
+  <table>
+    <tr><th>NPC</th><th>Função</th></tr>
+    <tr><td>🧙 <b>Guia</b></td><td>Explica o jogo. Entrega o primeiro orbe.</td></tr>
+    <tr><td>🚪 <b>Masmorra</b></td><td>Entrada das salas. Coração do jogo.</td></tr>
+    <tr><td>🔄 <b>Troca</b></td><td>Fragmentos → Orbes. Só isso.</td></tr>
+    <tr><td>⚔️ <b>PvP</b></td><td>Arena contra outros treinadores.</td></tr>
+  </table>
+</div>
+
+<h2>7 · Personagem oficial</h2>
+<div class="card">
+  <table>
+    <tr><th>ID</th><th>Status</th><th></th></tr>
+    <tr id="charRow"><td><b>char1</b> — o oficial</td><td><span class="tag t-todo">falta gerar</span></td><td></td></tr>
+  </table>
+  <div class="note">char2 · char3 · char4 · char5 → serão apagados quando o char1 entrar.</div>
+</div>
+
+<h2>8 · Reconstrução do mapa — peça por peça, fiel ao original</h2>
+<div class="card" style="border-color:var(--gold);">
+  <div style="font-size:13px;font-weight:800;color:var(--gold);margin-bottom:8px;">⚙️ PASSO 0 — Configurar o Projeto no ChatGPT (faz 1x)</div>
+  <div style="font-size:13px;margin-bottom:10px;">
+    Cria um <b>Projeto</b> no ChatGPT, anexa a imagem do mapa 2D
+    (<a href="/mapa-atual.jpg" download>baixar aqui</a>) e cola o texto abaixo nas
+    <b>instruções do projeto</b>. A partir daí, é só mandar os prompts das peças dentro
+    do projeto — ele já sabe as regras e não confunde mais 2D com 3D.
+  </div>
+  <div class="snippet" id="projPrompt">Você é o diretor de arte do jogo CRIAS, um RPG de colecionar criaturas. Sua função neste projeto é gerar as PEÇAS DE ARTE (tileset) do mapa do jogo, uma por mensagem, conforme eu pedir.
+
+A IMAGEM ANEXADA NESTE PROJETO (mapa 2D em pixel art) é a BÍBLIA DE REFERÊNCIA:
+- Ela define O QUE existe, ONDE fica, as CORES e a IDENTIDADE de cada elemento (cada casa, árvore, rio, praça tem personalidade própria — respeite).
+- Ela NÃO define o estilo final. O estilo dela é 2D pixel art antigo — NUNCA entregue nesse estilo.
+
+ESTILO FINAL DE TODA ENTREGA (sem exceção):
+- Render 3D ESTILIZADO de jogo moderno: volumétrico de verdade, materiais ricos (madeira, telha, pedra, folhagem com relevo), cores vibrantes e saturadas, acabamento caprichado e aconchegante.
+- Iluminação SEMPRE vinda do canto superior esquerdo, sombras suaves internas ao objeto.
+- Vista de cima (top-down) para terrenos e vegetação; top-down 3/4 para construções (telhado dominante + fachada estreita visível), a menos que o pedido diga diferente.
+
+REGRA DE OURO — MELHORAR SEM INVENTAR:
+- Cada peça pedida corresponde a um elemento da referência. Recrie AQUELE elemento: mesmo design, mesmas cores, mesma personalidade — só que em 3D rico e nítido.
+- NÃO invente elementos novos, NÃO mude cores de identidade (casa azul é azul, cúpula é roxa), NÃO copie o pixel art literal.
+
+REGRAS TÉCNICAS DE TODA PEÇA:
+- Objetos/construções/vegetação: fundo MAGENTA CHROMA #FF00FF sólido, elemento isolado e centralizado, SEM sombra projetada no chão, nada tocando as bordas.
+- Texturas de chão: seamless (repetem perfeitamente nas 4 bordas), preenchendo a imagem inteira.
+- Molduras de margem/meio-fio: apenas a faixa decorativa na posição pedida; todo o resto MAGENTA #FF00FF.
+- Nunca inclua texto, marca d'água, grade ou moldura.
+- Mantenha consistência de luz, paleta e nível de detalhe entre TODAS as peças do projeto — elas serão montadas juntas num único mapa.
+
+FORMATO DE TRABALHO:
+- Eu mando um prompt por peça; você gera a imagem daquela peça, uma por vez.
+- Se um pedido parecer ambíguo, siga a referência anexada e as peças já geradas neste projeto.</div>
+  <button class="ghost" onclick="navigator.clipboard.writeText(document.getElementById('projPrompt').textContent);this.textContent='✅ copiado!';setTimeout(()=>this.textContent='📋 copiar instruções do projeto',1800)">📋 copiar instruções do projeto</button>
+</div>
+
+<div class="card">
+  <div style="font-size:13px;margin-bottom:10px;">
+    Cada elemento do mapa atual foi recortado como <b>referência</b>. O fluxo por peça:
+    <b>⬇ baixa a referência → copia o prompt → anexa os dois no ChatGPT</b> → ele recria
+    AQUELE elemento (mesmo design, mesmas cores) em 3D melhorado → sobe em
+    <code>public/map-kit/</code> com o nome de saída. O compositor remonta o mapa idêntico,
+    peça nova por peça nova, com a colisão intacta.
+  </div>
+  <table id="refs"><tr><th>Elemento</th><th>Ref</th><th>Saída</th><th>Status</th><th></th></tr></table>
+  <div class="note">Fase 2 = peças que ainda vou plugar no compositor (bordas, ponte, adornos da praça) — pode gerar desde já.</div>
+</div>
+
+<h2>9 · Kit do Mapa Oficial (montado por peças)</h2>
+<div class="card">
+  <div style="font-size:13px;margin-bottom:10px;">
+    O mapa novo é <b>montado por peças</b>: você gera cada peça no GPT, sobe em
+    <code>public/map-kit/</code> com o nome exato, e o compositor monta o mapa com a
+    <b>colisão já casada</b> (cada árvore nasce onde o jogo bloqueia). Pode subir
+    aos poucos — o que faltar usa um provisório.
+  </div>
+  <table id="kit"><tr><th>Peça</th><th>Arquivo</th><th>Status</th><th></th></tr></table>
+  <div class="note">Chão = textura que repete (seamless). Construções e árvores = fundo MAGENTA #FF00FF
+  (magenta porque árvore verde sumiria no fundo verde).</div>
+</div>
+
+<h2>10 · Ambiente vivo (camada sobre o mapa)</h2>
+<div class="card">
+  <div style="font-size:13px;margin-bottom:10px;">
+    Nada disso está desenhado no mapa — é vida gerada pelo jogo por cima dele.
+    Continua funcionando quando o mapa for remasterizado.
+  </div>
+  <table id="amb"><tr><th>Efeito</th><th>Arquivo</th><th>Status</th><th></th></tr></table>
+  <div class="note">
+    A posição de cada efeito é lida do próprio mapa: o jogo detecta onde é água e onde é grama
+    antes de espalhar brilhos, folhas e vaga-lumes.
+  </div>
+</div>
+
+<h2>11 · Fora do MVP</h2>
+<div class="card">
+  <div class="cut-item"><b>✕ Captura de crias</b> — copiava o PvP e inchava o escopo. Crias vêm de orbes.</div>
+  <div class="cut-item"><b>✕ Loja de itens</b> — vira só troca de fragmentos.</div>
+  <div class="cut-item"><b>✕ Encontros aleatórios no mundo</b> — batalha acontece na masmorra.</div>
+  <div class="cut-item"><b>✕ Mapa de passeio 3D</b> — depende de gerador de mapas; fica pós-MVP.</div>
+</div>
+
+<h2>12 · A decidir</h2>
+<div class="card">
+  <div class="q"><b>Chefe da masmorra:</b> uma cria lendária (Drakon) ou um monstro exclusivo de chefe?</div>
+  <div class="q"><b>Orbe diário:</b> o jogador ganha 1 orbe comum por dia ao logar? (é o gancho de retorno)</div>
+  <div class="q"><b>Limite de crias:</b> quantas o jogador pode ter ao mesmo tempo? (hoje: 6)</div>
+</div>
+
+<script>
+const P_MON = `Arte de criatura original para jogo RPG de colecionar monstros, pixel art 16-bit detalhado e vibrante.
+Pose de batalha de corpo inteiro, vista 3/4, encarando levemente para a direita, centralizada.
+Fundo VERDE CHROMA #00FF00 sólido. Sem sombra no chão, sem borda, sem texto.
+A criatura ocupa ~80% da altura e nada (nem efeitos) toca as bordas.
+Criatura: `;
+
+const P_CHAR = `Spritesheet única, grade FIXA de 4 colunas × 4 linhas (16 células iguais).
+Cada célula: 256×256px (total 1024×1024). Fundo VERDE CHROMA #00FF00 sólido.
+Personagem SEMPRE do mesmo tamanho, centralizado, pés na mesma altura em todas as células.
+Ordem: linha 1 = frente (parado, passo esquerdo, passo direito, extra)
+| linha 2 = costas (parado, passo esquerdo, passo direito, extra)
+| linha 3 = perfil esquerdo parado, perfil esquerdo andando, perfil direito parado, perfil direito andando
+| linha 4 = SENTADO no chão em 4 ângulos: de frente, de costas, perfil esquerdo, perfil direito.
+Sem sombra no chão, sem borda, sem texto. Pixel art 16-bit detalhado.
+Personagem: jovem treinador de Crias, jaqueta escura com detalhes azuis brilhantes,
+calça resistente, botas de viagem, cabelo castanho bagunçado, expressão confiante.`;
+
+const P_MAPA = `Repinte este mapa de RPG (imagem anexada — é a PLANTA oficial) como uma cena única, rica e orgânica.
+
+REGRA ABSOLUTA — LAYOUT TRAVADO:
+cada construção, árvore, caminho, rio, praça e clareira deve permanecer EXATAMENTE na mesma
+posição, tamanho e proporção da planta. A planta é a verdade do posicionamento; seu trabalho
+é só o acabamento artístico.
+
+ACABAMENTO (onde você deve caprichar):
+- transições orgânicas entre grama/caminho/água (nada de bordas retas)
+- margens do rio com pedras, juncos e umidade; espuma discreta nas quedas
+- florestas com copas variadas se tocando naturalmente, sub-bosque com flores e cogumelos
+- sombras suaves e coerentes (luz vinda do canto superior esquerdo em TUDO)
+- pequenos detalhes de vida: canteiros, cercas curtas, lampiões, pedrinhas no caminho
+- a praça central de pedra com lajes ricas; NÃO desenhe nada dentro do círculo central vazio
+
+ESTILO: render 3D estilizado de jogo moderno, volumétrico, cores vibrantes, acabamento
+aconchegante — NÃO pixel art.
+
+TÉCNICO: vista DE CIMA (top-down, sem perspectiva isométrica), imagem quadrada 1:1,
+4000×4000, sem grade visível, sem texto, sem bordas.`;
+
+const BASE_AMB = `Sprite sheet para jogo RPG 2D visto DE CIMA (top-down).
+Formato: uma tira horizontal com {N} elementos lado a lado, todos do mesmo tamanho,
+imagem quadrada por célula, FUNDO 100% TRANSPARENTE (PNG com alpha, sem fundo branco,
+sem fundo verde, sem sombra, sem borda, sem texto).
+Estilo: pixel art 16-bit suave, combinando com um mapa de RPG de cidade mágica.
+{DESC}`;
+
+const AMBIENTE = [
+  ['☁️ Nuvens','amb-nuvens.png','ok',4,
+   `Elementos: 4 nuvens brancas DIFERENTES vistas de cima, finas e vaporosas, bem discretas e translúcidas — devem sugerir sombra passando, sem tapar o cenário. Bordas suaves e difusas, sem contorno duro. Formatos alongados e irregulares.`],
+  ['🐦 Pássaros','amb-passaros.png','todo',3,
+   `Elementos: o MESMO pássaro pequeno visto DE CIMA (de costas, olhando para baixo — vê-se o dorso e as asas abertas), em 3 quadros de voo: asas para cima, asas na horizontal, asas para baixo. Silhueta escura azulada, tamanho de gaivota vista de longe, sem detalhes finos.`],
+  ['🦋 Borboletas','amb-borboletas.png','todo',2,
+   `Elementos: a MESMA borboleta pequena vista DE CIMA, em 2 quadros: asas abertas e asas quase fechadas. Cores suaves (azul-claro e branco), brilho leve, bem pequena.`],
+  ['🍃 Folhas','amb-folhas.png','todo',3,
+   `Elementos: 3 folhas soltas diferentes vistas de cima — uma verde, uma amarelada, uma alaranjada. Pequenas, formato simples e legível, leve nervura.`],
+  ['🌫️ Névoa','amb-nevoa.png','todo',2,
+   `Elementos: 2 manchas de névoa branca acinzentada, horizontais, MUITO translúcidas e difusas, sem contorno. Devem parecer bruma baixa pairando sobre o chão.`],
+  ['🏮 Luz de poste','amb-luz.png','todo',1,
+   `Elementos: 1 halo de luz quente redondo (amarelo-alaranjado), bem suave, forte no centro e desaparecendo nas bordas — é o brilho de um poste aceso à noite visto de cima.`],
+];
+
+const T_TILE = (desc) => `Textura SEAMLESS (tileable: repete perfeitamente nas 4 bordas, sem emenda visível) vista DE CIMA, 512×512 pixels.
+Estilo: RENDER 3D ESTILIZADO de jogo moderno: materiais ricos com relevo e profundidade, cores vibrantes, acabamento polido — NÃO pixel art.
+Iluminação neutra e uniforme, sem sombras direcionais, sem objetos grandes, sem texto, sem marca d'água.
+Textura: ${desc}`;
+
+const T_VEG = (desc) => `${desc}, vista DE CIMA (top-down) com volume real.
+Estilo: RENDER 3D ESTILIZADO de jogo moderno: formas volumétricas arredondadas e fofas, materiais definidos, cores vibrantes — NÃO pixel art.
+Iluminação vinda do canto superior esquerdo, sombras suaves na própria copa — SEM sombra projetada no chão.
+Imagem única, elemento centralizado ocupando ~85% da área.
+Fundo MAGENTA CHROMA #FF00FF sólido. Sem borda, sem texto, nada tocando as bordas.`;
+
+const T_BLD = (desc, prop) => `${desc}
+Vista TOP-DOWN 3/4 de RPG: telhado dominante visto de cima + fachada frontal estreita visível na parte de baixo (com porta e janelas).
+Estilo: RENDER 3D ESTILIZADO de jogo moderno de mundo aconchegante: volumétrico de verdade, materiais ricos (madeira, telha, pedra com relevo), cores vibrantes, acabamento AAA fofo — NÃO pixel art.
+Iluminação do canto superior esquerdo, sombras suaves internas — SEM sombra projetada no chão.
+Janelas com luz acesa aconchegante.
+Proporção da imagem: ${prop} (largura:altura). Fundo MAGENTA CHROMA #FF00FF sólido.
+Sem borda, sem texto, nada tocando as bordas.`;
+
+const KIT = [
+  ['🌿 Grama', 'tile-grama.png', T_TILE('grama verde viva com variações sutis de tom, tufos e florzinhas minúsculas espalhadas')],
+  ['🪨 Caminho', 'tile-caminho.png', T_TILE('caminho de pedras irregulares bege e marrom assentadas em terra batida, juntas visíveis')],
+  ['⬜ Piso da praça', 'tile-praca.png', T_TILE('piso de pedra lavrada cinza-clara de praça mágica medieval, lajes grandes com runas azuis MUITO sutis')],
+  ['🌊 Água', 'tile-agua.png', T_TILE('água azul profunda de rio com leve ondulação e reflexos suaves de luz')],
+];
+
+const T_FIEL = (hint) => `Recrie FIELMENTE o elemento principal da imagem anexada — MESMO design, MESMAS cores, mesma identidade visual, mesmo ângulo (vista top-down 3/4 de RPG). ${hint}
+Versão MELHORADA: render 3D estilizado volumétrico, materiais ricos com relevo, mais nitidez e definição, iluminação vinda do canto superior esquerdo, sombras suaves internas.
+NÃO invente um design novo — é uma remasterização do elemento anexado.
+Elemento isolado e centralizado, fundo MAGENTA CHROMA #FF00FF sólido, SEM sombra projetada no chão, sem texto, nada tocando as bordas da imagem.`;
+
+const REFS = [
+  ['🏡 Casa da curandeira', 'ref-casa-marrom.png', 'prop-casa-marrom.png', 'Recrie a casa completa (telhado verde, chaminé, varanda).', 1],
+  ['🏟️ Coliseu/Arena', 'ref-arena.png', 'prop-arena.png', 'Recrie o conjunto da arena com o portal e os cristais.', 1],
+  ['🏢 Prédio místico', 'ref-predio-roxo.png', 'prop-predio-roxo.png', 'Recrie o prédio de telhado roxo com os símbolos.', 1],
+  ['🏪 Loja', 'ref-shop.png', 'prop-shop.png', 'Recrie a construção da loja com o painel azul.', 1],
+  ['🔮 Cúpula PvP', 'ref-cupula.png', 'prop-cupula.png', 'Recrie a cúpula roxa com o anel de energia.', 1],
+  ['🏠 Casa azul', 'ref-casa-azul.png', 'prop-casa-azul.png', 'Recrie a casa grande de telhado azul completa.', 1],
+  ['🌲 Pinheiro', 'ref-pinheiros.png', 'prop-pinheiro.png', 'Recrie UM ÚNICO pinheiro no estilo exato dos da imagem.', 1],
+  ['🌳 Árvore cheia', 'ref-pinheiros.png', 'prop-arvore-1.png', 'Crie UMA árvore frondosa que combine com a vegetação da imagem.', 1],
+  ['🌉 Ponte', 'ref-ponte.png', 'prop-ponte.png', 'Recrie a ponte de madeira sobre o rio.', 2],
+  ['🌊 Margem do rio', 'ref-rio-margem.png', 'borda-rio.png', 'Recrie um trecho VERTICAL de margem (pedras + grama encontrando a água), tileable na vertical.', 2],
+  ['💦 Cachoeira', 'ref-cachoeira.png', 'prop-cachoeira.png', 'Recrie a queda d água com espuma.', 2],
+  ['✨ Adornos da praça', 'ref-praca-detalhes.png', 'prop-adornos.png', 'Recrie os postes de cristal e canteiros em uma tira horizontal (um de cada, separados).', 2],
+  ['🧱 Penhasco', 'ref-cachoeira.png', 'tile-penhasco.png', 'Crie uma textura TILEABLE HORIZONTAL da parede de penhasco de pedra da imagem (topo gramado, base sombreada). Sem fundo magenta: a textura preenche a imagem toda.', 2],
+  ['🚧 Cerca', 'ref-shop.png', 'prop-cerca.png', 'Recrie a cerca de madeira da imagem em UMA tira com 2 células lado a lado: [segmento HORIZONTAL] e [segmento VERTICAL].', 2],
+  ['🏮 Poste de cristal', 'ref-praca-detalhes.png', 'prop-poste.png', 'Recrie UM poste de cristal azul idêntico aos da imagem, isolado.', 2],
+  ['🗿 Pedra', 'ref-rio-margem.png', 'prop-pedra.png', 'Recrie UMA pedra musgosa no estilo das da margem da imagem, isolada.', 2],
+  ['🌳 Arbusto', 'ref-casa-marrom.png', 'prop-arbusto.png', 'Recrie UM arbusto redondo no estilo dos que cercam a casa da imagem, isolado.', 2],
+  ['🌺 Canteiro', 'ref-casa-marrom.png', 'prop-canteiro.png', 'Recrie UM canteiro de flores no estilo dos da imagem, isolado.', 2],
+];
+
+// LEVA 2 — molduras de fronteira: faixas decorativas COM TRANSPARÊNCIA que o
+// compositor desenha POR CIMA do encontro de dois terrenos (por isso nunca há
+// emenda). Cada orientação é uma peça própria — nada de girar.
+const ORIENT = [
+  ['reta-n',  'faixa HORIZONTAL no TOPO da imagem (a água/praça fica ACIMA da faixa)'],
+  ['reta-s',  'faixa HORIZONTAL na BASE da imagem (a água/praça fica ABAIXO da faixa)'],
+  ['reta-o',  'faixa VERTICAL na ESQUERDA da imagem (a água/praça fica À ESQUERDA)'],
+  ['reta-l',  'faixa VERTICAL na DIREITA da imagem (a água/praça fica À DIREITA)'],
+  ['curva-ext-no', 'curva de 90° no canto SUPERIOR-ESQUERDO (a água/praça ocupa o canto superior esquerdo)'],
+  ['curva-ext-ne', 'curva de 90° no canto SUPERIOR-DIREITO (a água/praça ocupa o canto superior direito)'],
+  ['curva-ext-so', 'curva de 90° no canto INFERIOR-ESQUERDO (a água/praça ocupa o canto inferior esquerdo)'],
+  ['curva-ext-se', 'curva de 90° no canto INFERIOR-DIREITO (a água/praça ocupa o canto inferior direito)'],
+  ['curva-int-no', 'quina INTERNA de 90°: a água/praça ocupa TUDO exceto o canto superior esquerdo'],
+  ['curva-int-ne', 'quina INTERNA de 90°: a água/praça ocupa TUDO exceto o canto superior direito'],
+  ['curva-int-so', 'quina INTERNA de 90°: a água/praça ocupa TUDO exceto o canto inferior esquerdo'],
+  ['curva-int-se', 'quina INTERNA de 90°: a água/praça ocupa TUDO exceto o canto inferior direito'],
+];
+const T_MARGEM = (o) => `Crie uma MOLDURA DE MARGEM DE RIO para tileset de RPG: apenas a faixa decorativa da beira d'água — pedras arredondadas, pedrinhas, um pouco de areia úmida e espuma sutil — em ${o[1]}.
+IMPORTANTE: a imagem é SÓ a faixa decorativa. Todo o resto (os dois lados da faixa) deve ser MAGENTA CHROMA #FF00FF puro, porque a faixa será sobreposta às texturas do jogo.
+Largura da faixa: ~20% da imagem. Imagem quadrada 512×512.
+Estilo: render 3D estilizado vibrante, vista de cima, iluminação do canto superior esquerdo. Use a imagem anexada como referência do estilo das margens. Sem texto, sem grade.`;
+const T_MEIOFIO = (o) => `Crie um MEIO-FIO DE PRAÇA para tileset de RPG: apenas a faixa de borda onde o piso de pedra da praça encontra a grama — pedras de acabamento lavradas, levemente elevadas — em ${o[1]}.
+IMPORTANTE: a imagem é SÓ a faixa de meio-fio. Todo o resto deve ser MAGENTA CHROMA #FF00FF puro (a faixa será sobreposta às texturas do jogo).
+Largura da faixa: ~14% da imagem. Imagem quadrada 512×512.
+Estilo: render 3D estilizado, vista de cima, iluminação do canto superior esquerdo, combinando com piso de praça de pedra clara. Sem texto, sem grade.`;
+ORIENT.forEach(o => REFS.push(['🌊 Margem ' + o[0], 'ref-rio-margem.png', 'margem-' + o[0] + '.png', null, 2, T_MARGEM(o)]));
+ORIENT.forEach(o => REFS.push(['⬜ Meio-fio ' + o[0], 'ref-praca-detalhes.png', 'meiofio-' + o[0] + '.png', null, 2, T_MEIOFIO(o)]));
+REFS.push(['🌱 Tufo de grama', 'ref-casa-marrom.png', 'det-tufo.png', 'Crie um pequeno TUFO de grama alta isolado, para espalhar pelo gramado.', 2]);
+REFS.push(['🌼 Flores soltas', 'ref-casa-marrom.png', 'det-flores.png', 'Crie um pequeno grupo de flores silvestres brancas e amarelas, isolado.', 2]);
+REFS.push(['🪨 Pedrinhas', 'ref-rio-margem.png', 'det-pedrinhas.png', 'Crie um pequeno grupo de 3-4 pedrinhas, isolado.', 2]);
+
+const CRIAS = [
+  ['Ignivar','Fogo','comum','ok','Lobo vulcânico de rocha negra rachada com brasas nas fissuras, juba de fogo laranja'],
+  ['Aerix','Ar','comum','todo','Drake aéreo azul-claro esguio, asas membranosas, trilhas de vento ao redor'],
+  ['Terron','Terra','comum','todo','Golem de pedra marrom, musgo nas juntas, punhos enormes, runas antigas'],
+  ['Florax','Natureza','comum','todo','Guardião de vinhas e madeira viva, folhas brotando, olhos verdes brilhantes'],
+  ['Toxyl','Veneno','comum','todo','Serpente verde-lima de escamas brilhantes, gotas de veneno, presas grandes'],
+  ['Aquafy','Água','comum','todo','Espírito aquático translúcido azul que brilha por dentro, formas fluidas'],
+  ['Voltalon','Elétrico','raro','todo','Falcão dourado com penas crepitando raios, olhos brancos brilhantes'],
+  ['Glacius','Gelo','raro','todo','Espírito de cristal azul-claro com vapor gelado saindo, presas de gelo'],
+  ['Ferrus','Metal','raro','todo','Golem de ferro cinza, placas de armadura, engrenagens visíveis, núcleo brilhante'],
+  ['Psychon','Psíquico','raro','todo','Ser etéreo rosa-magenta flutuante, orbes de energia mental orbitando'],
+  ['Drakon','Fogo','lend','todo','Dragão primordial laranja de escamas de lava, chifres grandes, fogo saindo da boca, imponente'],
+  ['Luminos','Luz','lend','todo','Guardião radiante dourado, halo de luz, asas de energia brilhante'],
+];
+
+const RLBL = { comum:['Comum','r-comum'], raro:['Raro','r-raro'], lend:['Lendário','r-lend'] };
+
+function mkBtn(texto, label) {
+  const b = document.createElement('button');
+  b.textContent = label || 'Copiar';
+  b.onclick = () => {
+    navigator.clipboard.writeText(texto);
+    const o = b.textContent;
+    b.textContent = '✓'; b.classList.add('done');
+    setTimeout(() => { b.textContent = o; b.classList.remove('done'); }, 1800);
+  };
+  return b;
+}
+
+const tb = document.getElementById('mons');
+CRIAS.forEach(([nome, el, rar, st, desc]) => {
+  const tr = document.createElement('tr');
+  const [rl, rc] = RLBL[rar];
+  tr.innerHTML = '<td><b>' + nome + '</b></td><td>' + el + '</td>' +
+    '<td class="' + rc + '">' + rl + '</td>' +
+    '<td>' + (st === 'ok' ? '<span class="tag t-ok">pronta</span>' : '<span class="tag t-todo">falta</span>') + '</td>';
+  const td = document.createElement('td');
+  if (st !== 'ok') td.appendChild(mkBtn(P_MON + desc + '.'));
+  tr.appendChild(td);
+  tb.appendChild(tr);
+});
+
+const tamb = document.getElementById('amb');
+AMBIENTE.forEach(([nome, arq, st, n, desc]) => {
+  const tr = document.createElement('tr');
+  tr.innerHTML = '<td><b>' + nome + '</b></td><td style="font-size:12px;color:var(--dim)">' + arq + '</td>' +
+    '<td>' + (st === 'ok' ? '<span class="tag t-ok">no ar</span>' : '<span class="tag t-todo">falta</span>') + '</td>';
+  const td = document.createElement('td');
+  td.appendChild(mkBtn(BASE_AMB.replace('{N}', n).replace('{DESC}', desc)));
+  tr.appendChild(td);
+  tamb.appendChild(tr);
+});
+
+const trefs = document.getElementById('refs');
+REFS.forEach(([nome, ref, out, hint, fase, promptCustom]) => {
+  const tr = document.createElement('tr');
+  tr.innerHTML = '<td><b>' + nome + '</b>' + (fase === 2 ? ' <span class="tag t-todo">fase 2</span>' : '') + '</td>' +
+    '<td><a href="/map-ref/' + ref + '" download><button class="ghost">⬇ ref</button></a></td>' +
+    '<td style="font-size:11px;color:var(--dim)">' + out + '</td>' +
+    '<td class="rst"><span class="tag t-todo">falta</span></td>';
+  const td = document.createElement('td');
+  td.appendChild(mkBtn(promptCustom || T_FIEL(hint)));
+  tr.appendChild(td);
+  trefs.appendChild(tr);
+  fetch('/map-kit/' + out, { method: 'HEAD' }).then(r => {
+    if (r.ok) tr.querySelector('.rst').innerHTML = '<span class="tag t-ok">recebida</span>';
+  }).catch(() => {});
+});
+
+const tkit = document.getElementById('kit');
+KIT.forEach(([nome, arq, prompt]) => {
+  const tr = document.createElement('tr');
+  tr.innerHTML = '<td><b>' + nome + '</b></td><td style="font-size:12px;color:var(--dim)">' + arq + '</td>' +
+    '<td class="kst"><span class="tag t-todo">falta</span></td>';
+  const td = document.createElement('td');
+  td.appendChild(mkBtn(prompt));
+  tr.appendChild(td);
+  tkit.appendChild(tr);
+  fetch('/map-kit/' + arq, { method: 'HEAD' }).then(r => {
+    if (r.ok) tr.querySelector('.kst').innerHTML = '<span class="tag t-ok">recebida</span>';
+  }).catch(() => {});
+});
+
+document.getElementById('mapBtn').appendChild(mkBtn(P_MAPA, '📋 copiar prompt do mapa'));
+
+const cr = document.getElementById('charRow');
+cr.lastElementChild.appendChild(mkBtn(P_CHAR, 'Copiar prompt'));
+</script>
+</body>
+</html>

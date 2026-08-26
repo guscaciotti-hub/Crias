@@ -1,0 +1,394 @@
+#!/usr/bin/env python3
+"""Compositor do mapa oficial: monta o mapa a partir de peças (map-kit) sobre
+o layout declarativo, usando a COLLISION do jogo como fonte da verdade.
+
+Uso: python3 tools/build_map.py [--collision collision.json] [--out public/mapa-oficial.jpg]
+
+Camadas (de baixo pra cima):
+  1. chão: grama em tudo; água, praça e caminhos por cima (com borda suavizada)
+  2. edifícios (declarados no layout)
+  3. vegetação automática: TODO tile bloqueado na COLLISION que não é água nem
+     edifício vira árvore/pinheiro/pedra (variação por hash da posição) —
+     é isso que garante visual == colisão sem mapear nada à mão
+  4. sombras suaves sob cada prop
+
+Assets em public/map-kit/ (ausentes viram placeholder procedural):
+  tile-grama.png tile-caminho.png tile-praca.png tile-agua.png   (seamless 512px)
+  prop-arvore-1.png prop-arvore-2.png prop-pinheiro.png prop-pedra.png
+  prop-casa-azul.png prop-casa-marrom.png prop-arena.png
+  prop-predio-roxo.png prop-shop.png prop-cupula.png             (fundo MAGENTA #FF00FF)
+"""
+import json, os, sys, math, hashlib
+from PIL import Image, ImageDraw, ImageFilter
+
+ROOT = os.path.join(os.path.dirname(__file__), '..')
+KIT = os.path.join(ROOT, 'public', 'map-kit')
+layout = json.load(open(os.path.join(ROOT, 'tools', 'map_layout.json')))
+coll_path = sys.argv[sys.argv.index('--collision') + 1] if '--collision' in sys.argv else None
+out_path = sys.argv[sys.argv.index('--out') + 1] if '--out' in sys.argv else os.path.join(ROOT, 'public', 'mapa-oficial.jpg')
+
+# COLLISION extraída do game.html se não fornecida
+if coll_path:
+    GRID = json.load(open(coll_path))
+else:
+    import re
+    html = open(os.path.join(ROOT, 'public', 'game.html')).read()
+    m = re.search(r'const COLLISION = \[(.*?)\];', html, re.S)
+    GRID = [[int(v) for v in r.split(',')] for r in re.findall(r'\[([\d,\s]+)\]', m.group(1))]
+
+T = layout['tile_px']; N = 48; W = H = N * T
+def h2(x, y, salt=0):
+    return int(hashlib.md5(f'{x},{y},{salt}'.encode()).hexdigest()[:8], 16)
+
+def load_asset(name, chroma_magenta=False):
+    p = os.path.join(KIT, name)
+    if not os.path.exists(p): return None
+    im = Image.open(p).convert('RGBA')
+    if chroma_magenta:
+        px = im.load()
+        for y in range(im.height):
+            for x in range(im.width):
+                r, g, b, a = px[x, y]
+                if r > 150 and b > 150 and g < r * 0.55 and g < b * 0.55:
+                    px[x, y] = (0, 0, 0, 0)
+                elif r > g and b > g and g > 105:
+                    # de-spill: fumaça/vidro claro contaminado de magenta vira
+                    # neutro; flores rosas saturadas (g baixo) ficam intactas
+                    spill = min(r, b) - g
+                    if 0 < spill < 135:
+                        k = 0.9
+                        px[x, y] = (int(r - spill * k), g, int(b - spill * k), a)
+    return im
+
+TEX_SCALE = 256  # textura seamless cobre 4x4 tiles — detalhe em escala natural
+
+def pano(tex):
+    """pano contínuo do mapa inteiro com a textura repetida (sem emendas)"""
+    t = tex.convert('RGB').resize((TEX_SCALE, TEX_SCALE), Image.LANCZOS)
+    p = Image.new('RGB', (W, H))
+    for y in range(0, H, TEX_SCALE):
+        for x in range(0, W, TEX_SCALE):
+            p.paste(t, (x, y))
+    return p
+
+def compor_terreno(base, tex, cells, feather=6):
+    """compõe o pano da textura sobre a base via máscara suavizada das células"""
+    if not tex or not cells: return base
+    mask = Image.new('L', (W, H), 0)
+    d = ImageDraw.Draw(mask)
+    for (x, y) in cells:
+        d.rectangle([x * T, y * T, x * T + T, y * T + T], fill=255)
+    mask = mask.filter(ImageFilter.GaussianBlur(feather))
+    return Image.composite(pano(tex), base, mask)
+
+def placeholder_tex(color, noise=18):
+    im = Image.new('RGB', (128, 128), color)
+    px = im.load()
+    for y in range(128):
+        for x in range(128):
+            d = (h2(x, y, 7) % (noise * 2)) - noise
+            r, g, b = px[x, y]
+            px[x, y] = (max(0, min(255, r + d)),) * 0 or (max(0,min(255,r+d)), max(0,min(255,g+d)), max(0,min(255,b+d)))
+    return im.convert('RGBA')
+
+# ── texturas ────────────────────────────────────────────────────────────
+tex = {
+    'grama':  load_asset('tile-grama.png')  or placeholder_tex((74, 128, 60)),
+    'caminho':load_asset('tile-caminho.png')or placeholder_tex((150, 124, 88), 12),
+    'praca':  load_asset('tile-praca.png')  or placeholder_tex((148, 148, 158), 10),
+    'agua':   load_asset('tile-agua.png')   or placeholder_tex((38, 84, 160), 14),
+}
+def _shrink(im, mx=320):
+    if im and max(im.size) > mx: im.thumbnail((mx, mx), Image.LANCZOS)
+    return im
+props = {
+    'arvore1': _shrink(load_asset('prop-arvore-1.png', True)),
+    'arvore2': _shrink(load_asset('prop-arvore-2.png', True)),
+    'pinheiro':_shrink(load_asset('prop-pinheiro.png', True)),
+    'pedra':   _shrink(load_asset('prop-pedra.png', True)),
+}
+
+_rp = os.path.join(ROOT, 'public', 'mapa-atual.jpg')
+REMASTER = Image.open(_rp).convert('RGB') if os.path.exists(_rp) else None
+
+canvas = pano(tex['grama']) if tex['grama'] else Image.new('RGB', (W, H), (74, 128, 60))
+
+# ── terreno REAL extraído do mapa de referência (tools/terreno_ref.json) ──
+# Substitui as máscaras retangulares: rio serpenteante, praça octogonal,
+# caminhos radiais e penhascos exatamente como no mapa original.
+_tref = os.path.join(ROOT, 'tools', 'terreno_ref.json')
+TERR = json.load(open(_tref)) if os.path.exists(_tref) else None
+
+water_cells, praca_cells, path_cells = set(), set(), set()
+cliff_cells = set()
+if TERR:
+    for k, t in TERR.items():
+        x, y = map(int, k.split(','))
+        if   t == 'agua':     water_cells.add((x, y))
+        elif t == 'praca':    praca_cells.add((x, y))
+        elif t == 'caminho':  path_cells.add((x, y))
+        elif t == 'penhasco': cliff_cells.add((x, y))
+if not TERR:
+    pass
+if not TERR:   # fallback: layout declarativo (usado só se faltar a referência)
+    for w_ in layout['water']:
+        for y in range(w_['y0'], w_['y1'] + 1):
+            for x in range(w_['x0'], w_['x1'] + 1): water_cells.add((x, y))
+    pc = layout['praca']
+    for y in range(N):
+        for x in range(N):
+            if math.hypot(x + .5 - pc['cx'], y + .5 - pc['cy']) <= pc['raio']: praca_cells.add((x, y))
+    for c in layout['caminhos']:
+        (x0, y0), (x1, y1) = c['de'], c['para']; lw = c['largura']
+        steps = max(abs(x1 - x0), abs(y1 - y0)) * 2 + 1
+        for i in range(steps + 1):
+            fx, fy = x0 + (x1 - x0) * i / steps, y0 + (y1 - y0) * i / steps
+            for dy in range(-(lw // 2), lw - lw // 2):
+                for dx in range(-(lw // 2), lw - lw // 2):
+                    cx_, cy_ = int(fx + dx), int(fy + dy)
+                    if 0 <= cx_ < N and 0 <= cy_ < N: path_cells.add((cx_, cy_))
+    path_cells -= water_cells | praca_cells
+canvas = compor_terreno(canvas, tex['caminho'], sorted(path_cells), feather=7)
+canvas = compor_terreno(canvas, tex['praca'], sorted(praca_cells - water_cells), feather=5)
+canvas = compor_terreno(canvas, tex['agua'], sorted(water_cells), feather=4)
+tex['penhasco'] = load_asset('tile-penhasco.png')
+if cliff_cells: canvas = compor_terreno(canvas, tex['penhasco'], sorted(cliff_cells), feather=5)
+
+# ── molduras de fronteira (leva 2): margens de rio e meio-fio da praça ──
+# Para cada tile do terreno na fronteira, a vizinhança define a peça:
+# reta (1 lado de fora), curva externa (canto de fora), curva interna (quina).
+def moldura_cells(cells):
+    """mapa tile -> nome da orientação, lido da vizinhança"""
+    out = {}
+    inside = cells
+    for (x, y) in inside:
+        n = (x, y - 1) not in inside; s_ = (x, y + 1) not in inside
+        o = (x - 1, y) not in inside; l = (x + 1, y) not in inside
+        if n and o: out[(x, y)] = 'curva-ext-no'
+        elif n and l: out[(x, y)] = 'curva-ext-ne'
+        elif s_ and o: out[(x, y)] = 'curva-ext-so'
+        elif s_ and l: out[(x, y)] = 'curva-ext-se'
+        elif n: out[(x, y)] = 'reta-n'
+        elif s_: out[(x, y)] = 'reta-s'
+        elif o: out[(x, y)] = 'reta-o'
+        elif l: out[(x, y)] = 'reta-l'
+        else:
+            # quinas internas: diagonal de fora com lados de dentro
+            if (x - 1, y - 1) not in inside: out[(x, y)] = 'curva-int-no'
+            elif (x + 1, y - 1) not in inside: out[(x, y)] = 'curva-int-ne'
+            elif (x - 1, y + 1) not in inside: out[(x, y)] = 'curva-int-so'
+            elif (x + 1, y + 1) not in inside: out[(x, y)] = 'curva-int-se'
+    return out
+
+_MOLD_CACHE = {}
+def aplicar_molduras(dest, cells, prefixo, escala=2.0):
+    """Desenha a moldura MAIOR que o tile, centralizada na célula: a faixa
+    decorativa transborda para o tile vizinho e vira uma beira real em vez de
+    uma listra fina presa dentro de 1 tile."""
+    usadas, faltas = 0, set()
+    S = int(T * escala)
+    off = (S - T) // 2
+    for (x, y), ori in moldura_cells(cells).items():
+        key = (prefixo, ori, S)
+        if key not in _MOLD_CACHE:
+            im0 = load_asset(f'{prefixo}-{ori}.png', True)
+            # Recorta a FAIXA real (o GPT às vezes a desenha encostada na borda
+            # em vez de centralizada) e reescala para a espessura da fronteira.
+            if im0 is not None:
+                bb = im0.getbbox()
+                if bb:
+                    im0 = im0.crop(bb)
+                    lado = 'h' if im0.width >= im0.height else 'v'
+                    esp = int(T * 0.9)
+                    comp = int(T * escala)
+                    im0 = im0.resize((comp, esp) if lado == 'h' else (esp, comp), Image.LANCZOS)
+            _MOLD_CACHE[key] = im0
+        im = _MOLD_CACHE[key]
+        if im is None: faltas.add(ori); continue
+        cx0, cy0 = x * T, y * T
+        # ancora a faixa na fronteira que ela representa
+        if ori.startswith('reta-n'):   pos = (cx0 + (T - im.width)//2, cy0 - im.height//2)
+        elif ori.startswith('reta-s'): pos = (cx0 + (T - im.width)//2, cy0 + T - im.height//2)
+        elif ori.startswith('reta-o'): pos = (cx0 - im.width//2, cy0 + (T - im.height)//2)
+        elif ori.startswith('reta-l'): pos = (cx0 + T - im.width//2, cy0 + (T - im.height)//2)
+        else:                          pos = (cx0 + (T - im.width)//2, cy0 + (T - im.height)//2)
+        dest.alpha_composite(im, pos)
+        usadas += 1
+    if usadas: print(f'{prefixo}: {usadas} molduras aplicadas')
+    if faltas: print(f'{prefixo}: orientações faltando -> {sorted(faltas)}')
+
+# ── edifícios ───────────────────────────────────────────────────────────
+building_cells = set()
+shadow = Image.new('L', (W, H), 0); sd = ImageDraw.Draw(shadow)
+for b in layout['edificios']:
+    for y in range(b['y'], b['y'] + b['h']):
+        for x in range(b['x'], b['x'] + b['w']): building_cells.add((x, y))
+prop_layer = Image.new('RGBA', (W, H), (0, 0, 0, 0))
+canvas_rgba = prop_layer  # props desenham na própria camada
+for b in sorted(layout['edificios'], key=lambda e: e['y'] + e['h']):
+    px0, py0, pw, ph = b['x'] * T, b['y'] * T, b['w'] * T, b['h'] * T
+    im = load_asset(b['asset'], True)
+    sd.ellipse([px0 + pw*0.06, py0 + ph*0.72, px0 + pw*0.94, py0 + ph*1.02], fill=90)
+    if im:
+        im = im.resize((pw, ph), Image.LANCZOS)
+        canvas_rgba.alpha_composite(im, (px0, py0))
+    elif REMASTER:
+        # provisório: recorta o edifício do remaster na mesma posição, borda esfumada
+        rw, rh = REMASTER.size
+        crop = REMASTER.crop((int(b['x']/48*rw), int(b['y']/48*rh),
+                              int((b['x']+b['w'])/48*rw), int((b['y']+b['h'])/48*rh)))
+        crop = crop.resize((pw, ph), Image.LANCZOS).convert('RGBA')
+        fm = Image.new('L', (pw, ph), 0)
+        ImageDraw.Draw(fm).rectangle([10, 10, pw-10, ph-10], fill=255)
+        crop.putalpha(fm.filter(ImageFilter.GaussianBlur(9)))
+        canvas_rgba.alpha_composite(crop, (px0, py0))
+    else:
+        d = ImageDraw.Draw(canvas_rgba)
+        d.rounded_rectangle([px0+4, py0+4, px0+pw-4, py0+ph-4], 18, fill=(120, 96, 150, 255), outline=(60, 45, 80, 255), width=5)
+
+# ── vegetação automática: bloqueado & ¬água & ¬edifício & fora da zona do orbe ──
+oz = layout['orbe_zona']
+veg = []
+for y in range(1, N - 1):
+    for x in range(1, N - 1):
+        if GRID[y][x] != 1: continue
+        if (x, y) in water_cells or (x, y) in building_cells: continue
+        if (x, y) in praca_cells or (x, y) in path_cells or (x, y) in cliff_cells: continue
+        if oz['x0'] <= x <= oz['x1'] and oz['y0'] <= y <= oz['y1']: continue
+        veg.append((x, y))
+veg_set = set(veg)
+for (x, y) in veg:
+    r = h2(x, y) % 100
+    kind = 'pedra' if r < 7 else 'pinheiro' if r < 40 else 'arvore1' if r < 72 else 'arvore2'
+    # miolo de floresta (>=3 vizinhos vegetados): copa extra deslocada fecha a massa
+    if kind != 'pedra' and sum(1 for nb in ((x-1,y),(x+1,y),(x,y-1),(x,y+1)) if nb in veg_set) >= 3:
+        k2 = 'pinheiro' if (h2(x, y, 21) % 2) else 'arvore1'
+        im2 = props[k2]
+        if im2:
+            var2 = 0.8 + (h2(x, y, 22) % 100) / 100 * 0.4
+            s2 = T * 1.7 * var2
+            w3 = int(s2); h3 = int(s2 * im2.height / im2.width)
+            ox2 = (h2(x, y, 23) % T) - T // 2
+            oy2 = (h2(x, y, 24) % T) - T // 2
+            canvas_rgba.alpha_composite(im2.resize((w3, h3), Image.LANCZOS),
+                (x * T + T // 2 - w3 // 2 + ox2, y * T + T // 3 - h3 + oy2))
+    im = props[kind] if props[kind] else None
+    cx_, cy_ = x * T + T // 2, y * T + T
+    sd.ellipse([cx_ - T*0.55, cy_ - T*0.28, cx_ + T*0.55, cy_ + T*0.10], fill=70)
+    if im:
+        var = 0.85 + (h2(x, y, 4) % 100) / 100 * 0.5   # 0.85..1.35 de variação
+        s = T * (1.9 if kind in ('arvore1', 'arvore2') else 1.7 if kind == 'pinheiro' else 1.05) * var
+        w2 = int(s); h2_ = int(s * im.height / im.width)
+        canvas_rgba.alpha_composite(im.resize((w2, h2_), Image.LANCZOS), (cx_ - w2 // 2, cy_ + T // 3 - h2_))
+    else:
+        d = ImageDraw.Draw(canvas_rgba)
+        rad = int(T * (0.74 if kind != 'pedra' else 0.42))
+        cy2 = cy_ - T // 2
+        rr = h2(x, y, 9)
+        if kind == 'pedra':
+            d.ellipse([cx_-rad, cy2-rad+6, cx_+rad, cy2+rad], fill=(122,122,128,255), outline=(70,70,78,255), width=3)
+            d.ellipse([cx_-rad//2, cy2-rad//2, cx_+rad//4, cy2], fill=(160,160,166,255))
+        elif kind == 'pinheiro':
+            base, mid, top = (22,74,40,255), (34,102,52,255), (66,140,70,255)
+            for i, (ry, rw2, col) in enumerate([(0, 1.0, base), (-0.42, 0.78, mid), (-0.8, 0.52, top)]):
+                r2 = int(rad * rw2)
+                d.ellipse([cx_-r2, cy2+int(ry*rad)-r2, cx_+r2, cy2+int(ry*rad)+r2], fill=col)
+            d.ellipse([cx_-rad//3, cy2-int(0.95*rad)-rad//3, cx_, cy2-int(0.95*rad)], fill=(96,170,96,255))
+        else:
+            tone = 10 if kind == 'arvore1' else -6
+            dark  = (40+tone, 104+tone, 48, 255)
+            midc  = (58+tone, 128+tone, 58, 255)
+            light = (86+tone, 158+tone, 74, 255)
+            d.ellipse([cx_-rad, cy2-rad+4, cx_+rad, cy2+rad+4], fill=dark)
+            for k in range(5):
+                a = (rr >> (k*3)) % 360
+                import math as _m
+                ox2 = int(_m.cos(a) * rad * 0.34); oy2 = int(_m.sin(a) * rad * 0.34)
+                d.ellipse([cx_-rad//2+ox2, cy2-rad//2+oy2, cx_+rad//2+ox2, cy2+rad//2+oy2], fill=midc)
+            d.ellipse([cx_-rad//2-3, cy2-rad//2-5, cx_+rad//6, cy2-2], fill=light)
+
+# ── decoração curada (lampiões, cercas, canteiros, ponte, pedras) ──────────
+DECOR = layout.get('decor', {})
+def plantar(asset_name, tx, ty, alt_tiles, anchor_bottom=True):
+    im = _shrink(load_asset(asset_name, True), 420)
+    if im is None: return False
+    hpx = int(T * alt_tiles)
+    wpx = int(hpx * im.width / im.height)
+    im = im.resize((wpx, hpx), Image.LANCZOS)
+    px0 = int(tx * T + T/2 - wpx/2)
+    py0 = int((ty + 1) * T - hpx) if anchor_bottom else int(ty * T)
+    prop_layer.alpha_composite(im, (px0, py0))
+    return True
+
+for p_ in DECOR.get('ponte', []):
+    im = load_asset('prop-ponte.png', True)
+    if im:
+        im = im.resize((p_['w'] * T, p_['h'] * T), Image.LANCZOS)
+        prop_layer.alpha_composite(im, (p_['x'] * T, p_['y'] * T))
+for (tx, ty) in DECOR.get('poste', []):
+    plantar('prop-poste.png', tx, ty, 1.9)
+for (tx, ty) in DECOR.get('canteiro', []):
+    plantar('det-flores.png', tx, ty, 1.1)
+for (tx, ty) in DECOR.get('pedra', []):
+    plantar('prop-pedra.png', tx, ty, 0.9)
+_cerca_img = _shrink(load_asset('prop-cerca.png', True), 300)
+for seg in DECOR.get('cerca', []):
+    (x0_, y0_), (x1_, y1_) = seg['de'], seg['para']
+    if _cerca_img:
+        horiz = abs(x1_ - x0_) >= abs(y1_ - y0_)
+        im = _cerca_img if horiz else _cerca_img.rotate(90, expand=True)
+        hpx = int(T * 0.85)
+        wpx = int(hpx * im.width / im.height)
+        n_ = max(abs(x1_ - x0_), abs(y1_ - y0_)) + 1
+        for i in range(n_):
+            fx = x0_ + (1 if horiz else 0) * i
+            fy = y0_ + (0 if horiz else 1) * i
+            seg_im = im.resize((wpx, hpx) if horiz else (int(T*0.5), T), Image.LANCZOS)
+            prop_layer.alpha_composite(seg_im, (int(fx*T + (T-seg_im.width)/2), int(fy*T + T - seg_im.height)))
+# tapete de micro-detalhe: tufos e pedrinhas espalhados pela grama
+_tufo = _shrink(load_asset('det-tufo.png', True), 200)
+_pedr = _shrink(load_asset('det-pedrinhas.png', True), 200)
+if _tufo or _pedr:
+    livres = [(x, y) for y in range(1, N-1) for x in range(1, N-1)
+              if GRID[y][x] == 0 and (x, y) not in water_cells and (x, y) not in praca_cells
+              and (x, y) not in path_cells and (x, y) not in building_cells and (x, y) not in cliff_cells]
+    for (x, y) in livres:
+        r_ = h2(x, y, 11) % 1000
+        if r_ < 70 and _tufo:
+            sz = int(T * 0.5); im2 = _tufo.resize((sz, int(sz*_tufo.height/_tufo.width)))
+            prop_layer.alpha_composite(im2, (x*T + (h2(x,y,12) % (T-sz)), y*T + (h2(x,y,13) % (T-sz))))
+        elif r_ < 100 and _pedr:
+            sz = int(T * 0.42); im2 = _pedr.resize((sz, int(sz*_pedr.height/_pedr.width)))
+            prop_layer.alpha_composite(im2, (x*T + (h2(x,y,14) % (T-sz)), y*T + (h2(x,y,15) % (T-sz))))
+
+# aplica sombras (multiply simples)
+shadow = shadow.filter(ImageFilter.GaussianBlur(T // 5))
+dark = Image.new('RGBA', (W, H), (12, 18, 10, 255))
+dark.putalpha(shadow.point(lambda v: int(v * 0.55)))
+final_ground = canvas.convert('RGBA')
+aplicar_molduras(final_ground, water_cells, 'margem', escala=2.2)
+aplicar_molduras(final_ground, praca_cells, 'meiofio', escala=1.8)
+final = final_ground
+final.alpha_composite(dark)        # sombras entre o chão e os props
+final.alpha_composite(prop_layer)  # edifícios e vegetação por cima
+# ── clima: o mapa de referência é NOTURNO/místico, não dia claro ──
+# escurece, tira saturação do verde e injeta azul nas sombras
+rgb = final.convert('RGB')
+px_ = rgb.load()
+for yy in range(H):
+    for xx in range(W):
+        r, g, b = px_[xx, yy]
+        lum = (r * 0.3 + g * 0.55 + b * 0.15)
+        r = int(r * 0.60 + lum * 0.06)
+        g = int(g * 0.62 + lum * 0.05)
+        b = int(b * 0.78 + lum * 0.14) + 12
+        px_[xx, yy] = (min(255, r), min(255, g), min(255, b))
+rgb.save(out_path, quality=90, optimize=True)
+print('mapa composto:', out_path, f'{W}x{H}')
+print(f'terreno: agua={len(water_cells)} praca={len(praca_cells)} caminho={len(path_cells)}')
+print(f'edificios={len(layout["edificios"])} vegetacao={len(veg)} tiles')
+faltando = [n for n in ['tile-grama.png','tile-caminho.png','tile-praca.png','tile-agua.png',
+  'prop-arvore-1.png','prop-arvore-2.png','prop-pinheiro.png','prop-pedra.png',
+  'prop-casa-azul.png','prop-casa-marrom.png','prop-arena.png','prop-predio-roxo.png',
+  'prop-shop.png','prop-cupula.png'] if not os.path.exists(os.path.join(KIT, n))]
+print('assets faltando (' + str(len(faltando)) + '):', ' '.join(faltando) if faltando else 'nenhum!')

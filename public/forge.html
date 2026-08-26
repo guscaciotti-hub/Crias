@@ -1,0 +1,470 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Crias Forge — Fábrica de Assets</title>
+<script type="module" src="/model-viewer.min.js"></script>
+<style>
+  :root { --bg:#0a0e1a; --card:#131a2e; --line:#243250; --txt:#dce6f5; --dim:#8ab0dd; --acc:#4dc3ff; --gold:#ffd700; }
+  * { box-sizing:border-box; }
+  body { margin:0; background:var(--bg); color:var(--txt); font:14px/1.5 system-ui,sans-serif; padding:20px; }
+  h1 { font-size:20px; margin:0 0 4px; } h1 span { color:var(--acc); }
+  .sub { color:var(--dim); font-size:12px; margin-bottom:18px; }
+  .grid { display:grid; grid-template-columns:1fr 1fr; gap:16px; max-width:1100px; }
+  @media (max-width:900px){ .grid { grid-template-columns:1fr; } }
+  .card { background:var(--card); border:1px solid var(--line); border-radius:12px; padding:16px; }
+  .card h2 { font-size:13px; margin:0 0 10px; color:var(--acc); text-transform:uppercase; letter-spacing:.08em; }
+  label { display:block; font-size:11px; color:var(--dim); margin:10px 0 4px; }
+  input[type=text], input[type=password], select { width:100%; background:#0d1322; border:1px solid var(--line); border-radius:8px; color:var(--txt); padding:8px 10px; font-size:13px; }
+  button { background:linear-gradient(135deg,#1a5c8a,#2a8ac0); border:1px solid var(--acc); color:#fff; border-radius:8px; padding:9px 16px; font-size:13px; font-weight:700; cursor:pointer; margin-top:10px; }
+  button:disabled { opacity:.4; cursor:not-allowed; }
+  button.ghost { background:transparent; border-color:var(--line); color:var(--dim); }
+  #drop { border:2px dashed var(--line); border-radius:12px; padding:26px; text-align:center; color:var(--dim); cursor:pointer; transition:border-color .2s; }
+  #drop.over { border-color:var(--acc); color:var(--acc); }
+  canvas.prev { max-width:100%; border-radius:8px; background:
+    repeating-conic-gradient(#1a2238 0% 25%, #10182c 0% 50%) 0 / 20px 20px; }
+  #log { background:#060a14; border-radius:8px; padding:10px; font:11px/1.6 ui-monospace,monospace; color:#9fd49f; max-height:180px; overflow-y:auto; white-space:pre-wrap; margin-top:10px; }
+  model-viewer { width:100%; height:320px; background:#0d1322; border-radius:8px; --poster-color:transparent; }
+  .row { display:flex; gap:10px; align-items:center; flex-wrap:wrap; }
+  .snippet { background:#060a14; border-radius:8px; padding:10px; font:11px ui-monospace,monospace; color:var(--gold); margin-top:8px; user-select:all; }
+  a { color:var(--acc); }
+</style>
+</head>
+<body>
+<h1>🔥 Crias <span>Forge</span></h1>
+<div class="sub">Fábrica de assets: imagem → limpeza chroma → modelo 3D (.glb) — usando sua cota grátis do Hugging Face</div>
+
+<div class="grid">
+  <div class="card">
+    <h2>1 · Conexão</h2>
+    <label>Token do Hugging Face (grátis — <a href="https://huggingface.co/settings/tokens" target="_blank">criar aqui</a>, tipo "Read")</label>
+    <input type="password" id="tok" placeholder="hf_...">
+    <label>Space gerador</label>
+    <select id="space">
+      <option value="custom">🔗 Meu motor (Colab) — recomendado</option>
+      <option value="stabilityai/stable-fast-3d">stabilityai/stable-fast-3d</option>
+      <option value="VAST-AI/TripoSR">VAST-AI/TripoSR</option>
+      <option value="TencentARC/InstantMesh">TencentARC/InstantMesh</option>
+      <option value="JeffreyXiang/TRELLIS">JeffreyXiang/TRELLIS</option>
+    </select>
+    <div id="customBox">
+      <label>URL do motor (aparece no final do Colab, ex: https://abc123.gradio.live)</label>
+      <input type="text" id="customUrl" placeholder="https://xxxxx.gradio.live">
+      <div class="sub" style="margin-top:4px;">Liga o motor 1x por sessão: <a href="https://colab.research.google.com/github/guscaciotti-hub/Crias/blob/claude/crias-rpg-dev-Aj0Fd/tools/forge_colab.ipynb" target="_blank">abrir Colab</a> → Executar tudo → copiar o link .gradio.live</div>
+    </div>
+    <div class="row">
+      <button class="ghost" id="btnInfo">🔎 Descobrir APIs do space</button>
+      <label style="margin:10px 0 0;">API: <input type="text" id="api" value="/run_button" style="width:160px;display:inline-block;"></label>
+    </div>
+    <div id="log">aguardando…</div>
+  </div>
+
+  <div class="card">
+    <h2>2 · Imagem</h2>
+    <div class="row" style="margin-bottom:10px;">
+      <label style="margin:0;"><input type="radio" name="tipo" value="monstro" checked> 🐺 Monstro</label>
+      <label style="margin:0;"><input type="radio" name="tipo" value="personagem"> 🧍 Personagem</label>
+    </div>
+    <div id="drop">solta a imagem aqui (fundo verde ou qualquer fundo)<br><small>ou clica pra escolher</small></div>
+    <input type="file" id="file" accept="image/*" style="display:none">
+    <label><input type="checkbox" id="chroma" checked> remover fundo verde chroma (#00FF00)</label>
+    <canvas class="prev" id="prev" width="10" height="10"></canvas>
+    <div class="row">
+      <button class="ghost" id="btnDown" disabled>⬇ baixar PNG limpo</button>
+      <button id="btnGen" disabled>⚡ Gerar modelo 3D</button>
+    </div>
+  </div>
+
+  <div class="card" style="grid-column:1/-1;">
+    <h2>Prompt para o ChatGPT (muda com o seletor acima)</h2>
+    <div class="sub">Copia, troca só a última linha (a descrição) e gera a imagem no GPT. Depois solta a imagem aqui em cima e clica Gerar.</div>
+    <div class="snippet" id="promptBox"></div>
+    <button class="ghost" id="btnCopyPrompt">📋 copiar prompt</button>
+  </div>
+
+  <div class="card" style="grid-column:1/-1;">
+    <h2>3 · Resultado</h2>
+    <div class="sub">Também dá pra carregar um .glb já baixado: <input type="file" id="glbFile" accept=".glb" style="display:inline;width:auto;font-size:11px;"></div>
+    <model-viewer id="mv" camera-controls exposure="1.15" shadow-intensity="0.9"></model-viewer>
+    <div class="row">
+      <button class="ghost" id="btnGlb" disabled>⬇ baixar .glb</button>
+      <label style="margin:0;">nome: <input type="text" id="sp" value="asset" style="width:120px;display:inline-block;"></label>
+      <label style="margin:0;">ângulo frontal: <input type="range" id="front" min="0" max="360" value="200" style="width:130px;vertical-align:middle;"> <span id="frontV">200°</span></label>
+    </div>
+    <div class="row" style="margin-top:6px;">
+      <button id="btnViews" disabled>🎮 Gerar vistas do jogo (frente/costas/lados)</button>
+      <label style="margin:0;font-size:11px;color:var(--dim);">+ sentado (opcional, imagem do GPT): <input type="file" id="sitFile" accept="image/*" style="display:inline;width:auto;font-size:11px;"></label>
+    </div>
+    <canvas class="prev" id="viewsPrev" width="10" height="10" style="margin-top:10px;"></canvas>
+    <div class="row"><button class="ghost" id="btnViewsDown" disabled>⬇ baixar sheet de vistas</button></div>
+    <div class="snippet" id="snip">// gere um modelo para ver o snippet de integração</div>
+    <div class="sub" style="margin-top:8px;">Depois: sobe o .glb no GitHub e cola o snippet no MONSTER_3D do game.html (ou me manda que eu integro).</div>
+  </div>
+</div>
+
+<script>
+const $ = id => document.getElementById(id);
+const log = m => { const l = $('log'); l.textContent += '\n' + m; l.scrollTop = l.scrollHeight; };
+$('tok').value = localStorage.getItem('hf_tok') || '';
+$('tok').addEventListener('change', () => localStorage.setItem('hf_tok', $('tok').value.trim()));
+$('customUrl').value = localStorage.getItem('forge_engine') ? 'https://' + localStorage.getItem('forge_engine') : '';
+function syncCustomBox() { $('customBox').style.display = $('space').value === 'custom' ? '' : 'none'; }
+document.addEventListener('DOMContentLoaded', syncCustomBox);
+setTimeout(syncCustomBox, 0);
+const hostOf = v => {
+  if (v === 'custom') {
+    const u = ($('customUrl').value || '').trim().replace(/^https?:\/\//, '').replace(/\/.*$/, '');
+    if (!u) throw new Error('cola a URL do motor (.gradio.live) — liga pelo link do Colab');
+    localStorage.setItem('forge_engine', u);
+    return u;
+  }
+  return v.replace('/', '-').toLowerCase() + '.hf.space';
+};
+document.addEventListener('change', e => {
+  if (e.target && e.target.id === 'space') { gBase = null; epInfo = {}; syncCustomBox(); log('space trocado — base e APIs resetadas; clica em Descobrir APIs'); }
+  if (e.target && e.target.id === 'customUrl') { gBase = null; epInfo = {}; }
+});
+const auth = () => {
+  if ($('space').value === 'custom') return {};  // motor próprio: sem token
+  const t = $('tok').value.trim(); return t ? { Authorization: 'Bearer ' + t } : {};
+};
+// Spaces variam de versão do gradio: v5 usa /gradio_api/*, v4 usa as rotas na
+// raiz. Tenta as duas e memoriza a que respondeu.
+let gBase = null;
+let epInfo = {};  // assinaturas dos endpoints (via /info)
+function epScore(name, info) {
+  const sig = info[name] || {};
+  const rets = JSON.stringify(sig.returns || []).toLowerCase();
+  const pars = JSON.stringify(sig.parameters || []).toLowerCase();
+  let sc = 0;
+  if (/3d|model|glb|mesh/.test(rets)) sc += 4;          // produz modelo
+  if (/image|filepath/.test(pars)) sc += 2;             // aceita imagem
+  if (/run|generate|button|submit/.test(name)) sc += 1; // nome de ação final
+  sc += Math.min(3, (sig.parameters || []).length) * 0.1;
+  return sc;
+}
+async function gfetch(host, path, opts) {
+  const bases = gBase !== null ? [gBase] : ['/gradio_api', ''];
+  let last = null;
+  for (const b of bases) {
+    try {
+      const r = await fetch('https://' + host + b + path, opts);
+      if (r.status === 404 && gBase === null) { last = r; continue; }
+      gBase = b;
+      return r;
+    } catch (e) { last = e; }
+  }
+  throw new Error('sem resposta em ' + path + (last && last.status ? ' (HTTP ' + last.status + ')' : ''));
+}
+
+let cleanBlob = null, glbBlob = null;
+
+// ---- prompts 3D por tipo (as regras técnicas maximizam a qualidade do image-to-3D) ----
+const PROMPTS = {
+  monstro: `Criatura para jogo RPG de coleta de monstros, em estilo de render 3D estilizado
+: volumétrica, materiais bem definidos,
+cores vibrantes e saturadas, fofo-mas-poderoso.
+Pose NEUTRA de corpo inteiro, em pé, vista frontal com leve ângulo 3/4,
+membros visíveis e SEPARADOS do corpo (nada cruzado ou sobreposto), silhueta clara.
+Iluminação SUAVE e uniforme, sem sombras duras, SEM sombra no chão.
+Fundo VERDE CHROMA #00FF00 sólido. Sem borda, sem texto, sem marca d'água.
+A criatura ocupa ~80% da altura, centralizada, e NENHUMA parte (nem chamas/efeitos)
+toca as bordas da imagem.
+Criatura: [DESCREVA AQUI — ex: falcão elétrico dourado com raios crepitando nas asas]`,
+  personagem: `Personagem humano para jogo RPG, em estilo de render 3D estilizado
+(proporções heroicas levemente estilizadas, cabeça um pouco maior, estilo aventura fofa).
+Corpo inteiro, em pé, POSE-A relaxada: braços levemente AFASTADOS do corpo,
+pernas ligeiramente separadas, vista frontal com leve 3/4, mãos visíveis, silhueta clara.
+Iluminação SUAVE e uniforme, sem sombras duras, SEM sombra no chão.
+Fundo VERDE CHROMA #00FF00 sólido. Sem borda, sem texto, sem marca d'água.
+O personagem ocupa ~85% da altura, centralizado, sem nenhuma parte (nem capa/cabelo)
+tocando as bordas da imagem.
+Personagem: [DESCREVA AQUI — ex: treinadora ruiva de jaqueta azul com mochila e luvas]
+
+--- PROMPT EXTRA (2ª imagem, para a pose sentada) ---
+Mesmo personagem descrito acima, SENTADO no chão relaxado, corpo inteiro,
+vista frontal com leve 3/4, fundo verde chroma #00FF00 sólido, iluminação
+suave, sem sombra no chão, nada tocando as bordas da imagem.`,
+};
+const tipoSel = () => document.querySelector('input[name=tipo]:checked').value;
+function refreshPrompt() {
+  $('promptBox').textContent = PROMPTS[tipoSel()];
+  const b = $('btnCopyPrompt'); if (b) b.textContent = '📋 copiar prompt de ' + tipoSel();
+}
+document.querySelectorAll('input[name=tipo]').forEach(r => r.addEventListener('change', refreshPrompt));
+document.addEventListener('DOMContentLoaded', refreshPrompt);
+setTimeout(refreshPrompt, 0);
+document.addEventListener('click', e => {
+  if (e.target.id === 'btnCopyPrompt') {
+    navigator.clipboard.writeText(PROMPTS[tipoSel()]);
+    e.target.textContent = '✅ copiado!';
+    setTimeout(refreshPrompt, 1500);
+  }
+});
+
+// ---- imagem + chroma (mesma lógica do pipeline do jogo) ----
+$('drop').onclick = () => $('file').click();
+$('drop').ondragover = e => { e.preventDefault(); $('drop').classList.add('over'); };
+$('drop').ondragleave = () => $('drop').classList.remove('over');
+$('drop').ondrop = e => { e.preventDefault(); $('drop').classList.remove('over'); loadImg(e.dataTransfer.files[0]); };
+$('file').onchange = e => loadImg(e.target.files[0]);
+
+function loadImg(f) {
+  if (!f) return;
+  const img = new Image();
+  img.onload = () => {
+    const c = $('prev'); c.width = img.width; c.height = img.height;
+    const x = c.getContext('2d'); x.drawImage(img, 0, 0);
+    if ($('chroma').checked) {
+      const d = x.getImageData(0, 0, c.width, c.height);
+      const p = d.data;
+      for (let i = 0; i < p.length; i += 4) {
+        const r = p[i], g = p[i+1], b = p[i+2];
+        if (g > 90 && g > r * 1.35 && g > b * 1.35) p[i+3] = 0;
+        else if (g > Math.max(r, b)) p[i+1] = Math.max(r, b); // de-spill
+      }
+      x.putImageData(d, 0, 0);
+    }
+    c.toBlob(bl => { cleanBlob = bl; $('btnDown').disabled = false; $('btnGen').disabled = false; log('imagem pronta: ' + c.width + 'x' + c.height); }, 'image/png');
+  };
+  img.src = URL.createObjectURL(f);
+}
+
+$('btnDown').onclick = () => save(cleanBlob, ($('sp').value || 'asset') + '-limpo.png');
+function save(blob, name) { const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = name; a.click(); }
+
+// ---- descobrir APIs do space ----
+$('btnInfo').onclick = async () => {
+  const host = hostOf($('space').value);
+  log('consultando https://' + host + '/gradio_api/info …');
+  try {
+    const r = await gfetch(host, '/info', { headers: auth() });
+    if (!r.ok) throw new Error('HTTP ' + r.status + ': ' + (await r.text()).slice(0, 150));
+    const j = await r.json();
+    log('api base: "' + (gBase || '(raiz)') + '"');
+    epInfo = j.named_endpoints || {};
+    const eps = Object.keys(epInfo);
+    log('endpoints: ' + (eps.join('  ') || '(nenhum nomeado)'));
+    for (const e of eps) {
+      const sig = j.named_endpoints[e];
+      const ins = (sig.parameters || []).map(p =>
+        (p.label || p.parameter_name) + ':' + (p.component || p.python_type && p.python_type.type || '?') +
+        (p.parameter_default !== undefined ? '=' + JSON.stringify(p.parameter_default) : '')).join(', ');
+      const outs = (sig.returns || []).map(r => r.label || r.component || '?').join(', ');
+      log('  ' + e + ' ← (' + ins + ') → [' + outs + ']');
+    }
+    if (eps.length) $('api').value = eps.sort((a, b) => epScore(b, epInfo) - epScore(a, epInfo))[0];
+  } catch (e) { log('ERRO: ' + e.message + ' (space dormindo? abre ele no navegador pra acordar)'); }
+};
+
+// ---- geração 3D via gradio API ----
+$('btnGen').onclick = async () => {
+  const host = hostOf($('space').value), api = $('api').value.trim();
+  $('btnGen').disabled = true;
+  try {
+    log('subindo imagem para o space…');
+    const fd = new FormData();
+    fd.append('files', cleanBlob, 'input.png');
+    const up = await gfetch(host, '/upload?upload_id=' + Date.now(), { method: 'POST', headers: auth(), body: fd });
+    if (!up.ok) throw new Error('upload HTTP ' + up.status + ': ' + (await up.text()).slice(0, 200));
+    const uj = await up.json();
+    const path = Array.isArray(uj) ? uj[0] : (uj.files ? uj.files[0] : null);
+    if (!path) throw new Error('upload sem path: ' + JSON.stringify(uj).slice(0, 200));
+    log('upload ok: ' + path);
+
+    const fileRef = { path, meta: { _type: 'gradio.FileData' } };
+    // A API REST NÃO preenche defaults sozinha: monta o data completo pela
+    // assinatura do endpoint (imagem -> fileRef, demais -> default do /info).
+    if (!epInfo[api]) {
+      try {
+        const ir = await gfetch(host, '/info', { headers: auth() });
+        epInfo = (await ir.json()).named_endpoints || {};
+      } catch (e) { log('aviso: /info indisponível, enviando só a imagem'); }
+    }
+    let data = [fileRef];
+    const sig = epInfo[api];
+    if (sig && sig.parameters && sig.parameters.length) {
+      let usedImg = false;
+      data = sig.parameters.map(prm => {
+        const t = JSON.stringify([prm.component, prm.python_type, prm.label]).toLowerCase();
+        if (!usedImg && /image|filepath|file/.test(t)) { usedImg = true; return fileRef; }
+        return prm.parameter_default !== undefined ? prm.parameter_default : null;
+      });
+      log('parâmetros: [' + data.map(d => d === fileRef ? 'IMAGEM' : JSON.stringify(d)).join(', ') + ']');
+    }
+    async function callApi(apiName, payload) {
+      const call = await gfetch(host, '/call' + apiName, {
+        method: 'POST', headers: { 'Content-Type': 'application/json', ...auth() },
+        body: JSON.stringify({ data: payload }),
+      });
+      if (!call.ok) throw new Error('call HTTP ' + call.status + ': ' + (await call.text()).slice(0, 250));
+      const cj = await call.json();
+      if (!cj.event_id) throw new Error('resposta sem event_id: ' + JSON.stringify(cj).slice(0, 200));
+      log('  event ' + cj.event_id + ' em ' + apiName + '…');
+      const es = await gfetch(host, '/call' + apiName + '/' + cj.event_id, { headers: auth() });
+      return await es.text();
+    }
+    const buildData = (apiName, imgRef) => {
+      const sig2 = epInfo[apiName];
+      if (!sig2 || !sig2.parameters || !sig2.parameters.length) return [imgRef];
+      let used = false;
+      return sig2.parameters.map(prm => {
+        const t = JSON.stringify([prm.component, prm.python_type, prm.label]).toLowerCase();
+        if (!used && /image|filepath|file/.test(t)) { used = true; return imgRef; }
+        return prm.parameter_default !== undefined ? prm.parameter_default : null;
+      });
+    };
+    const extractGlb = t => {
+      const m = [...t.matchAll(/"(https?:[^"]+?\.glb[^"]*)"|"path":\s*"([^"]+?\.glb)"/g)]
+        .map(x => x[1] || ('https://' + host + (gBase || '') + '/file=' + x[2]));
+      return m.length ? m[m.length - 1] : null;
+    };
+    const extractImg = t => {
+      const m = [...t.matchAll(/"path":\s*"([^"]+?\.(?:png|webp|jpg))"/gi)].map(x => x[1]);
+      return m.length ? m[m.length - 1] : null;
+    };
+    // fila: endpoint escolhido primeiro, depois os demais por score
+    const queue = [api, ...Object.keys(epInfo).filter(e => e !== api)
+      .sort((a, b) => epScore(b, epInfo) - epScore(a, epInfo))];
+    let curImg = fileRef, glbUrl2 = null;
+    for (const ep of queue) {
+      let t;
+      try { t = await callApi(ep, buildData(ep, curImg)); }
+      catch (e2) { log('  ' + ep + ': ' + e2.message.slice(0, 110)); continue; }
+      const g = extractGlb(t);
+      if (g) { glbUrl2 = g; log('  ' + ep + ' → modelo encontrado! ✓'); break; }
+      const im2 = extractImg(t);
+      if (im2) { curImg = { path: im2, meta: { _type: 'gradio.FileData' } }; log('  ' + ep + ' → imagem processada, encadeando…'); continue; }
+      if (/event:\s*error/.test(t)) log('  ' + ep + ' → recusou (error)');
+      else log('  ' + ep + ' → sem modelo nem imagem no retorno');
+    }
+    if (!glbUrl2) throw new Error('nenhum endpoint devolveu .glb. Pode ser cota ZeroGPU do dia (tenta mais tarde) ou o space está fora — troca no seletor e clica Descobrir APIs.');
+    const text = JSON.stringify([glbUrl2]);
+    log('stream recebido');
+    const glbUrl = JSON.parse(text)[0];
+    log('baixando ' + glbUrl.slice(0, 90) + '…');
+    const g = await fetch(glbUrl, { headers: auth() });
+    glbBlob = await g.blob();
+    const local = URL.createObjectURL(glbBlob);
+    $('mv').src = local;
+    $('btnGlb').disabled = false;
+    $('btnViews').disabled = false;
+    const sp = ($('sp').value || 'asset').toLowerCase();
+    $('snip').textContent = tipoSel() === 'monstro'
+      ? sp + ": { url: '/" + sp + ".glb', center: 200, sway: 12 },"
+      : '// personagem 3D: suba ' + sp + '.glb no GitHub e avise o Claude — ele gera as vistas e integra no jogo';
+    log('✅ pronto! confere o modelo acima (gira com o mouse pra achar o melhor ângulo)');
+  } catch (e) {
+    log('ERRO: ' + e.message);
+    log('dicas: cota do dia esgotada? troca o space. 401? confere o token. CORS? o space pode estar dormindo — abre huggingface.co/spaces/' + $('space').value + ' e espera carregar.');
+  }
+  $('btnGen').disabled = false;
+};
+$('btnGlb').onclick = () => save(glbBlob, ($('sp').value || 'asset').toLowerCase() + '.glb');
+
+// ---- vistas do jogo: captura o glb em 4 ângulos + pose sentada opcional ----
+$('front').oninput = () => { $('frontV').textContent = $('front').value + '°'; $('mv').cameraOrbit = $('front').value + 'deg 76deg 100%'; };
+$('glbFile').onchange = e => {
+  const f = e.target.files[0]; if (!f) return;
+  glbBlob = f; $('mv').src = URL.createObjectURL(f);
+  $('btnGlb').disabled = false; $('btnViews').disabled = false;
+  log('glb local carregado: ' + f.name);
+};
+let sitImg = null;
+$('sitFile').onchange = e => {
+  const f = e.target.files[0]; if (!f) return;
+  const img = new Image();
+  img.onload = () => {
+    // chroma no sentado
+    const c = document.createElement('canvas'); c.width = img.width; c.height = img.height;
+    const x = c.getContext('2d'); x.drawImage(img, 0, 0);
+    const d = x.getImageData(0, 0, c.width, c.height); const pd = d.data;
+    for (let i = 0; i < pd.length; i += 4) {
+      const r = pd[i], g = pd[i+1], b = pd[i+2];
+      if (g > 90 && g > r * 1.35 && g > b * 1.35) pd[i+3] = 0;
+      else if (g > Math.max(r, b)) pd[i+1] = Math.max(r, b);
+    }
+    x.putImageData(d, 0, 0);
+    sitImg = c; log('pose sentada carregada (' + c.width + 'x' + c.height + ')');
+  };
+  img.src = URL.createObjectURL(f);
+};
+
+function bboxOf(cv, thr = 40) {
+  const { width: w, height: h } = cv;
+  const d = cv.getContext('2d').getImageData(0, 0, w, h).data;
+  let x0 = w, y0 = h, x1 = -1, y1 = -1;
+  for (let y = 0; y < h; y++) for (let x = 0; x < w; x++)
+    if (d[(y * w + x) * 4 + 3] > thr) { if (x < x0) x0 = x; if (x > x1) x1 = x; if (y < y0) y0 = y; if (y > y1) y1 = y; }
+  return x1 < 0 ? null : { x0, y0, x1: x1 + 1, y1: y1 + 1 };
+}
+
+$('btnViews').onclick = async () => {
+  const mv = $('mv');
+  if (!mv.src) { log('carrega um modelo primeiro'); return; }
+  $('btnViews').disabled = true;
+  const F = parseFloat($('front').value);
+  const DIRS = { down: F, right: F + 90, up: F + 180, left: F + 270 };
+  const caps = {};
+  const shadowBefore = mv.getAttribute('shadow-intensity');
+  mv.setAttribute('shadow-intensity', '0');  // sombra vira mancha na captura
+  log('capturando vistas (frente=' + F + '°)…');
+  for (const [dir, th] of Object.entries(DIRS)) {
+    mv.cameraOrbit = th + 'deg 76deg 135%';
+    if (mv.jumpCameraToGoal) mv.jumpCameraToGoal();  // sem interpolação
+    // captura até estabilizar: 2 frames consecutivos idênticos (GPU real: ~1 iteração)
+    let blob = null, prevSize = -1;
+    for (let k = 0; k < 8; k++) {
+      await new Promise(r => setTimeout(r, 350));
+      blob = await mv.toBlob({ mimeType: 'image/png' });
+      if (Math.abs(blob.size - prevSize) < blob.size * 0.002) break;
+      prevSize = blob.size;
+    }
+    const img = await createImageBitmap(blob);
+    const c = document.createElement('canvas'); c.width = img.width; c.height = img.height;
+    c.getContext('2d').drawImage(img, 0, 0);
+    caps[dir] = c; log('  ' + dir + ' ✓ (' + img.width + 'x' + img.height + ')');
+  }
+  mv.setAttribute('shadow-intensity', shadowBefore || '0.9');
+  // escala comum pela MAIOR altura de bbox; cada vista centrada pelo próprio bbox
+  const boxes = {};
+  for (const d of Object.keys(caps)) boxes[d] = bboxOf(caps[d]);
+  const valid = Object.values(boxes).filter(Boolean);
+  if (!valid.length) { log('ERRO: captura vazia (fundo opaco?)'); $('btnViews').disabled = false; return; }
+  const maxH = Math.max(...valid.map(b => b.y1 - b.y0));
+  const CELL = 64, TH = 54;  // resolução do jogo, pixel duro
+  const order = ['down', 'up', 'left', 'right'];
+  const cells = order.length + (sitImg ? 1 : 0);
+  const sheet = document.createElement('canvas'); sheet.width = CELL * cells; sheet.height = CELL;
+  const sx = sheet.getContext('2d'); sx.imageSmoothingEnabled = false;
+  const scale = TH / maxH;
+  order.forEach((dir, i) => {
+    const b = boxes[dir]; if (!b) return;
+    const w = Math.round((b.x1 - b.x0) * scale), h = Math.round((b.y1 - b.y0) * scale);
+    sx.drawImage(caps[dir], b.x0, b.y0, b.x1 - b.x0, b.y1 - b.y0,
+      i * CELL + Math.round((CELL - w) / 2), CELL - h - 2, w, h);
+  });
+  if (sitImg) {
+    const b = bboxOf(sitImg);
+    const sh = Math.round(TH * 0.72), sw = Math.round((b.x1 - b.x0) * (sh / (b.y1 - b.y0)));
+    sx.drawImage(sitImg, b.x0, b.y0, b.x1 - b.x0, b.y1 - b.y0,
+      order.length * CELL + (CELL - sw) / 2, CELL - sh - 2, sw, sh);
+  }
+  // alpha binário (estilo pixel art do jogo)
+  const id = sx.getImageData(0, 0, sheet.width, sheet.height);
+  for (let i = 3; i < id.data.length; i += 4) id.data[i] = id.data[i] < 110 ? 0 : 255;
+  sx.putImageData(id, 0, 0);
+  const pv = $('viewsPrev'); pv.width = sheet.width * 3; pv.height = sheet.height * 3;
+  const px = pv.getContext('2d'); px.imageSmoothingEnabled = false;
+  px.drawImage(sheet, 0, 0, pv.width, pv.height);
+  sheet.toBlob(bl => {
+    window._viewsBlob = bl; $('btnViewsDown').disabled = false;
+    log('✅ sheet de vistas pronta (' + cells + ' células de ' + CELL + 'px): baixa e sobe no GitHub junto com o .glb');
+  }, 'image/png');
+  $('btnViews').disabled = false;
+};
+$('btnViewsDown').onclick = () => save(window._viewsBlob, ($('sp').value || 'asset').toLowerCase() + '-views.png');
+</script>
+</body>
+</html>

@@ -1,0 +1,389 @@
+{
+  "comment": "Layout declarativo do mapa oficial. Posições em tiles (grid 48x48). A COLLISION do jogo é a fonte da verdade: tiles bloqueados sem edifício/água viram vegetação automaticamente.",
+  "tile_px": 64,
+  "water": [
+    {
+      "x0": 0,
+      "y0": 1,
+      "x1": 3,
+      "y1": 46,
+      "nome": "rio oeste"
+    },
+    {
+      "x0": 3,
+      "y0": 1,
+      "x1": 15,
+      "y1": 3,
+      "nome": "rio norte"
+    },
+    {
+      "x0": 14,
+      "y0": 44,
+      "x1": 22,
+      "y1": 47,
+      "nome": "cachoeira sul"
+    }
+  ],
+  "praca": {
+    "cx": 23.5,
+    "cy": 22,
+    "raio": 8.5
+  },
+  "caminhos": [
+    {
+      "de": [
+        23,
+        6
+      ],
+      "para": [
+        23,
+        44
+      ],
+      "largura": 3
+    },
+    {
+      "de": [
+        4,
+        21
+      ],
+      "para": [
+        44,
+        21
+      ],
+      "largura": 3
+    },
+    {
+      "de": [
+        30,
+        21
+      ],
+      "para": [
+        37,
+        30
+      ],
+      "largura": 2
+    },
+    {
+      "de": [
+        36,
+        30
+      ],
+      "para": [
+        36,
+        41
+      ],
+      "largura": 2
+    },
+    {
+      "de": [
+        23,
+        8
+      ],
+      "para": [
+        23,
+        4
+      ],
+      "largura": 2
+    },
+    {
+      "de": [
+        8,
+        21
+      ],
+      "para": [
+        8,
+        32
+      ],
+      "largura": 2
+    }
+  ],
+  "edificios": [
+    {
+      "id": "casa-marrom",
+      "asset": "prop-casa-marrom.png",
+      "x": 3,
+      "y": 12,
+      "w": 9,
+      "h": 8,
+      "nome": "Casa da curandeira (teto verde)"
+    },
+    {
+      "id": "arena",
+      "asset": "prop-arena.png",
+      "x": 17,
+      "y": 7,
+      "w": 12,
+      "h": 8,
+      "nome": "Prédio central norte"
+    },
+    {
+      "id": "predio-roxo",
+      "asset": "prop-predio-roxo.png",
+      "x": 37,
+      "y": 11,
+      "w": 8,
+      "h": 9,
+      "nome": "Prédio roxo NE (loja do jogo)"
+    },
+    {
+      "id": "shop",
+      "asset": "prop-shop.png",
+      "x": 31,
+      "y": 3,
+      "w": 4,
+      "h": 4,
+      "nome": "Casinha do túnel"
+    },
+    {
+      "id": "cupula",
+      "asset": "prop-cupula.png",
+      "x": 38,
+      "y": 24,
+      "w": 9,
+      "h": 8,
+      "nome": "Cúpula roxa"
+    },
+    {
+      "id": "casa-azul",
+      "asset": "prop-casa-azul.png",
+      "x": 33,
+      "y": 33,
+      "w": 10,
+      "h": 9,
+      "nome": "Casa azul (pass-behind)"
+    }
+  ],
+  "orbe_zona": {
+    "x0": 18,
+    "y0": 17,
+    "x1": 27,
+    "y1": 27,
+    "comment": "INTOCÁVEL: praça lisa, sem props"
+  },
+  "decor": {
+    "ponte": [
+      {
+        "x": 11,
+        "y": 0,
+        "w": 6,
+        "h": 4
+      }
+    ],
+    "poste": [
+      [
+        7,
+        3
+      ],
+      [
+        20,
+        2
+      ],
+      [
+        34,
+        20
+      ],
+      [
+        16,
+        20
+      ],
+      [
+        27,
+        20
+      ],
+      [
+        12,
+        28
+      ],
+      [
+        12,
+        38
+      ],
+      [
+        20,
+        36
+      ],
+      [
+        25,
+        34
+      ],
+      [
+        24,
+        37
+      ],
+      [
+        30,
+        38
+      ],
+      [
+        44,
+        36
+      ],
+      [
+        2,
+        20
+      ],
+      [
+        36,
+        8
+      ],
+      [
+        31,
+        29
+      ],
+      [
+        18,
+        30
+      ]
+    ],
+    "canteiro": [
+      [
+        13,
+        8
+      ],
+      [
+        28,
+        9
+      ],
+      [
+        38,
+        9
+      ],
+      [
+        44,
+        21
+      ],
+      [
+        29,
+        36
+      ],
+      [
+        5,
+        31
+      ],
+      [
+        41,
+        33
+      ],
+      [
+        28,
+        14
+      ],
+      [
+        6,
+        9
+      ],
+      [
+        17,
+        34
+      ],
+      [
+        43,
+        9
+      ],
+      [
+        33,
+        36
+      ]
+    ],
+    "pedra": [
+      [
+        12,
+        42
+      ],
+      [
+        30,
+        42
+      ],
+      [
+        8,
+        7
+      ],
+      [
+        43,
+        44
+      ]
+    ],
+    "cerca": [
+      {
+        "de": [
+          12,
+          14
+        ],
+        "para": [
+          12,
+          18
+        ]
+      },
+      {
+        "de": [
+          28,
+          9
+        ],
+        "para": [
+          33,
+          9
+        ]
+      },
+      {
+        "de": [
+          40,
+          9
+        ],
+        "para": [
+          46,
+          9
+        ]
+      },
+      {
+        "de": [
+          4,
+          34
+        ],
+        "para": [
+          11,
+          34
+        ]
+      },
+      {
+        "de": [
+          16,
+          33
+        ],
+        "para": [
+          22,
+          33
+        ]
+      },
+      {
+        "de": [
+          36,
+          31
+        ],
+        "para": [
+          43,
+          31
+        ]
+      },
+      {
+        "de": [
+          13,
+          29
+        ],
+        "para": [
+          13,
+          33
+        ]
+      },
+      {
+        "de": [
+          44,
+          16
+        ],
+        "para": [
+          44,
+          20
+        ]
+      }
+    ]
+  }
+}
