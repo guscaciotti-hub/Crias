@@ -3587,16 +3587,53 @@ window.AMBIENT = AMBIENT;
 // a cor continua parecida com a do vizinho de onde veio. Onde ele não chega —
 // porque a cor muda bruscamente na silhueta — está o objeto. Depois manchas
 // muito pequenas (textura de grama) são descartadas.
+// A máscara era aplicada com um composto de TELA CHEIA a cada quadro:
+// limpar canvas + desenhar o mapa + destination-in + desenhar de volta. Com a
+// marcação espalhada, isso são quatro operações de tela inteira por quadro — e
+// foi o que derrubou o jogo para 6 fps. Agora o recorte é assado UMA vez em
+// blocos pequenos, e o quadro só desenha os blocos visíveis.
+const BLOCO_FRENTE = 256;
+let _frenteBlocos = null;
+
+function assaFrente(mk, area, fonte) {
+  _frenteBlocos = [];
+  const iw = fonte.naturalWidth || fonte.width, ih = fonte.naturalHeight || fonte.height;
+  const x0 = Math.floor(area.x * iw / BLOCO_FRENTE), x1 = Math.ceil((area.x + area.w) * iw / BLOCO_FRENTE);
+  const y0 = Math.floor(area.y * ih / BLOCO_FRENTE), y1 = Math.ceil((area.y + area.h) * ih / BLOCO_FRENTE);
+  const mkx = mk.width / (area.w * iw), mky = mk.height / (area.h * ih);
+  for (let by = y0; by < y1; by++) for (let bx = x0; bx < x1; bx++) {
+    const sx = bx * BLOCO_FRENTE, sy = by * BLOCO_FRENTE;
+    const cv = document.createElement('canvas');
+    cv.width = cv.height = BLOCO_FRENTE;
+    const g = cv.getContext('2d', { willReadFrequently: true });
+    // só o pedaço da silhueta que cai neste bloco
+    g.drawImage(mk, (sx - area.x * iw) * mkx, (sy - area.y * ih) * mky,
+      BLOCO_FRENTE * mkx, BLOCO_FRENTE * mky, 0, 0, BLOCO_FRENTE, BLOCO_FRENTE);
+    let vazio = true;
+    try {
+      const d = g.getImageData(0, 0, BLOCO_FRENTE, BLOCO_FRENTE).data;
+      for (let i = 3; i < d.length; i += 4) if (d[i] > 8) { vazio = false; break; }
+    } catch (e) { vazio = false; }
+    if (vazio) continue;                       // bloco sem silhueta não entra
+    g.globalCompositeOperation = 'source-in';  // pinta o mapa dentro da silhueta
+    g.drawImage(fonte, sx, sy, BLOCO_FRENTE, BLOCO_FRENTE, 0, 0, BLOCO_FRENTE, BLOCO_FRENTE);
+    g.globalCompositeOperation = 'source-over';
+    _frenteBlocos.push({ cv, sx, sy });
+  }
+  console.log('[mapa] passa-atrás assado em ' + _frenteBlocos.length + ' blocos');
+}
+
 function construirMascaraFrente() {
   // Mesmo código do editor /mapa (public/passa-atras.js): o que aparece em
   // amarelo lá é exatamente o que cobre o jogador aqui.
   if (!window.PassaAtras) return;
   const c = cena();
   const r = window.PassaAtras.construirSilhueta(c.mapa, c.frente, { remendos: c.remendos, tiles: c.tiles });
-  if (!r) { window._maskCanvas = null; window._maskArea = null; window._maskFalhou = true; return; }
+  if (!r) { window._maskCanvas = null; window._maskArea = null; _frenteBlocos = null; window._maskFalhou = true; return; }
   window._maskCanvas = r.canvas;
   window._maskArea = r.area;
   window._maskFalhou = false;
+  assaFrente(r.canvas, r.area, c.mapa);
   console.log('[mapa] passa-atrás: silhueta com ' + r.mantidos + ' de ' + r.total +
     ' pontos da área marcada (' + Math.round(r.mantidos / r.total * 100) + '%)');
 }
@@ -4889,8 +4926,16 @@ function tryMove(dir) {
     const nx = +(state.player.x + dx * PASSO).toFixed(3);
     const ny = +(state.player.y + dy * PASSO).toFixed(3);
     // Borda de baixo da cidade leva ao mapa do SUL; borda de cima do sul volta.
-    if (ny > GRID - 1) { if (state.scene !== 'sul') trocaCena('sul', state.player.x, 0.25); return; }
-    if (ny < 0)        { if (state.scene === 'sul') trocaCena('world', state.player.x, GRID - 1.25); return; }
+    // Só se atravessa pela PONTE, no meio da borda de baixo. Fora dela a borda
+    // é parede, senão o jogador cai no sul por qualquer canto do mapa.
+    if (ny > GRID - 1) {
+      if (state.scene !== 'sul' && naPonte(state.player.x)) trocaCena('sul', PONTE_X, 0);
+      return;
+    }
+    if (ny < 0) {
+      if (state.scene === 'sul' && naPonte(state.player.x)) trocaCena('world', PONTE_X, GRID - 1);
+      return;
+    }
     if (!canWalkTo(nx, ny)) return;
     movingTo = { fromX: state.player.x, fromY: state.player.y, toX: nx, toY: ny, startTime: performance.now() };
   }
@@ -4898,6 +4943,11 @@ function tryMove(dir) {
 
 // Passagem entre os dois mapas do mundo. A caverna continua sendo outra coisa,
 // com grade e render próprios.
+// A ponte do mapa principal fica no meio da borda de baixo. É a única passagem
+// para o Jardim do Sul, nos dois sentidos.
+const PONTE_X = 24, PONTE_LARG = 2;
+const naPonte = x => Math.abs(Math.floor(x) - PONTE_X) <= PONTE_LARG;
+
 function trocaCena(destino, x, y) {
   if (!state) return;
   const indo = destino === 'sul';
@@ -8892,11 +8942,15 @@ function render(now) {
     Math.round(cw   * _scaleX), Math.round(ch   * _scaleY),
     0, 0, cw, ch);
 
-  if (!CENA.sul) desenhaBlocosRemendados(ctx, camX, camY, cw, ch, _scaleX, _scaleY);
+  // mesma câmera arredondada do mapa: com a exata, os remendos deslizavam
+  // meio pixel sobre o chão e pareciam "soltos" quando a câmera andava
+  const _cx = Math.round(camX * _scaleX) / _scaleX;
+  const _cy = Math.round(camY * _scaleY) / _scaleY;
+  if (!CENA.sul) desenhaBlocosRemendados(ctx, _cx, _cy, cw, ch, _scaleX, _scaleY);
 
   if (CENA.sul && CENA.remendos && CENA.remendos.length && window.PassaAtras) {
     window.PassaAtras.desenharRemendos(ctx, CENA.mapa, CENA.remendos,
-      -camX, -camY, MAP_W_PX, { x: 0, y: 0, w: cw, h: ch }, CENA.tiles);
+      -_cx, -_cy, MAP_W_PX, { x: 0, y: 0, w: cw, h: ch }, CENA.tiles);
   }
 
   // Ambiente vivo: brilho da água e sombra das nuvens sobre o chão
@@ -9046,56 +9100,20 @@ function render(now) {
   }
 
   // === ZONAS DE PASSA-ATRÁS ===
-  // Redesenha o mapa recortado pela silhueta do objeto — a mesma que o editor
-  // /mapa mostra em amarelo. Só a copa/telhado cobre o jogador; o chão que
-  // ficou dentro da área marcada não entra.
-  // O redesenho é limitado ao pedaço VISÍVEL da área marcada. Cobrir a área
-  // inteira todo frame travava o jogo quando a marcação era grande.
+  // Blocos já recortados: nada de composto por quadro.
   if (state && state.scene !== 'cave1' && CENA.frente && CENA.mapa && CENA.mapa.complete) {
-    // a silhueta custa algumas centenas de ms; construir no primeiro frame
-    // fazia a abertura engasgar. Espera o jogo já estar rodando.
     if (!window._maskCanvas && !window._maskFalhou) {
       window._framesAte = (window._framesAte || 0) + 1;
       if (window._framesAte > 45) construirMascaraFrente();
     }
-    const mk = window._maskCanvas, A = window._maskArea;
-    if (mk && A) {
-      // área marcada, em pixels de tela
-      const ax = A.x * MAP_W_PX - camX, ay = A.y * MAP_H_PX - camY;
-      const aw = A.w * MAP_W_PX,        ah = A.h * MAP_H_PX;
-      // interseção com a tela
-      const vx0 = Math.max(0, Math.floor(ax)), vy0 = Math.max(0, Math.floor(ay));
-      const vx1 = Math.min(cw, Math.ceil(ax + aw)), vy1 = Math.min(ch, Math.ceil(ay + ah));
-      const vw = vx1 - vx0, vh = vy1 - vy0;
-      if (vw > 0 && vh > 0) {
-        // canvas de apoio no tamanho da TELA, fixo: redimensionar a cada quadro
-        // (a área visível muda quando a câmera anda) realoca a memória toda vez
-        const tmp = window._tmpFrente || (window._tmpFrente = document.createElement('canvas'));
-        if (tmp.width !== canvas.width || tmp.height !== canvas.height) {
-          tmp.width = canvas.width; tmp.height = canvas.height;
-        }
-        const tg = tmp.getContext('2d');
-        tg.clearRect(0, 0, vw, vh);
-        const _fonte = CENA.mapa;
-        const _iw = _fonte.naturalWidth || _fonte.width;
-        const _ih = _fonte.naturalHeight || _fonte.height;
-        const kx = _iw / MAP_W_PX, ky = _ih / MAP_H_PX;   // px da imagem por px de mundo
-        // pedaço do mapa que corresponde ao que está visível
-        tg.imageSmoothingEnabled = true;
-        tg.drawImage(_fonte,
-          (vx0 + camX) * kx, (vy0 + camY) * ky, vw * kx, vh * ky, 0, 0, vw, vh);
-        // usa os blocos JÁ assados: percorrer os milhares de remendos a cada
-        // quadro aqui dentro era o que derrubava o jogo para 8 fps
-        if (!CENA.sul) desenhaBlocosRemendados(tg, vx0 + camX, vy0 + camY, vw, vh, kx, ky);
-        else if (CENA.remendos && CENA.remendos.length)
-          window.PassaAtras.desenharRemendos(tg, CENA.mapa, CENA.remendos,
-            -(vx0 + camX), -(vy0 + camY), MAP_W_PX, { x: 0, y: 0, w: vw, h: vh }, CENA.tiles);
-        // mantém só o que está dentro da silhueta (mesmo pedaço, na escala dela)
-        tg.globalCompositeOperation = 'destination-in';
-        const mkx = mk.width / aw, mky = mk.height / ah;
-        tg.drawImage(mk, (vx0 - ax) * mkx, (vy0 - ay) * mky, vw * mkx, vh * mky, 0, 0, vw, vh);
-        tg.globalCompositeOperation = 'source-over';
-        ctx.drawImage(tmp, vx0, vy0);
+    if (_frenteBlocos && _frenteBlocos.length) {
+      const kx = (CENA.mapa.naturalWidth || CENA.mapa.width) / MAP_W_PX;
+      const ky = (CENA.mapa.naturalHeight || CENA.mapa.height) / MAP_H_PX;
+      const bw = BLOCO_FRENTE / kx, bh = BLOCO_FRENTE / ky;
+      for (const b of _frenteBlocos) {
+        const px0 = b.sx / kx - _cx, py0 = b.sy / ky - _cy;
+        if (px0 + bw < 0 || px0 > cw || py0 + bh < 0 || py0 > ch) continue;
+        ctx.drawImage(b.cv, px0, py0, bw, bh);
       }
     }
   }
