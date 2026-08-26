@@ -27,6 +27,23 @@ app.use(express.static(publicDir, {
   },
 }))
 
+// Espelho da configuração publicada dos mapas (dados públicos do storage).
+// Serve para depurar colisão/remendos com os DADOS REAIS: o ambiente de
+// desenvolvimento não alcança o Supabase direto, mas alcança este preview.
+app.get('/debug/config/:arq', async (req, res) => {
+  const arq = String(req.params.arq || '')
+  if (!/^[\w.-]+\.json$/.test(arq)) { res.status(400).json({ erro: 'nome inválido' }); return }
+  try {
+    const r = await fetch(
+      'https://gmycqvvvglexbtbqkjzi.supabase.co/storage/v1/object/public/mapas/' + arq + '?t=' + Date.now())
+    if (!r.ok) { res.status(r.status).json({ erro: 'storage devolveu ' + r.status }); return }
+    res.setHeader('Cache-Control', 'no-store')
+    res.json(await r.json())
+  } catch (e) {
+    res.status(502).json({ erro: String(e) })
+  }
+})
+
 // /game → o próprio public/game.html
 app.get('/game', (req, res) => {
   // 'no-cache' revalida a cada visita (continua sempre a build mais recente),
