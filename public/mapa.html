@@ -300,7 +300,11 @@ function desenhaMapaBase(){
   $('remInfo').textContent = st.remendos.length ? (st.remendos.length+' remendos') : 'nenhum remendo';
 }
 mapa.onload=desenhaMapaBase;
-mapa.src=mapaAtual().img+'?t='+Date.now();
+// Se a imagem falhar (rede, deploy no meio), tenta de novo sozinha — sem isso
+// a aba ficava "travada": rótulo trocado e canvas parado no mapa anterior.
+mapa.onerror=()=>{ msg('imagem do mapa falhou — tentando de novo…');
+  setTimeout(()=>{ mapa.src=mapaAtual().img+'?r='+Date.now(); }, 1200); };
+mapa.src=mapaAtual().img;
 const orbeImg=new Image(); orbeImg.onload=desenhaMarcas; orbeImg.src='/orbe.png';
 // Silhueta do personagem sentado, para você ver EXATAMENTE onde ele vai cair.
 // A âncora é a mesma do jogo: sprite de 74px de altura, pés no fundo do tile.
@@ -771,7 +775,10 @@ function trocaMapa(i){
   carregar();
   pintaAbasMapa(); sincronizaModosPorMapa();
   mapa.onload=()=>{ desenhaMapaBase(); desenhaMarcas(); agendaSilhueta(); };
-  mapa.src=mapaAtual().img+'?t='+Date.now();
+  // sem ?t=: a imagem é estática, o cache do browser troca de aba na hora.
+  // (com o cache-buster, cada troca re-baixava o arquivo inteiro — e uma
+  // falha deixava a aba pendurada no mapa anterior)
+  mapa.src=mapaAtual().img;
   msg('editando: '+mapaAtual().nome);
 }
 pintaAbasMapa(); sincronizaModosPorMapa();
