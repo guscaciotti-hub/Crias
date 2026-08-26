@@ -1311,6 +1311,17 @@
     box-shadow: 0 0 10px rgba(77,195,255,0.7);
     transform: scale(1.12);
   }
+  #custom .cz-opt {
+    padding: 5px 12px; border-radius: 14px; cursor: pointer;
+    border: 2px solid rgba(255,255,255,0.18);
+    background: rgba(20,40,70,0.5); color: #cfe0f5; font-size: 11px;
+    transition: border-color .12s, box-shadow .12s;
+  }
+  #custom .cz-opt:hover { border-color: rgba(77,195,255,0.5); }
+  #custom .cz-opt.sel {
+    border-color: #4dc3ff; color: #fff;
+    box-shadow: 0 0 10px rgba(77,195,255,0.6);
+  }
   #onboard .ob-layout { display: grid; grid-template-columns: 180px 1fr; gap: 18px; align-items: start; }
   @media (max-width: 600px) { #onboard .ob-layout { grid-template-columns: 140px 1fr; gap: 12px; } }
   #charPreview {
@@ -8230,6 +8241,24 @@ const VISUAL_PALETAS = {
     { n: 'Morena', c: '#96644a' }, { n: 'Escura',  c: '#623e2a' }
   ]
 };
+// Cortes de cabelo: cada corte é um conjunto próprio de frames (gerados da
+// mesma arte, só o cabelo muda) com máscaras próprias. Trocar o corte troca
+// os ARQUIVOS; as cores continuam vindo da repintura por máscara.
+const CORTES_CHAR1 = [{ n: 'Clássico' }, { n: 'Curto' }, { n: 'Moicano' }];
+function defineCorteChar1(c) {
+  const p = c ? '/char1-c' + c : '/char1';
+  EXTERNAL_COMBO_SPRITES.char1 = {
+    down:  [p + '-down-0.png', p + '-down-1.png', p + '-down-2.png'],
+    up:    [p + '-up-0.png', p + '-up-1.png', p + '-up-2.png'],
+    left:  [p + '-left-0.png', p + '-left-1.png'],
+    right: [p + '-right-0.png'],
+    sit:   [p + '-sit-0.png']
+  };
+  delete spriteImageCache.char1;
+  delete _fabricaCombo.char1;
+  return preloadComboSprites('char1');
+}
+
 const _fabricaCombo = {};   // material bruto de cada combo, para poder repintar
 let _visualEscolha = null;  // {cabelo, roupa, detalhe, pele} — índices nas paletas
 
@@ -8371,7 +8400,9 @@ function loadExternalCombo(comboId) {
           const fin = ok => { if (done) return; done = true; if (ok && mk.naturalWidth > 0) mascaras[dir + '-' + i] = mk; r(); };
           mk.onload = () => fin(true);
           mk.onerror = () => fin(false);
-          mk.src = '/' + comboId + '-mask-' + dir + '-' + i + '.png';
+          // a máscara mora ao lado do frame, com '-mask' antes da direção
+          // (vale para o corte clássico e para os c1/c2)
+          mk.src = src.replace(/-(down|up|left|right|sit)-(\d+)\.png$/, '-mask-$1-$2.png');
           setTimeout(() => fin(mk.naturalWidth > 0), 5000);
         }));
       }
@@ -8634,7 +8665,7 @@ document.getElementById('obBack').addEventListener('click', () => {
   document.getElementById('createAcc').classList.add('active');
 });
 // === Tela de personalização ===
-let _czEscolha = { cabelo: 0, roupa: 0, detalhe: 0, pele: 0 };
+let _czEscolha = { cabelo: 0, roupa: 0, detalhe: 0, pele: 0, corte: 0 };
 let _czAnim = null;
 
 const CZ_ROTULOS = { cabelo: 'Cabelo', roupa: 'Roupa', detalhe: 'Detalhes', pele: 'Pele' };
@@ -8642,6 +8673,32 @@ const CZ_ROTULOS = { cabelo: 'Cabelo', roupa: 'Roupa', detalhe: 'Detalhes', pele
 function _czMontaOpcoes() {
   const rows = document.getElementById('czRows');
   if (!rows || rows.childElementCount) return;   // monta uma vez só
+  // Corte de cabelo — troca os frames; botões com nome, não bolinha de cor
+  {
+    const row = document.createElement('div');
+    row.className = 'cz-row';
+    const lab = document.createElement('label');
+    lab.textContent = 'Corte';
+    row.appendChild(lab);
+    const ops = document.createElement('div');
+    ops.className = 'cz-ops';
+    CORTES_CHAR1.forEach((op, i) => {
+      const b = document.createElement('button');
+      b.className = 'cz-opt' + (i === 0 ? ' sel' : '');
+      b.type = 'button';
+      b.textContent = op.n;
+      b.addEventListener('click', () => {
+        if (_czEscolha.corte === i) return;
+        _czEscolha.corte = i;
+        ops.querySelectorAll('.cz-opt').forEach((el, k) => el.classList.toggle('sel', k === i));
+        defineCorteChar1(i).then(() => aplicaVisualChar1(_czEscolha));
+        if (typeof FX !== 'undefined' && FX.sfx) FX.sfx.ui();
+      });
+      ops.appendChild(b);
+    });
+    row.appendChild(ops);
+    rows.appendChild(row);
+  }
   for (const reg in VISUAL_PALETAS) {
     const row = document.createElement('div');
     row.className = 'cz-row';
@@ -10176,7 +10233,8 @@ function _migrateProfile(s){
   if(!s.playerId) s.playerId = 'CR-' + Math.random().toString(36).slice(2,7).toUpperCase();
   if(!Array.isArray(s.friends)) s.friends = [];
   if(s.photo === undefined) s.photo = null;
-  if(!s.custom) s.custom = { cabelo: 0, roupa: 0, detalhe: 0, pele: 0 };
+  if(!s.custom) s.custom = { cabelo: 0, roupa: 0, detalhe: 0, pele: 0, corte: 0 };
+  if(s.custom.corte == null) s.custom.corte = 0;
   if(!s.items) s.items = {};
   if(s.items.orbeCriacao === undefined) s.items.orbeCriacao = 0;
   if(s.items.orbeComum === undefined) s.items.orbeComum = 3;
@@ -10487,6 +10545,8 @@ document.getElementById('btnEnter').addEventListener('click', () => {
     if (typeof state.orbFragments !== 'number') state.orbFragments = 0;
     if (!state.party) state.party = [];
     aplicaVisualChar1(state.custom);   // repinta o char com o visual salvo
+    if (state.custom && state.custom.corte)   // corte salvo usa outros frames
+      defineCorteChar1(state.custom.corte).then(() => aplicaVisualChar1(state.custom));
     document.getElementById('login').classList.remove('active');
     lockLandscape();
     startGame();
