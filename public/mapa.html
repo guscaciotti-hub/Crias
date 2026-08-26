@@ -120,6 +120,7 @@
       </div>
       <label>Tamanho <input type="range" id="remTam" min="3" max="80" value="22"><b id="remTamv" style="color:var(--acc)">22</b></label>
       <button class="act" id="remOrigem">🎯 pegar origem</button>
+      <button class="act" id="remApaga">🧽 apagar onde eu clicar</button>
       <button class="act" id="remDesfaz">↶ tirar último remendo</button>
       <button class="act" id="remLimpa">🧹 tirar todos</button>
       <div class="hint" id="remInfo" style="padding:0;margin:8px 0 0">nenhum remendo</div>
@@ -179,6 +180,7 @@ const st = {
   remForma: 'redondo', // redondo | quadrado | livre
   remOrigem: null,    // [fx,fy] em tiles
   pegandoOrigem: false,
+  apagando: false,     // borracha: clique tira o remendo que estiver embaixo
   sel: null,          // índice da peça selecionada
   tile: null,         // tile escolhido na paleta
 };
@@ -406,6 +408,18 @@ function desenhaMarcas(curX,curY){
       gK.fillStyle='#7fe7ff'; gK.beginPath();
       gK.arc(st.remOrigem[0]*TP, st.remOrigem[1]*TP, 3, 0, 6.283); gK.fill();
     }
+    if(st.apagando && curX!=null){
+      const i=remendoEm(curX,curY);
+      if(i>=0){
+        const p=st.remendos[i], L=N*TP;
+        gK.strokeStyle='#ff6b6b'; gK.lineWidth=2.5; gK.setLineDash([5,3]);
+        gK.beginPath();
+        if(p.f==='livre'&&p.pts){ p.pts.forEach(([x,y],k)=> k? gK.lineTo(x*L,y*L) : gK.moveTo(x*L,y*L)); gK.closePath(); }
+        else if(p.f==='quadrado') gK.rect((p.x-p.r)*L,(p.y-p.r)*L,p.r*2*L,p.r*2*L);
+        else gK.arc(p.x*L,p.y*L,p.r*L,0,6.283);
+        gK.stroke(); gK.setLineDash([]);
+      }
+    }
     // contorno do laço enquanto está sendo desenhado
     if(remLaco && remLaco.length>1){
       gK.strokeStyle='#ffffff'; gK.lineWidth=2; gK.setLineDash([5,4]);
@@ -457,7 +471,16 @@ document.querySelectorAll('#remFormas button').forEach(b=>b.onclick=()=>{
     retangulo:'arraste de um canto ao outro da área',
   }[st.remForma] || ('arraste para carimbar em formato '+st.remForma));
 });
-$('remOrigem').onclick=()=>{ st.pegandoOrigem=true; msg('clique num pedaço limpo do chão para copiar dali'); };
+$('remOrigem').onclick=()=>{ st.pegandoOrigem=true; st.apagando=false; sincronizaBorracha();
+  msg('clique num pedaço limpo do chão para copiar dali'); };
+function sincronizaBorracha(){
+  $('remApaga').style.background = st.apagando ? 'rgba(255,107,107,.18)' : '';
+  $('remApaga').style.borderColor = st.apagando ? 'var(--bad)' : '';
+  $('remApaga').textContent = st.apagando ? '🧽 apagando — clique para sair' : '🧽 apagar onde eu clicar';
+}
+$('remApaga').onclick=()=>{ st.apagando=!st.apagando; st.pegandoOrigem=false; sincronizaBorracha();
+  desenhaMarcas();
+  msg(st.apagando ? 'clique (ou arraste) em cima do remendo para tirar' : 'borracha desligada'); };
 $('remDesfaz').onclick=()=>{ if(!st.remendos.length) return msg('nenhum remendo');
   st.remendos.pop(); desenhaMapaBase(); desenhaMarcas(); agendaSilhueta(); salvar(); msg('remendo removido'); };
 $('remLimpa').onclick=()=>{ if(!st.remendos.length) return msg('nenhum remendo');
@@ -574,6 +597,35 @@ let remIni=null, remOrigemIni=null, remUltimo=null, remLaco=null, remRet=null;
 // Copia um círculo do mapa de um lugar para o outro. A origem acompanha o
 // movimento do pincel (como um carimbo de clonagem), então a textura sai
 // contínua em vez de repetir o mesmo pedaço.
+// Qual remendo está embaixo do cursor. Vai do fim para o começo: o de cima
+// (desenhado por último) é o que some primeiro, que é o que a mão espera.
+function remendoEm(fx,fy){
+  const u=fx/N, v=fy/N;
+  for(let i=st.remendos.length-1;i>=0;i--){
+    const p=st.remendos[i];
+    if(p.f==='livre' && p.pts){
+      let dentro=false;
+      for(let a=0,b=p.pts.length-1;a<p.pts.length;b=a++){
+        const [xa,ya]=p.pts[a], [xb,yb]=p.pts[b];
+        if((ya>v)!==(yb>v) && u < (xb-xa)*(v-ya)/(yb-ya)+xa) dentro=!dentro;
+      }
+      if(dentro) return i;
+    } else if(p.f==='quadrado'){
+      if(Math.abs(u-p.x)<=p.r && Math.abs(v-p.y)<=p.r) return i;
+    } else {
+      if(Math.hypot(u-p.x, v-p.y)<=p.r) return i;
+    }
+  }
+  return -1;
+}
+function apagaRemendoEm(fx,fy){
+  const i=remendoEm(fx,fy);
+  if(i<0) return false;
+  st.remendos.splice(i,1);
+  desenhaMapaBase(); desenhaMarcas(fx,fy);
+  return true;
+}
+
 function remenda(fx,fy){
   if(!remIni||!remOrigemIni) return;
   const rTile = st.remR/TP;                       // raio em tiles
@@ -607,6 +659,11 @@ stage.addEventListener('mousedown',e=>{
   }
 
   if(st.modo==='remendo'){
+    if(st.apagando){
+      snap();
+      if(!apagaRemendoEm(fx,fy)) msg('não tem remendo aqui');
+      pintando=true; return;
+    }
     if(st.pegandoOrigem || e.shiftKey){
       st.remOrigem=[fx,fy]; st.pegandoOrigem=false;
       desenhaMarcas(); msg('origem em '+fx.toFixed(1)+', '+fy.toFixed(1)+' — agora pinte por cima do que quer sumir');
@@ -678,6 +735,7 @@ window.addEventListener('mousemove',e=>{
     gK.setLineDash([]); return; }
   if(pintando&&st.modo==='gerar'){ selB=[fx,fy]; desenhaSel(); return; }
   if(st.modo==='remendo'){
+    if(st.apagando){ if(pintando) apagaRemendoEm(fx,fy); else desenhaMarcas(fx,fy); return; }
     if(pintando && remRet){ remRet[2]=fx; remRet[3]=fy; desenhaMarcas(fx,fy); return; }
     if(pintando && remLaco){
       const u=remLaco[remLaco.length-1];

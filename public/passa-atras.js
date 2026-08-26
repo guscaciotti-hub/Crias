@@ -171,15 +171,31 @@
    * @param destX,destY  onde fica o canto do mapa, no destino
    * @param destLarg     largura do mapa inteiro, no destino
    */
-  function desenharRemendos(g, mapa, remendos, destX, destY, destLarg) {
+  function desenharRemendos(g, mapa, remendos, destX, destY, destLarg, recorte) {
     if (!remendos || !remendos.length || !mapa) return;
     var iw = mapa.naturalWidth || mapa.width, ih = mapa.naturalHeight || mapa.height;
     if (!iw || !ih) return;
     var destAlt = destLarg * (ih / iw);
     var X = function (u) { return destX + u * destLarg; };
     var Y = function (v) { return destY + v * destAlt; };
+    // `recorte` = {x,y,w,h} da área visível no destino. Sem isso, um mapa com
+    // mil remendos redesenharia mil recortes por frame, inclusive os que estão
+    // fora da tela.
     for (var i = 0; i < remendos.length; i++) {
       var p = remendos[i];
+      if (recorte) {
+        var bx0, by0, bx1, by1;
+        if (p.f === 'livre' && p.pts) {
+          bx0 = by0 = 1; bx1 = by1 = 0;
+          for (var t = 0; t < p.pts.length; t++) {
+            var uu = p.pts[t][0], vv = p.pts[t][1];
+            if (uu < bx0) bx0 = uu; if (uu > bx1) bx1 = uu;
+            if (vv < by0) by0 = vv; if (vv > by1) by1 = vv;
+          }
+        } else { bx0 = p.x - p.r; bx1 = p.x + p.r; by0 = p.y - p.r; by1 = p.y + p.r; }
+        if (X(bx1) < recorte.x || X(bx0) > recorte.x + recorte.w ||
+            Y(by1) < recorte.y || Y(by0) > recorte.y + recorte.h) continue;
+      }
       // caixa do remendo e a mesma caixa na origem, em fração do mapa
       var bx0, by0, bx1, by1, ox0, oy0;
       g.save();

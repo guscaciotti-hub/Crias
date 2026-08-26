@@ -3609,6 +3609,27 @@ function pecaPronta(p, im, w, h) {
   return cv;
 }
 
+// Com muitos remendos, redesenhar cada um a cada frame derruba o jogo (medido:
+// 1100 remendos = 25 fps). Então eles são assados UMA vez numa cópia do mapa, e
+// o render passa a desenhar essa cópia. O cálculo do passa-atrás continua indo
+// no mapa original, em 1:1, para não perder a paridade com o editor.
+function assaRemendos() {
+  const rem = window.MAPA_REMENDOS;
+  if (!assets.map || !assets.map.complete || !window.PassaAtras) return;
+  if (!rem || !rem.length) { assets.mapaAssado = null; return; }
+  const nat = assets.map.naturalWidth || assets.map.width;
+  const L = Math.min(2048, nat);            // 2048 já cobre os 1872px do mundo
+  const cv = document.createElement('canvas');
+  cv.width = cv.height = L;
+  const g = cv.getContext('2d');
+  g.imageSmoothingEnabled = true;
+  g.drawImage(assets.map, 0, 0, L, L);
+  window.PassaAtras.desenharRemendos(g, assets.map, rem, 0, 0, L);
+  cv.naturalWidth = cv.naturalHeight = L;
+  assets.mapaAssado = cv;
+  console.log('[mapa] ' + rem.length + ' remendos assados no mapa (' + L + 'px)');
+}
+
 function desenhaPecasMapa(camX, camY, naFrente) {
   for (const p of window.MAPA_PECAS) {
     if (!!p.frente !== !!naFrente) continue;
@@ -3733,7 +3754,7 @@ function loadAssets() {
         }
       }
       if (cfg.orbe) window.MAPA_ORBE = cfg.orbe;
-      if (Array.isArray(cfg.remendos)) { window.MAPA_REMENDOS = cfg.remendos; window._maskCanvas = null; window._maskFalhou = false; }
+      if (Array.isArray(cfg.remendos)) { window.MAPA_REMENDOS = cfg.remendos; window._maskCanvas = null; window._maskFalhou = false; assaRemendos(); }
       console.log('[mapa] configuração publicada aplicada');
     }).catch(() => {});
 
@@ -3743,6 +3764,7 @@ function loadAssets() {
     .catch(() => loadImage(MAP_URL, 20000)).then(img => {
       window._maskCanvas = null; window._maskFalhou = false;   // refaz a máscara já com o mapa disponível
     assets.map = img;
+    assaRemendos();
   }).catch(() => {});
   // Orb sprite (PNG transparente: só o orbe + aura, SEM chão).
   // Desenhado por cima do orbe estampado no mapa, alinhado pra não duplicar.
@@ -8533,22 +8555,17 @@ function render(now) {
   // Draw map using native image resolution — compute scale from actual image dimensions
   // so any resolution (1254, 2000, 5016…) maps correctly to the same world size.
   // imgScale = image pixels per world pixel (e.g. 5016/1872 ≈ 2.68 for 4× texture)
-  const _imgW = assets.map.naturalWidth  || assets.map.width;
-  const _imgH = assets.map.naturalHeight || assets.map.height;
+  // se há remendos, o mapa desenhado é a cópia já assada com eles
+  const _mapaDes = assets.mapaAssado || assets.map;
+  const _imgW = _mapaDes.naturalWidth  || _mapaDes.width;
+  const _imgH = _mapaDes.naturalHeight || _mapaDes.height;
   const _scaleX = _imgW / MAP_W_PX;  // image px per world px (X)
   const _scaleY = _imgH / MAP_H_PX;  // image px per world px (Y)
   ctx.imageSmoothingEnabled = false;  // pixel-perfect, no blur
-  ctx.drawImage(assets.map,
+  ctx.drawImage(_mapaDes,
     Math.round(camX * _scaleX), Math.round(camY * _scaleY),
     Math.round(cw   * _scaleX), Math.round(ch   * _scaleY),
     0, 0, cw, ch);
-
-  // Remendos do editor: pedaços de chão copiados por cima do mapa, para sumir
-  // com uma árvore ou um poste sem precisar gerar um mapa novo.
-  if (window.MAPA_REMENDOS && window.MAPA_REMENDOS.length && window.PassaAtras) {
-    window.PassaAtras.desenharRemendos(ctx, assets.map, window.MAPA_REMENDOS,
-      -camX, -camY, MAP_W_PX);
-  }
 
   // Ambiente vivo: brilho da água e sombra das nuvens sobre o chão
   AMBIENT.init(assets.map);
@@ -8717,17 +8734,14 @@ function render(now) {
         if (tmp.width !== vw || tmp.height !== vh) { tmp.width = vw; tmp.height = vh; }
         const tg = tmp.getContext('2d');
         tg.clearRect(0, 0, vw, vh);
-        const _iw = assets.map.naturalWidth || assets.map.width;
-        const _ih = assets.map.naturalHeight || assets.map.height;
+        const _fonte = assets.mapaAssado || assets.map;
+        const _iw = _fonte.naturalWidth || _fonte.width;
+        const _ih = _fonte.naturalHeight || _fonte.height;
         const kx = _iw / MAP_W_PX, ky = _ih / MAP_H_PX;   // px da imagem por px de mundo
         // pedaço do mapa que corresponde ao que está visível
         tg.imageSmoothingEnabled = true;
-        tg.drawImage(assets.map,
+        tg.drawImage(_fonte,
           (vx0 + camX) * kx, (vy0 + camY) * ky, vw * kx, vh * ky, 0, 0, vw, vh);
-        if (window.MAPA_REMENDOS && window.MAPA_REMENDOS.length) {
-          window.PassaAtras.desenharRemendos(tg, assets.map, window.MAPA_REMENDOS,
-            -(vx0 + camX), -(vy0 + camY), MAP_W_PX);
-        }
         // mantém só o que está dentro da silhueta (mesmo pedaço, na escala dela)
         tg.globalCompositeOperation = 'destination-in';
         const mkx = mk.width / aw, mky = mk.height / ah;
