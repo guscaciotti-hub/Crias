@@ -1208,7 +1208,12 @@ $('pub').onclick=async()=>{
     // 1254px isso passa de dezenas de MB: o upload demora, às vezes falha, e o
     // jogo desiste de baixar — daí a sensação de "publiquei e não mudou nada".
     // Agora cada tile é um arquivo próprio e o json fica pequeno.
-    const usados = [...new Set(st.pecas.map(p=>p.t))].filter(n=>UP[n]);
+    // Tiles usados em PEÇAS e em REMENDOS de textura — antes só as peças
+    // subiam, e um chão pintado com tile enviado ficava invisível no jogo.
+    const usados = [...new Set([
+      ...st.pecas.map(p=>p.t),
+      ...st.remendos.map(p=>p.tile).filter(Boolean)
+    ])].filter(n=>UP[n]);
     const urls = {};
     for(let i=0;i<usados.length;i++){
       const nome = usados[i];

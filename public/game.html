@@ -3736,6 +3736,8 @@ function assaRemendos() {
   assets.mapaAssado = null;
   if (!assets.map || !assets.map.complete || !window.PassaAtras) return;
   if (!rem || !rem.length) return;
+  // pede as texturas dos remendos; quando cada uma chega, tilePeca reassa
+  for (const p of rem) if (p.tile) tilePeca(p.tile, window.MAPA_TILES, window.MAPA_URLS);
   const nat = assets.map.naturalWidth || assets.map.width;
   const n = Math.ceil(nat / BLOCO);
   // quais blocos têm remendo
@@ -3799,6 +3801,10 @@ function tilePeca(nome, tiles, urls) {
   im.onload = () => {
     const l = window.Tiles && window.Tiles.semChroma(im);
     mapa[nome] = l || im;
+    // se algum remendo do mapa da cidade usa esta textura, os blocos já
+    // assados saíram sem ela — reassa agora que a textura existe
+    if (mapa === window.MAPA_TILES &&
+        (window.MAPA_REMENDOS || []).some(p => p.tile === nome)) assaRemendos();
   };
   mapa[nome] = { pedido: true };   // marca como pedido, mas não desenhável
   im.src = src;
@@ -3922,6 +3928,11 @@ function loadAssets() {
         for (const p of cfg.pecas)
           window.SUL_URLS[p.t] = (cfg.tiles && cfg.tiles[p.t]) ? cfg.tiles[p.t] : ('/map-kit/' + p.t);
       }
+      // Texturas usadas nos remendos também precisam de endereço — sem isto,
+      // um chão pintado com tile só aparecia se uma peça usasse o mesmo tile.
+      for (const p of (cfg.remendos || []))
+        if (p.tile && !window.SUL_URLS[p.tile])
+          window.SUL_URLS[p.tile] = (cfg.tiles && cfg.tiles[p.tile]) ? cfg.tiles[p.tile] : ('/map-kit/' + p.tile);
       console.log('[mapa] configuração do sul aplicada');
     }).catch(() => {});
   fetch('https://gmycqvvvglexbtbqkjzi.supabase.co/storage/v1/object/public/mapas/mapa-config.json?t=' + Date.now())
@@ -3986,7 +3997,13 @@ function loadAssets() {
           window.MAPA_URLS[p.t] = (cfg.tiles && cfg.tiles[p.t]) ? cfg.tiles[p.t] : ('/map-kit/' + p.t);
       }
       if (cfg.orbe) window.MAPA_ORBE = cfg.orbe;
-      if (Array.isArray(cfg.remendos)) { window.MAPA_REMENDOS = cfg.remendos; window._maskCanvas = null; window._maskFalhou = false; window._framesAte = 0; assaRemendos(); }
+      if (Array.isArray(cfg.remendos)) {
+        window.MAPA_REMENDOS = cfg.remendos;
+        for (const p of cfg.remendos)
+          if (p.tile && !window.MAPA_URLS[p.tile])
+            window.MAPA_URLS[p.tile] = (cfg.tiles && cfg.tiles[p.tile]) ? cfg.tiles[p.tile] : ('/map-kit/' + p.tile);
+        window._maskCanvas = null; window._maskFalhou = false; window._framesAte = 0; assaRemendos();
+      }
       console.log('[mapa] configuração publicada aplicada');
     }).catch(() => {});
 
@@ -9228,6 +9245,8 @@ function render(now) {
   if (!CENA.sul) desenhaBlocosRemendados(ctx, _cx, _cy, cw, ch, _scaleX, _scaleY);
 
   if (CENA.sul && CENA.remendos && CENA.remendos.length && window.PassaAtras) {
+    // garante que as texturas dos remendos foram pedidas (tilePeca deduplica)
+    for (const p of CENA.remendos) if (p.tile && !CENA.tiles[p.tile]) tilePeca(p.tile, CENA.tiles, CENA.urls);
     window.PassaAtras.desenharRemendos(ctx, CENA.mapa, CENA.remendos,
       -_cx, -_cy, MAP_W_PX, { x: 0, y: 0, w: cw, h: ch }, CENA.tiles);
   }

@@ -259,8 +259,15 @@
         }
         var pat = g.createPattern(tmp, 'repeat');
         if (pat) {
+          // O padrão nasce ancorado na ORIGEM DO CANVAS; desenhado todo frame
+          // com a câmera (mapa sul), a pedra ficava parada na tela enquanto o
+          // chão andava. Transladar para o canto do mapa prende o padrão ao
+          // MUNDO: cada pedra tem lugar fixo no chão, como qualquer tile.
+          g.translate(destX, destY);
           g.fillStyle = pat;
-          g.fillRect(X(bx0) - lado, Y(by0) - lado, bw * destLarg + lado * 2, bh * destAlt + lado * 2);
+          g.fillRect(bx0 * destLarg - lado, by0 * destAlt - lado,
+                     bw * destLarg + lado * 2, bh * destAlt + lado * 2);
+          g.translate(-destX, -destY);
         }
       } else {
         g.drawImage(mapa,
