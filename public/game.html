@@ -3613,10 +3613,11 @@ function pecaPronta(p, im, w, h) {
 // 1100 remendos = 25 fps). Então eles são assados UMA vez numa cópia do mapa, e
 // o render passa a desenhar essa cópia. O cálculo do passa-atrás continua indo
 // no mapa original, em 1:1, para não perder a paridade com o editor.
+let _forno = null;
 function assaRemendos() {
   const rem = window.MAPA_REMENDOS;
   if (!assets.map || !assets.map.complete || !window.PassaAtras) return;
-  if (!rem || !rem.length) { assets.mapaAssado = null; return; }
+  if (!rem || !rem.length) { assets.mapaAssado = null; _forno = null; return; }
   const nat = assets.map.naturalWidth || assets.map.width;
   const L = Math.min(2048, nat);            // 2048 já cobre os 1872px do mundo
   const cv = document.createElement('canvas');
@@ -3624,10 +3625,24 @@ function assaRemendos() {
   const g = cv.getContext('2d');
   g.imageSmoothingEnabled = true;
   g.drawImage(assets.map, 0, 0, L, L);
-  window.PassaAtras.desenharRemendos(g, assets.map, rem, 0, 0, L);
   cv.naturalWidth = cv.naturalHeight = L;
+  // O mapa já entra em uso com a base pronta; os remendos vão aparecendo. Assar
+  // os mil de uma vez travava a abertura por mais de um segundo.
   assets.mapaAssado = cv;
-  console.log('[mapa] ' + rem.length + ' remendos assados no mapa (' + L + 'px)');
+  _forno = { cv: cv, g: g, L: L, lista: rem, i: 0 };
+  requestAnimationFrame(assaFatia);
+}
+function assaFatia() {
+  if (!_forno) return;
+  const t0 = performance.now();
+  while (_forno.i < _forno.lista.length && performance.now() - t0 < 7) {
+    window.PassaAtras.desenharRemendos(_forno.g, assets.map,
+      [_forno.lista[_forno.i]], 0, 0, _forno.L);
+    _forno.i++;
+  }
+  if (_forno.i < _forno.lista.length) { requestAnimationFrame(assaFatia); return; }
+  console.log('[mapa] ' + _forno.lista.length + ' remendos assados (' + _forno.L + 'px)');
+  _forno = null;
 }
 
 function desenhaPecasMapa(camX, camY, naFrente) {
@@ -3754,7 +3769,7 @@ function loadAssets() {
         }
       }
       if (cfg.orbe) window.MAPA_ORBE = cfg.orbe;
-      if (Array.isArray(cfg.remendos)) { window.MAPA_REMENDOS = cfg.remendos; window._maskCanvas = null; window._maskFalhou = false; assaRemendos(); }
+      if (Array.isArray(cfg.remendos)) { window.MAPA_REMENDOS = cfg.remendos; window._maskCanvas = null; window._maskFalhou = false; window._framesAte = 0; assaRemendos(); }
       console.log('[mapa] configuração publicada aplicada');
     }).catch(() => {});
 
@@ -8719,7 +8734,12 @@ function render(now) {
   // O redesenho é limitado ao pedaço VISÍVEL da área marcada. Cobrir a área
   // inteira todo frame travava o jogo quando a marcação era grande.
   if (state && state.scene !== 'cave1' && window.MAPA_FRENTE && assets.map && assets.map.complete) {
-    if (!window._maskCanvas && !window._maskFalhou) construirMascaraFrente();
+    // a silhueta custa algumas centenas de ms; construir no primeiro frame
+    // fazia a abertura engasgar. Espera o jogo já estar rodando.
+    if (!window._maskCanvas && !window._maskFalhou) {
+      window._framesAte = (window._framesAte || 0) + 1;
+      if (window._framesAte > 45) construirMascaraFrente();
+    }
     const mk = window._maskCanvas, A = window._maskArea;
     if (mk && A) {
       // área marcada, em pixels de tela
@@ -8797,6 +8817,7 @@ function render(now) {
 
   // === Debug collision overlay ===
   drawDebugCollision(camX, camY, cw, ch);
+  drawDiag(now);
 }
 
 // ── Pixel-art knight sprite for Guarda Kalos ─────────────────────────────────
@@ -9170,6 +9191,40 @@ function drawQuestHint(camX, camY, now) {
 }
 
 // ── Debug: visualize collision grid (toggle with backtick `) ──────────────────
+// F9 mostra o que está pesando. Sem isto, "o jogo está lento" não tem como
+// virar diagnóstico — o que carrega vem da nuvem e muda de jogador para jogador.
+let _diag = false, _diagT = [], _diagUlt = 0;
+window.addEventListener('keydown', e => { if (e.key === 'F9') { _diag = !_diag; e.preventDefault(); } });
+function drawDiag(now) {
+  if (!_diag) return;
+  _diagT.push(now); while (_diagT.length > 60) _diagT.shift();
+  const fps = _diagT.length > 1
+    ? Math.round((_diagT.length - 1) * 1000 / (_diagT[_diagT.length-1] - _diagT[0])) : 0;
+  const rem = (window.MAPA_REMENDOS || []).length;
+  const pec = (window.MAPA_PECAS || []).length;
+  const til = Object.keys(window.MAPA_TILES || {}).length;
+  const marc = window.MAPA_FRENTE
+    ? window.MAPA_FRENTE.reduce((a, l) => a + (l ? l.filter(Boolean).length : 0), 0) : 0;
+  const linhas = [
+    fps + ' fps',
+    'remendos: ' + rem + (_forno ? '  (assando ' + _forno.i + '/' + _forno.lista.length + ')' : (rem ? '  assados' : '')),
+    'peças: ' + pec + '   tiles: ' + til,
+    'passa-atrás: ' + marc + ' marcas' + (window._maskCanvas ? '  (máscara ' + window._maskCanvas.width + 'px)' : marc ? '  (calculando…)' : ''),
+    'mapa: ' + ((assets.map && (assets.map.naturalWidth || 0)) + 'px') + (assets.mapaAssado ? ' + cópia ' + assets.mapaAssado.width + 'px' : ''),
+  ];
+  ctx.save();
+  ctx.font = 'bold 12px ui-monospace, Menlo, monospace';
+  ctx.textAlign = 'left';
+  const larg = 260, alt = linhas.length * 17 + 14;
+  ctx.fillStyle = 'rgba(5,10,20,.86)';
+  ctx.fillRect(8, canvas.height - alt - 8, larg, alt);
+  ctx.strokeStyle = 'rgba(77,195,255,.5)'; ctx.lineWidth = 1;
+  ctx.strokeRect(8, canvas.height - alt - 8, larg, alt);
+  ctx.fillStyle = fps < 30 ? '#ff6b6b' : '#7fe7ff';
+  linhas.forEach((t, i) => ctx.fillText(t, 18, canvas.height - alt + 12 + i * 17));
+  ctx.restore();
+}
+
 function drawDebugCollision(camX, camY, cw, ch) {
   if (!DEBUG_COLLISION) return;
   const isCave = state && state.scene === 'cave1';

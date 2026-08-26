@@ -24,14 +24,20 @@
    *   (recebe naturalWidth/naturalHeight/complete para passar pelas mesmas
    *   checagens que uma <img>)
    */
+  var TETO = 768;   // as peças são desenhadas com dezenas de px; varrer 1254x1254
+                    // inteiro só para tirar o fundo custava caro na abertura
+
   function semChroma(imagem) {
-    var w = imagem.naturalWidth || imagem.width;
-    var h = imagem.naturalHeight || imagem.height;
-    if (!w || !h) return null;
+    var w0 = imagem.naturalWidth || imagem.width;
+    var h0 = imagem.naturalHeight || imagem.height;
+    if (!w0 || !h0) return null;
+    var esc = Math.min(1, TETO / Math.max(w0, h0));
+    var w = Math.max(1, Math.round(w0 * esc)), h = Math.max(1, Math.round(h0 * esc));
     var c = document.createElement('canvas');
     c.width = w; c.height = h;
     var g = c.getContext('2d', { willReadFrequently: true });
-    g.drawImage(imagem, 0, 0);
+    g.imageSmoothingEnabled = true;
+    g.drawImage(imagem, 0, 0, w, h);
     var d;
     try { d = g.getImageData(0, 0, w, h); } catch (e) { return null; }
     var px = d.data, tinha = 0;
