@@ -95,6 +95,7 @@
     <h2>Prompt para gerar a imagem</h2>
     <div class="linha">
       <select id="tipoPrompt">
+        <option value="fofo">Cria FOFA (chibi) — o que sai melhor em 3D</option>
         <option value="monstro">Cria / monstro</option>
         <option value="personagem">Personagem (spritesheet)</option>
         <option value="peca">Peça do mapa</option>
@@ -179,6 +180,19 @@
     <div class="hint">Gire o modelo aqui embaixo até o bicho estar de frente pra você, leia o ângulo e ajuste.
       A inclinação 76° é a do mapa do jogo (visto meio de cima); 90° é de lado, 45° é mais por cima.</div>
     <div id="slotMv3" style="margin:12px 0"></div>
+    <div class="card" style="background:#0a1120;margin:12px 0 0">
+      <label style="margin:0 0 6px"><input type="checkbox" id="cel" checked> ✨ deixar bonitinho (acabamento de desenho)</label>
+      <div class="hint" style="margin-bottom:8px">
+        Modelo gerado por IA sai com degradê derretido e cor lavada — cara de render, não de jogo.
+        Este passe achata a luz em poucas faixas, satura a cor e põe contorno escuro. É o que dá
+        aparência de arte desenhada, e funciona em qualquer modelo.
+      </div>
+      <div class="linha">
+        <label style="margin:0">faixas de luz <input type="range" id="celBandas" min="2" max="8" value="4" style="width:120px;vertical-align:middle"> <b id="celBandasV" style="color:var(--acc)">4</b></label>
+        <label style="margin:0">contorno <input type="range" id="celLinha" min="0" max="6" value="3" style="width:100px;vertical-align:middle"> <b id="celLinhaV" style="color:var(--acc)">3</b></label>
+        <label style="margin:0">cor <input type="range" id="celSat" min="100" max="200" value="135" style="width:100px;vertical-align:middle"> <b id="celSatV" style="color:var(--acc)">1.35×</b></label>
+      </div>
+    </div>
     <div class="linha" style="margin-top:12px">
       <button class="b" id="bVistas" disabled>🎮 gerar vistas</button>
       <button class="g" id="bBaixaVistas" disabled>⬇ baixar todas</button>
@@ -281,6 +295,19 @@ $('modo').onchange = $('tol').oninput = $('bRefaz').onclick = limpaFundo;
 $('bBaixaImg').onclick = () => baixar(CANVAS_IMG, 'limpo.png');
 
 const PROMPTS = {
+  fofo: `Criatura fofa original para jogo de colecionar monstros, estilo chibi.
+PROPORÇÃO (o que faz ficar fofo): cabeça GRANDE, ~1/3 da altura total. Corpo pequeno e
+redondo, patas curtas e grossas, olhos grandes e brilhantes bem separados.
+SILHUETA LIMPA E CHEIA: formas arredondadas e sólidas. NADA de fogo solto, fumaça, pelo
+esvoaçante, tentáculo fino ou asa translúcida — detalhe fino vira borrão quando vira 3D.
+Se for elemental, o efeito fica COLADO no corpo, como uma juba sólida.
+POSE: de pé, de FRENTE, simétrica, encarando o observador, corpo inteiro, sem cortar pata.
+LUZ: neutra e uniforme, sem sombra dura, sem contraluz, sem reflexo forte — a imagem vai
+virar modelo 3D e sombra pintada atrapalha.
+CORES: 3 ou 4 cores chapadas e vivas, com contorno definido.
+Fundo VERDE CHROMA #00FF00 sólido. Sem chão, sem sombra no fundo, sem texto, sem moldura.
+A criatura ocupa ~80% da altura e nada toca as bordas.
+Criatura: `,
   monstro: `Arte de criatura original para jogo RPG de colecionar monstros, render 3D estilizado, detalhado e vibrante.
 Pose de corpo inteiro, vista de FRENTE (leve 3/4), encarando o observador, centralizada.
 Fundo VERDE CHROMA #00FF00 sólido e chapado. Sem sombra no chão, sem borda, sem texto.
@@ -345,6 +372,54 @@ function centroDosPes(cv, cx) {
     if (d[(y*w+x)*4+3] > 22) { soma += x; n++; }
   return n ? soma/n : (cx.x0+cx.x1)/2;
 }
+
+// Acabamento de desenho: achata a luz em faixas, satura e contorna.
+// É o passo que separa "render 3D cru" de "arte de jogo".
+function acabamento(cv) {
+  if (!$('cel').checked) return cv;
+  const bandas = +$('celBandas').value, linha = +$('celLinha').value, sat = +$('celSat').value / 100;
+  const w = cv.width, h = cv.height;
+  const g = cv.getContext('2d', { willReadFrequently: true });
+  const d = g.getImageData(0, 0, w, h), px = d.data;
+  for (let i = 0; i < px.length; i += 4) {
+    if (!px[i+3]) continue;
+    let r = px[i]/255, gg = px[i+1]/255, b = px[i+2]/255;
+    const mx = Math.max(r,gg,b), mn = Math.min(r,gg,b);
+    let l = (mx+mn)/2, sHSL = 0, hh = 0;
+    if (mx !== mn) {
+      const dl = mx-mn;
+      sHSL = l > 0.5 ? dl/(2-mx-mn) : dl/(mx+mn);
+      hh = mx === r ? ((gg-b)/dl + (gg < b ? 6 : 0)) : mx === gg ? ((b-r)/dl + 2) : ((r-gg)/dl + 4);
+      hh /= 6;
+    }
+    sHSL = Math.min(1, sHSL * sat);
+    l = Math.min(0.94, Math.max(0.10, Math.round(l*bandas)/bandas));   // poucas faixas de luz
+    const q = l < 0.5 ? l*(1+sHSL) : l+sHSL-l*sHSL, p = 2*l-q;
+    const canal = t => { t = (t+1)%1;
+      return t < 1/6 ? p+(q-p)*6*t : t < 1/2 ? q : t < 2/3 ? p+(q-p)*(2/3-t)*6 : p; };
+    px[i]   = Math.round(canal(hh+1/3)*255);
+    px[i+1] = Math.round(canal(hh)*255);
+    px[i+2] = Math.round(canal(hh-1/3)*255);
+  }
+  g.putImageData(d, 0, 0);
+  if (!linha) return cv;
+  // contorno: engorda o alfa e pinta a diferença de escuro, por baixo do bicho
+  const fora = document.createElement('canvas'); fora.width = w; fora.height = h;
+  const fg = fora.getContext('2d');
+  fg.filter = 'blur(' + (linha * 0.6) + 'px)';
+  for (let a = 0; a < 8; a++) {
+    const t = a / 8 * Math.PI * 2;
+    fg.drawImage(cv, Math.cos(t)*linha, Math.sin(t)*linha);
+  }
+  fg.filter = 'none';
+  fg.globalCompositeOperation = 'source-in';
+  fg.fillStyle = '#170f1c'; fg.fillRect(0, 0, w, h);
+  fg.globalCompositeOperation = 'source-over';
+  fg.drawImage(cv, 0, 0);
+  return fora;
+}
+for (const id of ['celBandas','celLinha','celSat'])
+  $(id).oninput = () => { $(id+'V').textContent = id === 'celSat' ? (+$(id).value/100).toFixed(2)+'×' : $(id).value; };
 
 let vistas = [];
 $('bVistas').onclick = async () => {
@@ -428,11 +503,12 @@ $('bVistas').onclick = async () => {
     const saida = document.createElement('canvas');
     saida.width = LARG; saida.height = ALT + 8;
     saida.getContext('2d').drawImage(rec, Math.round(LARG/2 - pes*esc), ALT - h + 4);
-    vistas.push({ nome, cv: saida });
+    const pronta = acabamento(saida);
+    vistas.push({ nome, cv: pronta });
     const cel = document.createElement('div');
     cel.className = 'vista xadrez';
-    cel.appendChild(saida.cloneNode(false));
-    cel.lastChild.getContext('2d').drawImage(saida, 0, 0);
+    cel.appendChild(pronta.cloneNode(false));
+    cel.lastChild.getContext('2d').drawImage(pronta, 0, 0);
     const b = document.createElement('b'); b.textContent = nome;
     cel.appendChild(b);
     $('gVistas').appendChild(cel);
