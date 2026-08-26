@@ -3961,7 +3961,14 @@ function loadAssets() {
           const linha = cfg.colisao[y];
           if (!Array.isArray(linha) || linha.length !== F) continue;
           for (let x = 0; x < F; x++) {
-            if (y >= zy0 && y <= zy1 && x >= zx0 && x <= zx1) continue;  // zona do orbe é intocável
+            if (y >= zy0 && y <= zy1 && x >= zx0 && x <= zx1) {
+              // zona do orbe é intocável: vale o REPOSITÓRIO, não o publicado.
+              // (Deixar zero aqui apagava a colisão do pedestal — dava para
+              // andar por dentro do orbe, publicasse o que se publicasse.)
+              const ry = (y / SUBCOL) | 0, rx = (x / SUBCOL) | 0;
+              fina[y][x] = COLLISION[ry] && COLLISION[ry][rx] ? 1 : 0;
+              continue;
+            }
             fina[y][x] = linha[x] ? 1 : 0;
           }
         }

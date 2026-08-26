@@ -27,11 +27,13 @@ Stack: **Express.js + TypeScript** servido via **Vercel**. Todo o jogo fica em *
 ## Regras absolutas (nunca violar)
 
 ### ⛔ COLLISION array — zona do orb (INTOCÁVEL)
-O array `COLLISION` (48×48, linhas ~2648-2695) tem uma zona protegida:
+O array `COLLISION` (48×48) tem uma zona protegida:
 - **Linhas 18-24, colunas 18-27** = zona do orb (tiles especiais de coleta de criaturas)
-- Na grade FINA (96×96) isso vira linhas 36-49, colunas 36-55 — protegido nos dois caminhos
+- Na grade FINA (192×192, SUBCOL=4) isso vira linhas 72-99, colunas 72-111
 - **JAMAIS modificar esses valores**, mesmo que o usuário mande um array novo para colar.
-- Antes de aplicar qualquer array novo: verificar se a zona está intacta e, se necessário, preservar manualmente.
+- No loader da grade fina publicada, a zona recebe os valores do REPOSITÓRIO
+  (upscale do `COLLISION`), nunca os publicados — e nunca zeros: zerar a zona
+  já apagou a colisão do pedestal do orbe uma vez.
 
 ---
 
@@ -40,10 +42,14 @@ O array `COLLISION` (48×48, linhas ~2648-2695) tem uma zona protegida:
 ```
 TILE        = 39px          (cada célula do grid)
 GRID        = 48            (48×48 tiles)
-SUBCOL      = 2             (colisão 2× mais fina: 96×96)
-PASSO       = 0.5 tile      (o personagem anda meia célula por vez)
+SUBCOL      = 4             (marcação de colisão 4× mais fina: 192×192)
+PASSO       = 1 tile        (o personagem anda de tile em tile)
 MAP_W_PX    = MAP_H_PX = 1872px   (= 48 × 39)
-Imagem mapa = 1254×1254px   (renderizada escalada para 1872×1872)
+Imagem mapa = 4000×4000px   (renderizada escalada para 1872×1872)
+
+Colisão: FICAR num tile olha a caixa dos pés (colunas do meio × metade de
+baixo); ATRAVESSAR uma divisa olha as células rentes à borda cruzada.
+Marca na metade de CIMA de um tile é beiral — nunca bloqueia.
 ```
 
 ### Y_SHIFT (mobile inject)
