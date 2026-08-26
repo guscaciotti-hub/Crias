@@ -2689,9 +2689,9 @@ const GRID = 48, TILE = MAP_W_PX / GRID; // 39
 // tile. Sem o passo menor, marcar colisão fina não muda nada: ele continuaria
 // parando exatamente nos mesmos lugares. Com os dois, dá para contornar o
 // canto de uma casa em vez de bloquear o tile inteiro.
-const SUBCOL = 2;              // células de colisão por tile
+const SUBCOL = 4;              // células de colisão por tile (quarto de tile)
 const PASSO = 1 / SUBCOL;      // quanto o personagem anda por passo, em tiles
-const MOVE_DURATION = 126; // meio passo: metade do tempo, mesma velocidade
+const MOVE_DURATION = 63;  // passo menor, tempo proporcional: mesma velocidade
 
 // ============================================================================
 // 5 MONSTROS CANÔNICOS — definição completa
@@ -3747,6 +3747,19 @@ function loadAssets() {
     .then(r => r.ok ? r.json() : null)
     .then(cfg => {
       if (!cfg) return;
+      if (Array.isArray(cfg.colisao) && cfg.colisao.length > GRID &&
+          (GRID * SUBCOL) % cfg.colisao.length === 0) {
+        // veio numa resolução fina; se for mais grossa que a atual, sobe
+        const passoUp = (GRID * SUBCOL) / cfg.colisao.length;
+        if (passoUp !== 1) {
+          const orig = cfg.colisao, F2 = GRID * SUBCOL;
+          cfg.colisao = Array.from({ length: F2 }, (_, y) =>
+            Array.from({ length: F2 }, (_, x) => {
+              const l = orig[Math.floor(y / passoUp)];
+              return l && l[Math.floor(x / passoUp)] ? 1 : 0;
+            }));
+        }
+      }
       if (Array.isArray(cfg.colisao) && cfg.colisao.length === GRID * SUBCOL) {
         // já veio na resolução fina, direto do editor
         const F = GRID * SUBCOL, fina = Array.from({ length: F }, () => new Uint8Array(F));
@@ -8011,6 +8024,7 @@ window.selectCombo = selectCombo;
 
 // drawComposedPlayer — player com sprites reais direcionais
 let _lastMovingTo = null;
+let _andandoAte = 0;
 let _stepCount = 0;
 function drawComposedPlayer(px, py, now) {
   let dir = (state && state.scene === 'cave1') ? (state.cavePlayer.dir || 'down') : ((state && state.player.dir) || 'down');
@@ -8018,17 +8032,27 @@ function drawComposedPlayer(px, py, now) {
   //  • down/up → frame 0 = parado de frente/costas
   //  • left/right → frame 0 = perfil lateral LIMPO (claramente virado de lado).
   //    O frame 1 lateral é uma vista 3/4 (mais de frente) usada só na caminhada.
+  // A perna troca a cada MEIO TILE percorrido, não a cada passo: com passo de um
+  // quarto de tile, amarrar a animação ao passo faria as pernas baterem quatro
+  // vezes mais rápido e virar tremedeira.
+  // E entre um passo e o outro existe um respiro sem movingTo; voltar ao quadro
+  // parado nesse respiro fazia o boneco piscar a cada passo, então a caminhada
+  // sobrevive por um instante depois que o passo termina.
+  const _pos = (state && state.scene === 'cave1') ? state.cavePlayer : state.player;
+  if (movingTo) _andandoAte = now + MOVE_DURATION * 0.9;
   let frameIdx = 0;
-  if (movingTo) {
-    const t = (now - movingTo.startTime) / MOVE_DURATION;
-    if (dir === 'down' || dir === 'up') {
-      // 3 frames: [standing(0), walkA(1), walkB(2)]
-      // walking alternates walkA↔walkB only (frames 1 and 2)
-      frameIdx = Math.floor(t * 2) % 2 + 1;
+  if (movingTo || now < _andandoAte) {
+    let perc;
+    if (movingTo) {
+      const t = Math.min(1, (now - movingTo.startTime) / MOVE_DURATION);
+      const andado = (Math.abs(movingTo.toX - movingTo.fromX) + Math.abs(movingTo.toY - movingTo.fromY)) * t;
+      perc = Math.abs(movingTo.fromX) + Math.abs(movingTo.fromY) + andado;
     } else {
-      // right/left: alterna perfil(0) ↔ passo(1) pra dar sensação de andar
-      frameIdx = Math.floor(t * 2) % 4; // getPlayerSprite does % length (2)
+      perc = Math.abs(_pos.x) + Math.abs(_pos.y);
     }
+    const ciclo = Math.floor(perc * 2) % 2;      // troca a cada meio tile
+    if (dir === 'down' || dir === 'up') frameIdx = ciclo + 1;   // walkA / walkB
+    else frameIdx = ciclo;                                      // perfil / passo
   }
   if (movingTo && movingTo !== _lastMovingTo) {
     _stepCount = (_stepCount || 0) + 1;

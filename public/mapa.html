@@ -58,7 +58,7 @@
     </div>
     <div class="sec" id="secPincel">
       <label>Pincel <input type="range" id="brush" min="1" max="8" value="1"><b id="brushv" style="color:var(--acc)">1</b></label>
-      <div class="hint" style="margin:6px 0 0;padding:0">Cada célula de colisão é <b>meio tile</b> — dá para contornar o canto de uma casa.<br><b>Clique</b> alterna a célula (marca/apaga) · <b>arrastar</b> sempre marca · <b>Shift</b> apaga.
+      <div class="hint" style="margin:6px 0 0;padding:0">Cada célula de colisão é <b>um quarto de tile</b> — dá para contornar o canto de uma casa de perto.<br><b>Clique</b> alterna a célula (marca/apaga) · <b>arrastar</b> sempre marca · <b>Shift</b> apaga.
       No modo <b>Passa atrás</b> o pincel é fino e redondo: contorne só a forma (ex: o orbe), sem pegar o que está em volta.</div>
     </div>
 
@@ -194,15 +194,19 @@ const N=48, TP=40, $=i=>document.getElementById(i);
 // A colisão é 2x mais fina que o tile (96x96): o personagem anda meia célula
 // por passo, então dá para contornar o canto de uma casa em vez de bloquear o
 // tile inteiro. C = lado da grade de colisão.
-const SUB=2, C=N*SUB, TPC=TP/SUB;
-const paraFina = base => {              // converte uma colisão antiga de 48
-  const f = Array.from({length:C},()=>Array(C).fill(0));
-  for(let y=0;y<N;y++) for(let x=0;x<N;x++) if(base[y]&&base[y][x])
-    for(let dy=0;dy<SUB;dy++) for(let dx=0;dx<SUB;dx++) f[y*SUB+dy][x*SUB+dx]=1;
-  return f;
+const SUB=4, C=N*SUB, TPC=TP/SUB;
+// Sobe qualquer grade mais grossa (48, 96) para a fina de hoje, repetindo cada
+// célula. Nada se perde quando a resolução muda.
+const paraFina = base => {
+  const orig = base.length, k = C / orig;
+  return Array.from({length:C}, (_,y) =>
+    Array.from({length:C}, (_,x) => {
+      const l = base[Math.floor(y/k)];
+      return (l && l[Math.floor(x/k)]) ? 1 : 0;
+    }));
 };
 const st = {
-  colisao: Array.from({length:N*2},()=>Array(N*2).fill(0)),
+  colisao: Array.from({length:N*4},()=>Array(N*4).fill(0)),
   // passa-atrás em resolução fina (4x): permite acompanhar o contorno real
   // do orbe/telhado em vez de apagar o tile quadrado inteiro
   frente:  Array.from({length:N*4},()=>Array(N*4).fill(0)),
@@ -493,7 +497,7 @@ function desenhaMarcas(curX,curY){
   }
   const nc=st.colisao.flat().filter(Boolean).length;
   const nf=st.frente.flat().filter(Boolean).length;
-  $('stats').textContent = `${nc} células bloqueadas (${Math.round(nc/4*10)/10} tiles) · ${Math.round(nf/16)} tiles de passa-atrás`;
+  $('stats').textContent = `${nc} células bloqueadas (${Math.round(nc/16*10)/10} tiles) · ${Math.round(nf/16)} tiles de passa-atrás`;
 }
 $('grade').onchange=$('opac').oninput=desenhaMarcas;
 $('brush').oninput=e=>{st.brush=+e.target.value;$('brushv').textContent=e.target.value;};
@@ -948,8 +952,7 @@ function salvar(){ clearTimeout(_t); _t=setTimeout(()=>{
 function carregar(){ const d=localStorage.getItem('crias_mapa'); if(!d)return;
   try{
     const j=JSON.parse(d);
-    if(Array.isArray(j.c) && j.c.length===C) st.colisao=j.c;
-    else if(Array.isArray(j.c) && j.c.length===N) st.colisao=paraFina(j.c);
+    if(Array.isArray(j.c)) st.colisao = j.c.length===C ? j.c : paraFina(j.c);
     // marcação antiga era 48x48; agora é 192x192 (4x) — converte para não
     // quebrar o desenho ao abrir um save anterior
     if(Array.isArray(j.f) && j.f.length===N*4) st.frente=j.f;
