@@ -86,6 +86,16 @@
         <button class="gh" id="apara">✂ aparar bordas</button>
         <button class="gh" id="recorta">✂ recortar parte</button>
       </div>
+      <div class="hint" style="margin:10px 0 4px;padding:0;font-weight:800;color:var(--txt)">🪑 É um banco?</div>
+      <div class="hint" style="margin:0 0 6px;padding:0">Marcado como banco, o jogador que chegar perto vê o botão <b>Sentar</b>.</div>
+      <div class="row2">
+        <label style="display:flex;align-items:center;gap:6px;margin:0;font-size:11px">
+          <input type="checkbox" id="ehBanco"> é banco
+        </label>
+        <label style="display:flex;align-items:center;gap:6px;margin:0;font-size:11px">
+          lugares <input type="number" id="bancoLug" min="1" max="4" value="2" style="width:52px;background:#0d1424;border:1px solid var(--line);color:var(--txt);border-radius:6px;padding:3px">
+        </label>
+      </div>
       <div class="hint" style="margin:10px 0 4px;padding:0;font-weight:800;color:var(--txt)">Cor — casar com o mapa</div>
       <div class="hint" style="margin:0 0 6px;padding:0">O tile vem com a luz de outro lugar. Selecione a peça e ajuste.</div>
       <div class="row2">
@@ -390,6 +400,20 @@ function desenhaMarcas(curX,curY){
     if(p.rot) gK.rotate(p.rot*Math.PI/180);
     gK.drawImage(im,-w/2,-h/2,w,h);
     gK.restore();
+    // bolinhas mostrando onde cada um senta — a mesma conta que o jogo faz
+    if(p.banco){
+      const n=Math.max(1,Math.min(4,p.banco.lugares||2));
+      const F={1:[.5],2:[.27,.73],3:[.18,.5,.82],4:[.14,.38,.62,.86]}[n];
+      const wT=w/TP, hT=h/TP;              // largura e altura da peça, em tiles
+      gK.save();
+      gK.fillStyle='rgba(127,231,255,.9)'; gK.strokeStyle='#0a1020'; gK.lineWidth=1.5;
+      for(const f of F){
+        const lx=(p.x - wT/2 + wT*f)*TP, ly=(p.y + hT*0.18)*TP;
+        gK.beginPath(); gK.arc(lx, ly, Math.max(4, 7/st.zoom), 0, 6.283);
+        gK.fill(); gK.stroke();
+      }
+      gK.restore();
+    }
     if(st.sel===i){
       gK.strokeStyle=p.frente?'#ffd54a':'#39e08a'; gK.lineWidth=2; gK.setLineDash([5,3]);
       gK.strokeRect(p.x*TP-w/2, p.y*TP-h/2, w, h); gK.setLineDash([]);
@@ -513,6 +537,26 @@ document.querySelectorAll('#remFormas button').forEach(b=>b.onclick=()=>{
 });
 // ── Cor da peça ────────────────────────────────────────────────────────────
 function ajAtual(){ return st.sel!=null ? (st.pecas[st.sel].aj || (st.pecas[st.sel].aj={b:1,s:1,f:0,cor:[128,128,128]})) : null; }
+function sincronizaBanco(){
+  const p = st.sel!=null ? st.pecas[st.sel] : null;
+  $('ehBanco').checked = !!(p && p.banco);
+  $('bancoLug').value = (p && p.banco && p.banco.lugares) || 2;
+}
+$('ehBanco').onchange = e => {
+  if(st.sel==null){ e.target.checked=false; return msg('selecione uma peça primeiro'); }
+  snap();
+  const p = st.pecas[st.sel];
+  if(e.target.checked) p.banco = { lugares: +$('bancoLug').value || 2 };
+  else delete p.banco;
+  desenhaMarcas(); salvar();
+  msg(p.banco ? 'peça marcada como banco de '+p.banco.lugares+' lugares' : 'não é mais banco');
+};
+$('bancoLug').onchange = e => {
+  if(st.sel==null || !st.pecas[st.sel].banco) return;
+  snap(); st.pecas[st.sel].banco.lugares = Math.max(1, Math.min(4, +e.target.value||2));
+  desenhaMarcas(); salvar();
+};
+
 function sincronizaCor(){
   const a = st.sel!=null ? (st.pecas[st.sel].aj || {}) : {};
   $('ajB').value = Math.round((a.b==null?1:a.b)*100); $('ajBv').textContent=((a.b==null?1:a.b)).toFixed(2);
@@ -806,7 +850,7 @@ stage.addEventListener('mousedown',e=>{
       base={fx,fy,s:p.s,rot:p.rot||0}; return; }
     const i=pecaEm(fx,fy);
     if(i>=0){ snap(); st.sel=i; movP=true; const p=st.pecas[i];
-      base={fx,fy,px:p.x,py:p.y}; sincronizaCor(); desenhaMarcas(); return; }
+      base={fx,fy,px:p.x,py:p.y}; sincronizaCor(); sincronizaBanco(); desenhaMarcas(); return; }
     if(st.tile){ snap();
       st.pecas.push({t:st.tile, x:fx, y:fy, s:(+$('tam').value)/100*3, rot:0, frente:false});
       st.sel=st.pecas.length-1; desenhaMarcas(); salvar(); return; }

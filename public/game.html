@@ -4757,6 +4757,7 @@ function tryMove(dir) {
     movingTo = { fromX: state.cavePlayer.x, fromY: state.cavePlayer.y, toX: nx, toY: ny, startTime: performance.now() };
   } else {
     state.player.dir = dir;
+    if (state.sitting) { levanta(); return; }   // andar levanta do banco
     const nx = +(state.player.x + dx * PASSO).toFixed(3);
     const ny = +(state.player.y + dy * PASSO).toFixed(3);
     if (!canWalkTo(nx, ny)) return;
@@ -4783,7 +4784,11 @@ function update(t) {
       onTileStep();
       saveGame();
     }
-  } else if (!inBattle && !inMenu && !inDialog) {
+  }
+  // Sem "else": quando o passo termina, o próximo já começa NESTE quadro. Com
+  // um quadro perdido entre passos, a caminhada picotava — e com passo curto o
+  // buraco pesa proporcionalmente mais (era 1 quadro a cada 4).
+  if (!movingTo && !inBattle && !inMenu && !inDialog) {
     // Manual movement only — the neon quest trail just shows the way.
     if (keys.up) tryMove('up');
     else if (keys.down) tryMove('down');
@@ -4799,9 +4804,18 @@ function isInCaveArea() {
 }
 
 
+// Chamado a cada passo — e o passo agora é um QUARTO de tile. Som de pisada,
+// poeira e sorteio de encontro precisam continuar por TILE, senão viram
+// metralhadora e o encontro fica quatro vezes mais provável do que devia.
+let _ultimoTile = null;
 function onTileStep() {
   if (state.scene === 'cave1') { onCaveTileStep(); return; }
   recomputeQuestPath();
+  const tx = Math.floor(state.player.x), ty = Math.floor(state.player.y);
+  if (_ultimoTile && _ultimoTile.x === tx && _ultimoTile.y === ty) return;
+  const primeiro = !_ultimoTile;
+  _ultimoTile = { x: tx, y: ty };
+  if (primeiro) return;                    // entrar no jogo não é uma pisada
   const px = state.player.x * TILE + TILE/2;
   const py = state.player.y * TILE + TILE;
   FX.step(px, py, true);
@@ -4894,14 +4908,77 @@ function getInteractable() {
   if (t.x >= 20.5 && t.x <= 26.5 && t.y >= 20.5 && t.y <= 25.5) return { coreOrb: true };
   return null;
 }
+// ── BANCOS ──────────────────────────────────────────────────────────────────
+// Um banco é uma peça do mapa marcada no editor com o número de lugares. Os
+// lugares ficam em frações fixas da largura — é por isso que o prompt do banco
+// trava a proporção da arte: assim o jogo sabe onde cada um senta sem chutar.
+const LUGARES = { 2: [0.27, 0.73], 3: [0.18, 0.50, 0.82], 1: [0.50], 4: [0.14, 0.38, 0.62, 0.86] };
+
+function lugaresDoBanco(p, im) {
+  const n = Math.max(1, Math.min(4, (p.banco && p.banco.lugares) || 2));
+  const h = p.s, w = h * ((im.naturalWidth || im.width) / (im.naturalHeight || im.height));
+  // o assento fica um pouco abaixo do centro da peça, à frente do encosto
+  const y = p.y + h * 0.18;
+  return (LUGARES[n] || LUGARES[2]).map(f => ({ x: p.x - w / 2 + w * f, y }));
+}
+
+// Lugar livre mais perto do jogador, dentro do alcance
+function lugarPerto(alcance) {
+  if (!window.MAPA_PECAS || !state) return null;
+  const px = state.player.x, py = state.player.y;
+  let melhor = null;
+  for (const p of window.MAPA_PECAS) {
+    if (!p.banco) continue;
+    const im = window.MAPA_TILES && window.MAPA_TILES[p.t];
+    if (!im || !(im.naturalWidth || im.width)) continue;
+    lugaresDoBanco(p, im).forEach((l, i) => {
+      const d = Math.hypot(l.x - px, l.y - py);
+      if (d > alcance) return;
+      if (!melhor || d < melhor.d) melhor = { d, x: l.x, y: l.y, peca: p, idx: i };
+    });
+  }
+  return melhor;
+}
+
+function sentaNoBanco() {
+  const l = lugarPerto(2.2);
+  if (!l) return false;
+  state.sitting = true;
+  state.player.x = +l.x.toFixed(3);
+  state.player.y = +l.y.toFixed(3);
+  state.player.dir = 'down';
+  movingTo = null;
+  if (FX.sfx && FX.sfx.ui) FX.sfx.ui();
+  saveGame();
+  return true;
+}
+
+function levanta() {
+  if (!state || !state.sitting) return;
+  state.sitting = false;
+  if (FX.sfx && FX.sfx.ui) FX.sfx.ui();
+  saveGame();
+}
+
 function updateActionButton() {
-  if (movingTo || inBattle || inMenu || inDialog) {
-    document.getElementById('actionBtn').classList.remove('show');
+  const btn = document.getElementById('actionBtn');
+  if (movingTo || inBattle || inMenu || inDialog) { btn.classList.remove('show'); return; }
+  if (state && state.sitting) {
+    btn.textContent = '🧍'; btn.title = 'Levantar';
+    btn.classList.add('show');
     return;
   }
-  document.getElementById('actionBtn').classList.toggle('show', !!getInteractable());
+  if (lugarPerto(2.2)) {
+    btn.textContent = '🪑'; btn.title = 'Sentar';
+    btn.classList.add('show');
+    return;
+  }
+  btn.textContent = 'A'; btn.title = 'Interagir';
+  btn.classList.toggle('show', !!getInteractable());
 }
 function tryInteract() {
+  if (state && state.sitting) { levanta(); return; }
+  if (sentaNoBanco()) return;
   const i = getInteractable();
   if (!i) return;
   if (i.portal === 'cave_exit') {
