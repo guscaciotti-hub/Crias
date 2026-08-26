@@ -50,6 +50,7 @@
     <tr><td>🐺 <b>Crias</b></td><td>11 de 12 (só o Ignivar está pronto)</td><td>Seção 3</td></tr>
     <tr><td>🌤️ <b>Ambiente</b></td><td>6 sprites (nuvens, pássaros, borboletas, folhas, névoa, luz) — <b>nuvem.png não chegou no GitHub</b>, re-sobe</td><td>Seção 10</td></tr>
     <tr><td>🧍 <b>Personagem</b></td><td>char1 v2 com sentado em 4 direções (opcional, o atual funciona)</td><td>Seção 7</td></tr>
+    <tr><td>🪑 <b>Bancos</b></td><td>2 peças: banco de 2 lugares e banco de 3 lugares — com a função de sentar</td><td>Seção 11</td></tr>
   </table>
   <div class="note">Ordem sugerida: subir as 14 do mapa → 7 novas do mapa → 11 crias → ambiente. A cada leva enviada, o Claude processa e integra.</div>
 </div>
@@ -197,7 +198,34 @@ FORMATO DE TRABALHO:
   </div>
 </div>
 
-<h2>11 · Fora do MVP</h2>
+<h2>11 · Mobiliário — bancos para sentar</h2>
+<div class="card">
+  <div style="font-size:13px;margin-bottom:10px;">
+    Bancos são <b>peças do mapa</b>: você gera a arte, sobe em <code>public/map-kit/</code>
+    com o nome exato e coloca no editor <a href="/mapa">/mapa</a> na aba <b>Peças</b>.
+    Todo banco tem a mesma função no jogo — ver a mecânica abaixo.
+  </div>
+  <table id="bancos"><tr><th>Peça</th><th>Arquivo</th><th>Status</th><th></th></tr></table>
+
+  <div style="font-size:13px;font-weight:800;color:var(--gold);margin:16px 0 6px;">🪑 Mecânica de sentar</div>
+  <div style="font-size:13px;line-height:1.7">
+    <b>1.</b> O jogador chega perto do banco (1 tile de distância de qualquer lugar livre).<br>
+    <b>2.</b> Aparece o botão de ação <b>A / 🪑 Sentar</b>, igual ao de falar com NPC.<br>
+    <b>3.</b> Ao sentar, o personagem vai para o lugar livre mais próximo, usa o sprite
+    <code>char1-sit-0.png</code> (a pose sentada da linha 4 da spritesheet) e olha para
+    a frente do banco.<br>
+    <b>4.</b> Sentado, o botão vira <b>Levantar</b>. Andar em qualquer direção também levanta.<br>
+    <b>5.</b> Cada lugar aceita <b>um</b> jogador: banco de 2 tem 2 lugares, o de 3 tem 3.
+    Lugar ocupado não aparece como opção.
+  </div>
+  <div class="note">
+    Por isso a arte precisa de proporção travada: o jogo calcula a posição de cada lugar
+    a partir da largura da peça. Banco de 2 → lugares a <b>27%</b> e <b>73%</b> da largura.
+    Banco de 3 → <b>18%</b>, <b>50%</b> e <b>82%</b>. Os prompts já exigem isso.
+  </div>
+</div>
+
+<h2>12 · Fora do MVP</h2>
 <div class="card">
   <div class="cut-item"><b>✕ Captura de crias</b> — copiava o PvP e inchava o escopo. Crias vêm de orbes.</div>
   <div class="cut-item"><b>✕ Loja de itens</b> — vira só troca de fragmentos.</div>
@@ -205,7 +233,7 @@ FORMATO DE TRABALHO:
   <div class="cut-item"><b>✕ Mapa de passeio 3D</b> — depende de gerador de mapas; fica pós-MVP.</div>
 </div>
 
-<h2>12 · A decidir</h2>
+<h2>13 · A decidir</h2>
 <div class="card">
   <div class="q"><b>Chefe da masmorra:</b> uma cria lendária (Drakon) ou um monstro exclusivo de chefe?</div>
   <div class="q"><b>Orbe diário:</b> o jogador ganha 1 orbe comum por dia ao logar? (é o gancho de retorno)</div>
@@ -297,6 +325,42 @@ const KIT = [
   ['🪨 Caminho', 'tile-caminho.png', T_TILE('caminho de pedras irregulares bege e marrom assentadas em terra batida, juntas visíveis')],
   ['⬜ Piso da praça', 'tile-praca.png', T_TILE('piso de pedra lavrada cinza-clara de praça mágica medieval, lajes grandes com runas azuis MUITO sutis')],
   ['🌊 Água', 'tile-agua.png', T_TILE('água azul profunda de rio com leve ondulação e reflexos suaves de luz')],
+];
+
+
+// ── Bancos ────────────────────────────────────────────────────────────────
+// A proporção é travada de propósito: o jogo calcula onde fica cada lugar a
+// partir da largura da peça, então a arte precisa entregar sempre o mesmo
+// enquadramento.
+const T_BANCO = (lugares, larg, pct, extra) => `Peça de arte isolada para o mapa de um jogo RPG top-down: um BANCO DE PRAÇA DE ${lugares} LUGARES.
+
+FUNDO: MAGENTA #FF00FF sólido, chapado, sem gradiente. Nada além do banco na imagem — sem chão, sem grama, sem sombra projetada no fundo, sem borda, sem texto, sem moldura.
+
+TAMANHO DA IMAGEM: exatamente ${larg}×512 pixels.
+
+ÂNGULO: vista de cima em 3/4, a MESMA de um mapa de RPG clássico — vê-se o assento por cima e o encosto de frente, levemente inclinado. O banco é visto de frente (o encosto atrás, o assento virado para baixo, na direção de quem olha).
+
+ENQUADRAMENTO TRAVADO (isto é obrigatório):
+• O banco ocupa 92% da largura da imagem, centralizado na horizontal.
+• Os pés do banco encostam a 4% do fundo da imagem.
+• Os ${lugares} lugares ficam igualmente espaçados, com os centros em ${pct} da largura.
+• O banco tem largura visivelmente maior que a altura — é um banco comprido, não uma cadeira.
+
+ESTILO: render 3D estilizado volumétrico, igual ao resto do mapa — madeira com veio visível e cantos arredondados, ferragens escuras nas laterais, materiais ricos com relevo. Iluminação vinda do canto superior esquerdo, sombra própria suave nas partes internas (mas NENHUMA sombra caindo no fundo magenta). Nítido, colorido, sem contorno preto grosso, sem aparência de desenho vetorial chapado.
+
+MADEIRA: tom castanho-mel quente, mesma família de cor das cercas e pontes de madeira que já existem no mapa. Ferragens: metal escuro grafite com leve brilho.
+
+${extra}
+
+NÃO FAÇA: fundo transparente, fundo branco, fundo colorido que não seja magenta, mais de um banco, pessoas sentadas, texto, marca d'água, moldura, sombra no chão.`;
+
+const BANCOS = [
+  ['🪑 Banco de 2 lugares', 'banco-2.png',
+   T_BANCO(2, 1024, '27% e 73%',
+     'DETALHE: encosto com 3 ripas horizontais de madeira, assento com 3 ripas. Duas pernas de ferro fundido, uma em cada ponta, com uma volta decorativa simples.')],
+  ['🪑 Banco de 3 lugares', 'banco-3.png',
+   T_BANCO(3, 1536, '18%, 50% e 82%',
+     'DETALHE: encosto com 3 ripas horizontais de madeira, assento com 3 ripas. TRÊS pernas de ferro fundido — uma em cada ponta e uma no meio — com uma volta decorativa simples. Um apoio de braço em cada ponta.')],
 ];
 
 const T_FIEL = (hint) => `Recrie FIELMENTE o elemento principal da imagem anexada — MESMO design, MESMAS cores, mesma identidade visual, mesmo ângulo (vista top-down 3/4 de RPG). ${hint}
@@ -439,7 +503,23 @@ KIT.forEach(([nome, arq, prompt]) => {
   }).catch(() => {});
 });
 
-document.getElementById('mapBtn').appendChild(mkBtn(P_MAPA, '📋 copiar prompt do mapa'));
+const tban = document.getElementById('bancos');
+BANCOS.forEach(([nome, arq, prompt]) => {
+  const tr = document.createElement('tr');
+  tr.innerHTML = '<td><b>' + nome + '</b></td><td style="font-size:12px;color:var(--dim)">map-kit/' + arq + '</td>' +
+    '<td class="bst"><span class="tag t-todo">falta</span></td>';
+  const td = document.createElement('td');
+  td.appendChild(mkBtn(prompt, '📋 copiar prompt'));
+  tr.appendChild(td);
+  tban.appendChild(tr);
+  fetch('/map-kit/' + arq, { method: 'HEAD' }).then(r => {
+    if (r.ok) tr.querySelector('.bst').innerHTML = '<span class="tag t-ok">recebida</span>';
+  }).catch(() => {});
+});
+
+// #mapBtn saiu do HTML numa reorganização; sem a guarda, o erro matava o resto do script
+const mb = document.getElementById('mapBtn');
+if (mb) mb.appendChild(mkBtn(P_MAPA, '📋 copiar prompt do mapa'));
 
 const cr = document.getElementById('charRow');
 cr.lastElementChild.appendChild(mkBtn(P_CHAR, 'Copiar prompt'));

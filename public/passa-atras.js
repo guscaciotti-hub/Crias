@@ -19,7 +19,8 @@
     tolPasso: 22,     // quanto a cor pode mudar de um pixel para o vizinho
     tolChao: 80,      // quanto pode se afastar da cor de onde aquela onda partiu
     manchaMin: 60,    // manchas menores que isto são textura do chão, não objeto
-    ladoMax: 2200,    // teto de segurança para a área recortada
+    ladoMax: 1100,    // teto do recorte: acima disso o custo trava a abertura
+                      // (2200 levava ~1s de congelamento; 1100 leva ~250ms)
     remendos: null    // remendos publicados, para a silhueta ver o mapa corrigido
   };
 
@@ -164,7 +165,9 @@
    *
    * @param g          contexto 2d de destino
    * @param mapa       imagem do mapa (fonte)
-   * @param remendos   [{x,y,ox,oy,r}] em fração do mapa (0..1)
+   * @param remendos   em fração do mapa (0..1). Três formatos:
+   *   redondo/quadrado: {x,y,ox,oy,r,f}
+   *   livre:            {pts:[[x,y],...], dx, dy, f:'livre'}
    * @param destX,destY  onde fica o canto do mapa, no destino
    * @param destLarg     largura do mapa inteiro, no destino
    */
@@ -173,18 +176,41 @@
     var iw = mapa.naturalWidth || mapa.width, ih = mapa.naturalHeight || mapa.height;
     if (!iw || !ih) return;
     var destAlt = destLarg * (ih / iw);
+    var X = function (u) { return destX + u * destLarg; };
+    var Y = function (v) { return destY + v * destAlt; };
     for (var i = 0; i < remendos.length; i++) {
       var p = remendos[i];
-      var rx = p.r * destLarg, ry = p.r * destAlt;
-      var cx = destX + p.x * destLarg, cy = destY + p.y * destAlt;
+      // caixa do remendo e a mesma caixa na origem, em fração do mapa
+      var bx0, by0, bx1, by1, ox0, oy0;
       g.save();
       g.beginPath();
-      g.ellipse ? g.ellipse(cx, cy, rx, ry, 0, 0, 6.283) : g.arc(cx, cy, rx, 0, 6.283);
+      if (p.f === 'livre' && p.pts && p.pts.length > 2) {
+        bx0 = by0 = 1; bx1 = by1 = 0;
+        for (var k = 0; k < p.pts.length; k++) {
+          var u = p.pts[k][0], v = p.pts[k][1];
+          if (u < bx0) bx0 = u; if (u > bx1) bx1 = u;
+          if (v < by0) by0 = v; if (v > by1) by1 = v;
+          if (k === 0) g.moveTo(X(u), Y(v)); else g.lineTo(X(u), Y(v));
+        }
+        g.closePath();
+        ox0 = bx0 + p.dx; oy0 = by0 + p.dy;
+      } else {
+        bx0 = p.x - p.r; by0 = p.y - p.r; bx1 = p.x + p.r; by1 = p.y + p.r;
+        ox0 = p.ox - p.r; oy0 = p.oy - p.r;
+        if (p.f === 'quadrado') {
+          g.rect(X(bx0), Y(by0), (bx1 - bx0) * destLarg, (by1 - by0) * destAlt);
+        } else {
+          var rx = p.r * destLarg, ry = p.r * destAlt;
+          if (g.ellipse) g.ellipse(X(p.x), Y(p.y), rx, ry, 0, 0, 6.283);
+          else g.arc(X(p.x), Y(p.y), rx, 0, 6.283);
+        }
+      }
       g.clip();
       g.imageSmoothingEnabled = true;
+      var bw = bx1 - bx0, bh = by1 - by0;
       g.drawImage(mapa,
-        (p.ox - p.r) * iw, (p.oy - p.r) * ih, 2 * p.r * iw, 2 * p.r * ih,
-        cx - rx, cy - ry, 2 * rx, 2 * ry);
+        ox0 * iw, oy0 * ih, bw * iw, bh * ih,
+        X(bx0), Y(by0), bw * destLarg, bh * destAlt);
       g.restore();
     }
   }

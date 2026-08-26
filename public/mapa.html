@@ -103,7 +103,22 @@
         acompanhando o movimento.<br>
         <b>Shift+clique</b> troca a origem sem sair do pincel.
       </div>
-      <label>Tamanho <input type="range" id="remTam" min="4" max="80" value="22"><b id="remTamv" style="color:var(--acc)">22</b></label>
+      <div class="modo" id="remFormas" style="display:flex;gap:6px;margin-bottom:8px">
+        <button data-fm="redondo" class="on" style="flex:1">● redondo</button>
+        <button data-fm="quadrado" style="flex:1">■ quadrado</button>
+        <button data-fm="retangulo" style="flex:1">▭ retângulo</button>
+        <button data-fm="livre" style="flex:1">✎ livre</button>
+      </div>
+      <div class="hint" id="remFormaDica" style="padding:0;margin:0 0 8px">
+        <b>Redondo/quadrado:</b> arraste para carimbar. Tamanho pequeno (4–10) dá acabamento
+        fino, quadradinho por quadradinho.<br>
+        <b>Retângulo:</b> arraste de um canto ao outro para cobrir uma área inteira de uma
+        vez — é o jeito de tirar um telhado, uma parede, um pedaço grande. O tamanho é o
+        que você arrastar.<br>
+        <b>Livre:</b> desenhe o contorno da área que quer trocar e solte — ela é preenchida
+        de uma vez, no formato que você desenhou.
+      </div>
+      <label>Tamanho <input type="range" id="remTam" min="3" max="80" value="22"><b id="remTamv" style="color:var(--acc)">22</b></label>
       <button class="act" id="remOrigem">🎯 pegar origem</button>
       <button class="act" id="remDesfaz">↶ tirar último remendo</button>
       <button class="act" id="remLimpa">🧹 tirar todos</button>
@@ -148,6 +163,7 @@
   </div>
 </div>
 <script src="/passa-atras.js"></script>
+<script src="/tiles.js"></script>
 <script>
 const N=48, TP=40, $=i=>document.getElementById(i);
 const st = {
@@ -160,6 +176,7 @@ const st = {
   pecas: [],          // {t,x,y,s,rot,frente}
   remendos: [],       // {x,y,ox,oy,r} em fração do mapa (0..1) — copia chão de um lugar pro outro
   remR: 22,           // raio do pincel de remendo, em px do canvas do editor
+  remForma: 'redondo', // redondo | quadrado | livre
   remOrigem: null,    // [fx,fy] em tiles
   pegandoOrigem: false,
   sel: null,          // índice da peça selecionada
@@ -167,7 +184,16 @@ const st = {
 };
 const UP = {};        // nome -> dataURL dos tiles enviados
 const IMGS = {};
-function img(n){ if(!IMGS[n]){ const i=new Image(); i.src=UP[n]||('/map-kit/'+n); i.onload=desenhaMarcas; IMGS[n]=i; } return IMGS[n]; }
+// A peça entra sem o fundo magenta (public/tiles.js), igual ao jogo.
+function img(n){
+  if(!IMGS[n]){
+    const i=new Image();
+    i.onload=()=>{ const limpo = window.Tiles && window.Tiles.semChroma(i); if(limpo) IMGS[n]=limpo; desenhaMarcas(); };
+    i.src=UP[n]||('/map-kit/'+n);
+    IMGS[n]=i;
+  }
+  return IMGS[n];
+}
 const cM=$('cMapa'), cK=$('cMarca');
 [cM,cK].forEach(c=>{c.width=N*TP;c.height=N*TP;});
 const gM=cM.getContext('2d'), gK=cK.getContext('2d');
@@ -372,18 +398,46 @@ function desenhaMarcas(curX,curY){
   if(st.modo==='remendo'){
     if(st.remOrigem){
       gK.strokeStyle='#7fe7ff'; gK.lineWidth=2; gK.setLineDash([6,4]);
-      gK.beginPath(); gK.arc(st.remOrigem[0]*TP, st.remOrigem[1]*TP, st.remR, 0, 6.283); gK.stroke();
-      gK.setLineDash([]);
+      gK.beginPath();
+      if(st.remForma==='quadrado')
+        gK.rect(st.remOrigem[0]*TP-st.remR, st.remOrigem[1]*TP-st.remR, st.remR*2, st.remR*2);
+      else gK.arc(st.remOrigem[0]*TP, st.remOrigem[1]*TP, st.remR, 0, 6.283);
+      gK.stroke(); gK.setLineDash([]);
       gK.fillStyle='#7fe7ff'; gK.beginPath();
       gK.arc(st.remOrigem[0]*TP, st.remOrigem[1]*TP, 3, 0, 6.283); gK.fill();
     }
-    if(curX!=null){
+    // contorno do laço enquanto está sendo desenhado
+    if(remLaco && remLaco.length>1){
+      gK.strokeStyle='#ffffff'; gK.lineWidth=2; gK.setLineDash([5,4]);
+      gK.beginPath(); gK.moveTo(remLaco[0][0]*TP, remLaco[0][1]*TP);
+      for(const [x,y] of remLaco) gK.lineTo(x*TP, y*TP);
+      gK.closePath(); gK.stroke(); gK.setLineDash([]);
+    }
+    if(remRet){
+      const [ax,ay,bx,by]=remRet;
+      const x0=Math.min(ax,bx)*TP, y0=Math.min(ay,by)*TP;
+      const w0=Math.abs(bx-ax)*TP, h0=Math.abs(by-ay)*TP;
+      gK.lineWidth=2; gK.setLineDash([6,4]);
+      gK.strokeStyle='#ffffff'; gK.strokeRect(x0,y0,w0,h0);
+      if(remOrigemIni&&remIni){
+        gK.strokeStyle='rgba(127,231,255,.85)';
+        gK.strokeRect(x0+(remOrigemIni[0]-remIni[0])*TP, y0+(remOrigemIni[1]-remIni[1])*TP, w0, h0);
+      }
+      gK.setLineDash([]);
+    }
+    if(curX!=null && st.remForma!=='livre' && st.remForma!=='retangulo'){
+      const R=st.remR;
+      const contorno=(g,cx,cy)=>{
+        g.beginPath();
+        if(st.remForma==='quadrado') g.rect(cx-R, cy-R, R*2, R*2);
+        else g.arc(cx, cy, R, 0, 6.283);
+        g.stroke();
+      };
       gK.strokeStyle=st.remOrigem?'#ffffff':'#ff6b6b'; gK.lineWidth=2;
-      gK.beginPath(); gK.arc(curX*TP, curY*TP, st.remR, 0, 6.283); gK.stroke();
+      contorno(gK, curX*TP, curY*TP);
       if(st.remOrigem && remIni && remOrigemIni){
-        const ox=(remOrigemIni[0]+(curX-remIni[0]))*TP, oy=(remOrigemIni[1]+(curY-remIni[1]))*TP;
         gK.strokeStyle='rgba(127,231,255,.8)';
-        gK.beginPath(); gK.arc(ox, oy, st.remR, 0, 6.283); gK.stroke();
+        contorno(gK, (remOrigemIni[0]+(curX-remIni[0]))*TP, (remOrigemIni[1]+(curY-remIni[1]))*TP);
       }
     }
   }
@@ -394,6 +448,15 @@ function desenhaMarcas(curX,curY){
 $('grade').onchange=$('opac').oninput=desenhaMarcas;
 $('brush').oninput=e=>{st.brush=+e.target.value;$('brushv').textContent=e.target.value;};
 $('remTam').oninput=e=>{st.remR=+e.target.value;$('remTamv').textContent=e.target.value;desenhaMarcas();};
+document.querySelectorAll('#remFormas button').forEach(b=>b.onclick=()=>{
+  document.querySelectorAll('#remFormas button').forEach(x=>x.classList.remove('on'));
+  b.classList.add('on'); st.remForma=b.dataset.fm;
+  $('remTam').parentElement.style.display = (st.remForma==='livre'||st.remForma==='retangulo') ? 'none' : '';
+  desenhaMarcas(); msg({
+    livre:'desenhe o contorno da área e solte',
+    retangulo:'arraste de um canto ao outro da área',
+  }[st.remForma] || ('arraste para carimbar em formato '+st.remForma));
+});
 $('remOrigem').onclick=()=>{ st.pegandoOrigem=true; msg('clique num pedaço limpo do chão para copiar dali'); };
 $('remDesfaz').onclick=()=>{ if(!st.remendos.length) return msg('nenhum remendo');
   st.remendos.pop(); desenhaMapaBase(); desenhaMarcas(); agendaSilhueta(); salvar(); msg('remendo removido'); };
@@ -422,13 +485,25 @@ document.querySelectorAll('#modos button').forEach(b=>b.onclick=()=>{
 
 // histórico
 const HIST=[];
-function snap(){ HIST.push(JSON.stringify({c:st.colisao,f:st.frente,o:st.orbe})); if(HIST.length>40)HIST.shift(); }
-$('undo').onclick=()=>{ if(!HIST.length) return msg('nada para desfazer');
+// O desfazer guarda o estado inteiro: colisão, passa-atrás, orbe, peças e
+// remendos. Antes só guardava os três primeiros, então um remendo errado não
+// tinha volta.
+function snap(){
+  HIST.push(JSON.stringify({c:st.colisao,f:st.frente,o:st.orbe,p:st.pecas,rem:st.remendos}));
+  if(HIST.length>60)HIST.shift();
+}
+function desfazer(){
+  if(!HIST.length) return msg('nada para desfazer');
   const j=JSON.parse(HIST.pop());
   if(j.c) st.colisao=j.c;
   if(Array.isArray(j.f) && j.f.length===N*4) st.frente=j.f;
   if(j.o) st.orbe=j.o;
-  desenhaMarcas(); agendaSilhueta(); salvar(); };
+  if(Array.isArray(j.p)) { st.pecas=j.p; st.sel=null; }
+  if(Array.isArray(j.rem)) st.remendos=j.rem;
+  desenhaMapaBase(); desenhaMarcas(); agendaSilhueta(); salvar();
+  msg('desfeito ('+HIST.length+' passos guardados)');
+}
+$('undo').onclick=desfazer;
 $('limpa').onclick=()=>{ if(!confirm('Apagar todas as marcações?'))return; snap();
   for(let y=0;y<N;y++)for(let x=0;x<N;x++) st.colisao[y][x]=0;
   for(let y=0;y<N*4;y++)for(let x=0;x<N*4;x++) st.frente[y][x]=0; desenhaMarcas(); agendaSilhueta(); salvar(); };
@@ -495,7 +570,7 @@ function marca(fx,fy,apagar){
   desenhaMarcas();
 }
 let movP=false, escP=null, base=null, apagandoTraco=false, cliqueSimples=null;
-let remIni=null, remOrigemIni=null, remUltimo=null;
+let remIni=null, remOrigemIni=null, remUltimo=null, remLaco=null, remRet=null;
 // Copia um círculo do mapa de um lugar para o outro. A origem acompanha o
 // movimento do pincel (como um carimbo de clonagem), então a textura sai
 // contínua em vez de repetir o mesmo pedaço.
@@ -507,7 +582,7 @@ function remenda(fx,fy){
   const ox = remOrigemIni[0] + (fx-remIni[0]);
   const oy = remOrigemIni[1] + (fy-remIni[1]);
   if(ox-rTile<0||oy-rTile<0||ox+rTile>N||oy+rTile>N){ msg('origem saiu do mapa'); return; }
-  st.remendos.push({ x:fx/N, y:fy/N, ox:ox/N, oy:oy/N, r:rTile/N });
+  st.remendos.push({ x:fx/N, y:fy/N, ox:ox/N, oy:oy/N, r:rTile/N, f:st.remForma });
   desenhaMapaBase(); desenhaMarcas(fx,fy);
 }
 stage.addEventListener('mousedown',e=>{
@@ -538,8 +613,13 @@ stage.addEventListener('mousedown',e=>{
       return;
     }
     if(!st.remOrigem){ msg('clique em "pegar origem" e escolha de onde copiar'); return; }
+    snap();
     remIni=[fx,fy]; remOrigemIni=st.remOrigem.slice(); remUltimo=null;
-    pintando=true; remenda(fx,fy); return;
+    remLaco = (st.remForma==='livre') ? [[fx,fy]] : null;
+    remRet  = (st.remForma==='retangulo') ? [fx,fy,fx,fy] : null;
+    pintando=true;
+    if(!remLaco && !remRet) remenda(fx,fy);
+    return;
   }
   if(st.modo==='pecas' && recortando){
     recA=[fx,fy]; recB=[fx,fy]; pintando=true; return;
@@ -597,7 +677,16 @@ window.addEventListener('mousemove',e=>{
       Math.abs(recB[0]-recA[0])*TP, Math.abs(recB[1]-recA[1])*TP);
     gK.setLineDash([]); return; }
   if(pintando&&st.modo==='gerar'){ selB=[fx,fy]; desenhaSel(); return; }
-  if(st.modo==='remendo'){ if(pintando) remenda(fx,fy); else desenhaMarcas(fx,fy); return; }
+  if(st.modo==='remendo'){
+    if(pintando && remRet){ remRet[2]=fx; remRet[3]=fy; desenhaMarcas(fx,fy); return; }
+    if(pintando && remLaco){
+      const u=remLaco[remLaco.length-1];
+      if(Math.hypot(fx-u[0], fy-u[1])>0.08){ remLaco.push([fx,fy]); desenhaMarcas(fx,fy); }
+      return;
+    }
+    if(pintando) remenda(fx,fy); else desenhaMarcas(fx,fy);
+    return;
+  }
   if(pintando&&fx>=0&&fy>=0&&fx<N&&fy<N){
     if(cliqueSimples){
       const dist=Math.hypot(fx-cliqueSimples.fx, fy-cliqueSimples.fy);
@@ -616,9 +705,32 @@ window.addEventListener('mouseup',()=>{
   if(pintando&&st.modo==='gerar') atualizaCrop();
   if(pintando||movP||escP) salvar();
   pintando=false;arrastando=false;movP=false;escP=null;base=null;
-  remIni=null; remOrigemIni=null; remUltimo=null;
+  if(remRet && remOrigemIni && remIni){
+    const [ax,ay,bx,by]=remRet;
+    const x0=Math.min(ax,bx), x1=Math.max(ax,bx), y0=Math.min(ay,by), y1=Math.max(ay,by);
+    if(x1-x0>0.1 && y1-y0>0.1){
+      st.remendos.push({
+        pts: [[x0/N,y0/N],[x1/N,y0/N],[x1/N,y1/N],[x0/N,y1/N]],
+        dx: (remOrigemIni[0]-remIni[0])/N, dy: (remOrigemIni[1]-remIni[1])/N,
+        f: 'livre'
+      });
+      desenhaMapaBase(); desenhaMarcas(); agendaSilhueta(); salvar();
+      msg('retângulo de '+(x1-x0).toFixed(1)+'x'+(y1-y0).toFixed(1)+' tiles remendado');
+    }
+  }
+  if(remLaco && remLaco.length>2 && remOrigemIni && remIni){
+    st.remendos.push({
+      pts: remLaco.map(([x,y])=>[x/N, y/N]),
+      dx: (remOrigemIni[0]-remIni[0])/N, dy: (remOrigemIni[1]-remIni[1])/N,
+      f: 'livre'
+    });
+    desenhaMapaBase(); desenhaMarcas(); agendaSilhueta(); salvar();
+    msg('área livre remendada');
+  }
+  remIni=null; remOrigemIni=null; remUltimo=null; remLaco=null; remRet=null;
 });
 window.addEventListener('keydown',e=>{
+  if((e.ctrlKey||e.metaKey) && e.key.toLowerCase()==='z'){ e.preventDefault(); desfazer(); return; }
   if((e.ctrlKey||e.metaKey) && st.modo==='pecas'){
     const k=e.key.toLowerCase();
     if(k==='c'){ e.preventDefault(); copiarPeca(); return; }
@@ -827,7 +939,21 @@ function paleta(){
     const d=document.createElement('div');
     d.style.cssText='aspect-ratio:1;border:2px solid '+(st.tile===f?'var(--ok)':'transparent')+
       ';border-radius:8px;overflow:hidden;cursor:pointer;background:#0a0f1c;padding:2px';
-    d.innerHTML='<img src="'+(UP[f]||('/map-kit/'+f))+'" style="width:100%;height:100%;object-fit:contain">';
+    d.style.backgroundImage='linear-gradient(45deg,#141c30 25%,transparent 25%),linear-gradient(-45deg,#141c30 25%,transparent 25%),linear-gradient(45deg,transparent 75%,#141c30 75%),linear-gradient(-45deg,transparent 75%,#141c30 75%)';
+    d.style.backgroundSize='10px 10px';
+    d.style.backgroundPosition='0 0,0 5px,5px -5px,-5px 0';
+    const mini=img(f);
+    const cx=document.createElement('canvas'); cx.width=cx.height=64;
+    cx.style.cssText='width:100%;height:100%;object-fit:contain';
+    const pintaMini=()=>{
+      const im=IMGS[f]; if(!im||!im.complete||!im.naturalWidth) return setTimeout(pintaMini,180);
+      const g2=cx.getContext('2d'); g2.clearRect(0,0,64,64);
+      const e=Math.min(64/im.naturalWidth, 64/im.naturalHeight);
+      const w2=im.naturalWidth*e, h2=im.naturalHeight*e;
+      g2.drawImage(im,(64-w2)/2,(64-h2)/2,w2,h2);
+    };
+    pintaMini();
+    d.appendChild(cx);
     d.onclick=()=>{ st.tile = st.tile===f ? null : f; paleta();
       msg(st.tile?'clique no mapa para colocar':'nenhum tile escolhido'); };
     p.appendChild(d);
