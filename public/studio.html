@@ -71,30 +71,55 @@
 <div class="sub">Imagem limpa → modelo 3D → sprites prontos pro jogo. <a href="/design">← voltar pro database</a></div>
 
 <div class="trilha" id="trilha">
-  <div class="passo" data-p="1"><b>1</b><span>Limpar a imagem</span><i>aqui</i></div>
+  <div class="passo fora" data-p="1"><b>1</b><span>Gerar a imagem</span><i>no GPT ↗</i></div>
   <div class="seta">→</div>
-  <div class="passo fora" data-p="2"><b>2</b><span>Virar 3D</span><i>fora daqui ↗</i></div>
+  <div class="passo" data-p="2"><b>2</b><span>Limpar o fundo</span><i>aqui</i></div>
   <div class="seta">→</div>
-  <div class="passo" data-p="3"><b>3</b><span>Trazer o .glb</span><i>aqui</i></div>
+  <div class="passo fora" data-p="3"><b>3</b><span>Virar 3D</span><i>fora daqui ↗</i></div>
   <div class="seta">→</div>
-  <div class="passo" data-p="4"><b>4</b><span>Sprites do jogo</span><i>aqui</i></div>
+  <div class="passo" data-p="4"><b>4</b><span>Trazer o .glb</span><i>aqui</i></div>
+  <div class="seta">→</div>
+  <div class="passo" data-p="5"><b>5</b><span>Sprites do jogo</span><i>aqui</i></div>
 </div>
 <div class="hint" style="margin:-6px 0 16px">
-  O passo <b>2</b> é o único que não acontece nesta página: nenhum navegador transforma
-  imagem em 3D sozinho. Você sai, gera o <code>.glb</code> num serviço com cota grátis, e volta.
+  Os passos <b>1</b> e <b>3</b> acontecem fora daqui: o estúdio te dá o prompt pronto e depois
+  recebe o resultado. Nenhum navegador transforma imagem em 3D sozinho.
 </div>
 
 <div class="abas" id="abas">
-  <button data-t="img" class="on">1 · Imagem</button>
-  <button data-t="glb">2 e 3 · Modelo 3D</button>
-  <button data-t="vis">4 · Vistas do jogo</button>
+  <button data-t="img" class="on">1 e 2 · Imagem</button>
+  <button data-t="glb">3 e 4 · Modelo 3D</button>
+  <button data-t="vis">5 · Vistas do jogo</button>
   <button data-t="bib">Biblioteca</button>
 </div>
 
 <!-- ══ 1 · IMAGEM ══ -->
 <div id="t-img">
   <div class="card">
-    <h2>Limpar o fundo</h2>
+    <h2>PASSO 1 — o prompt para gerar no GPT</h2>
+    <div class="hint" style="margin-bottom:10px">
+      Escolha o que você quer criar, copie, cole no GPT e complete a última linha com a
+      descrição. O prompt já vem com as regras que fazem a imagem virar um 3D decente.
+    </div>
+    <div class="linha">
+      <select id="tipoPrompt">
+        <optgroup label="Para virar 3D">
+          <option value="char3d">🧍 Personagem — 1 vista (serviço de imagem única)</option>
+          <option value="char3dmv">🧍 Personagem — 4 vistas (serviço multi-vista) ⭐</option>
+          <option value="fofo">🐣 Cria fofa (chibi) — a que sai melhor em 3D</option>
+        </optgroup>
+        <optgroup label="Para usar direto no jogo">
+          <option value="personagem">Personagem — spritesheet 4×3 (12 poses)</option>
+          <option value="monstro">Cria / monstro — arte de batalha</option>
+          <option value="peca">Peça do mapa</option>
+        </optgroup>
+      </select>
+      <button class="g" id="bCopiaPrompt">📋 copiar prompt</button>
+    </div>
+    <div id="txtPrompt" class="hint" style="margin-top:10px;white-space:pre-wrap;background:#050a12;padding:10px;border-radius:8px;border:1px solid var(--line)"></div>
+  </div>
+  <div class="card">
+    <h2>PASSO 2 — limpar o fundo</h2>
     <div class="hint" style="margin-bottom:10px">
       Tira o fundo chroma da imagem e devolve PNG transparente. Funciona offline, sem conta
       em lugar nenhum — é a mesma limpeza que o jogo usa nos sprites.
@@ -172,25 +197,12 @@
     </div>
   </div>
 
-  <div class="card">
-    <h2>Prompt para gerar a imagem</h2>
-    <div class="linha">
-      <select id="tipoPrompt">
-        <option value="fofo">Cria FOFA (chibi) — o que sai melhor em 3D</option>
-        <option value="monstro">Cria / monstro</option>
-        <option value="personagem">Personagem (spritesheet)</option>
-        <option value="peca">Peça do mapa</option>
-      </select>
-      <button class="g" id="bCopiaPrompt">📋 copiar prompt</button>
-    </div>
-    <div id="txtPrompt" class="hint" style="margin-top:10px;white-space:pre-wrap;background:#050a12;padding:10px;border-radius:8px;border:1px solid var(--line)"></div>
-  </div>
 </div>
 
 <!-- ══ 2 · MODELO 3D ══ -->
 <div id="t-glb" class="oculto">
   <div class="card" style="border-color:var(--gold)">
-    <h2 style="color:var(--gold)">PASSO 2 — virar 3D (isto acontece fora daqui)</h2>
+    <h2 style="color:var(--gold)">PASSO 3 — virar 3D (isto acontece fora daqui)</h2>
     <div class="hint" style="margin-bottom:10px">
       Nenhum navegador transforma imagem em 3D sozinho — precisa de um serviço com GPU.
       Todos abaixo têm cota grátis, mas pedem conta. Faça uma vez, use sempre.
@@ -200,7 +212,7 @@
       <b style="color:#e8f1ff">b.</b> Sobe <b>UM</b> PNG limpo — se você recortou uma folha,
       é o <code>-frente.png</code>. Nunca a folha inteira: ele modelaria os 12 bonecos juntos<br>
       <b style="color:#e8f1ff">c.</b> Espera gerar e <b>baixa em formato GLB</b> (não OBJ, não FBX)<br>
-      <b style="color:#e8f1ff">d.</b> Volta aqui e solta o arquivo no passo 3, logo abaixo
+      <b style="color:#e8f1ff">d.</b> Volta aqui e solta o arquivo no passo 4, logo abaixo
     </div>
     <table>
       <tr><th>Serviço</th><th>Cota grátis</th><th>Observação</th></tr>
@@ -218,7 +230,7 @@
   </div>
 
   <div class="card">
-    <h2>PASSO 3 — trouxe o .glb? solta aqui</h2>
+    <h2>PASSO 4 — trouxe o .glb? solta aqui</h2>
     <div class="hint" style="margin-bottom:10px">
       Este é o caminho que funciona sempre. Gere o modelo onde quiser e solte o arquivo aqui.
     </div>
@@ -236,7 +248,7 @@
 <!-- ══ 3 · VISTAS ══ -->
 <div id="t-vis" class="oculto">
   <div class="card">
-    <h2>PASSO 4 — do modelo 3D para os sprites do jogo</h2>
+    <h2>PASSO 5 — do modelo 3D para os sprites do jogo</h2>
     <div class="hint" style="margin-bottom:10px">
       Gira o modelo, fotografa nos ângulos que o jogo usa, recorta o fundo, alinha todo mundo
       pelos pés e entrega os PNGs com o nome certo. É o passo que transforma um .glb qualquer
@@ -313,11 +325,11 @@ document.querySelectorAll('#abas button').forEach(b => b.onclick = () => {
 $('slotMv2').appendChild($('mv'));
 function abrirAba(t){ document.querySelector('#abas button[data-t="'+t+'"]').click(); }
 // a trilha acende no passo em que você está, para não se perder no meio
-const PASSO_DA_ABA = { img:'1', glb:'3', vis:'4', bib:null };
+const PASSO_DA_ABA = { img:['1','2'], glb:['3','4'], vis:['5'], bib:[] };
 function acendeTrilha(t){
-  const p = PASSO_DA_ABA[t];
+  const p = PASSO_DA_ABA[t] || [];
   document.querySelectorAll('#trilha .passo').forEach(e =>
-    e.classList.toggle('aqui', !!p && e.dataset.p === p));
+    e.classList.toggle('aqui', p.indexOf(e.dataset.p) >= 0));
 }
 acendeTrilha('img');
 
@@ -383,6 +395,59 @@ $('bBaixaImg').onclick = () => baixar(CANVAS_IMG, 'limpo.png');
 $('bIrGlb').onclick = () => abrirAba('glb');
 
 const PROMPTS = {
+  char3d: `Personagem original de jogo RPG, render 3D estilizado, alta qualidade.
+VISTA: de FRENTE, de pé, encarando o observador, totalmente simétrico, olhando reto para a câmera.
+
+REGRAS QUE FAZEM A IMAGEM VIRAR UM 3D DECENTE (não quebre nenhuma):
+• UM personagem só na imagem. Nada de segunda pose, grade, sombra de outro boneco.
+• Corpo INTEIRO, centralizado, nada cortado — nem ponta de bota, nem cabelo, nem capa.
+• Braços AFASTADOS do corpo (pose de A, ~30° abertos). Braço colado no tronco funde e vira
+  um bloco só na reconstrução.
+• Luz NEUTRA e uniforme, vinda de frente. Sem sombra dura, sem contraluz, sem brilho
+  especular forte, sem sombra caindo no chão. Sombra pintada fica gravada na textura do 3D
+  e briga com a luz do jogo.
+• SILHUETA CHEIA E LEGÍVEL: formas sólidas e grossas. NADA esvoaçante — capa ao vento,
+  cabelo solto, fumaça, chama solta, corrente fina, lâmina fina. Detalhe fino vira borrão.
+  Capa, se tiver, cai colada no corpo.
+• Materiais foscos. Nada de vidro, cristal transparente, água, nada translúcido.
+• Sem desfoque de movimento, sem profundidade de campo, sem grão, sem efeito de câmera.
+• Fundo VERDE CHROMA #00FF00 sólido e chapado. Sem chão, sem cenário, sem texto, sem moldura.
+• Resolução alta, personagem ocupando ~85% da altura.
+
+Personagem: `,
+
+  char3dmv: `Uma única imagem com QUATRO vistas do MESMO personagem original de jogo RPG,
+render 3D estilizado, alta qualidade.
+
+GRADE: 4 células iguais lado a lado, em UMA linha. Da esquerda para a direita:
+  1) FRENTE (encarando a câmera)   2) COSTAS   3) PERFIL ESQUERDO   4) PERFIL DIREITO
+
+CONSISTÊNCIA (o mais importante — é o que faz o 3D fechar):
+• É o MESMO personagem nas quatro, com as MESMAS roupas, cores, acessórios e detalhes.
+• MESMA altura e MESMA proporção nas quatro células. A cabeça, os ombros, a cintura e os pés
+  ficam na MESMA linha horizontal em todas.
+• MESMA pose nas quatro (de pé, parado, braços afastados ~30°), só a câmera gira em volta.
+• MESMA iluminação nas quatro. A luz não acompanha a rotação.
+• Vista reta, sem perspectiva forte, como se a câmera estivesse longe (quase ortográfica).
+
+REGRAS QUE FAZEM A IMAGEM VIRAR UM 3D DECENTE (não quebre nenhuma):
+• UM personagem só na imagem. Nada de segunda pose, grade, sombra de outro boneco.
+• Corpo INTEIRO, centralizado, nada cortado — nem ponta de bota, nem cabelo, nem capa.
+• Braços AFASTADOS do corpo (pose de A, ~30° abertos). Braço colado no tronco funde e vira
+  um bloco só na reconstrução.
+• Luz NEUTRA e uniforme, vinda de frente. Sem sombra dura, sem contraluz, sem brilho
+  especular forte, sem sombra caindo no chão. Sombra pintada fica gravada na textura do 3D
+  e briga com a luz do jogo.
+• SILHUETA CHEIA E LEGÍVEL: formas sólidas e grossas. NADA esvoaçante — capa ao vento,
+  cabelo solto, fumaça, chama solta, corrente fina, lâmina fina. Detalhe fino vira borrão.
+  Capa, se tiver, cai colada no corpo.
+• Materiais foscos. Nada de vidro, cristal transparente, água, nada translúcido.
+• Sem desfoque de movimento, sem profundidade de campo, sem grão, sem efeito de câmera.
+• Fundo VERDE CHROMA #00FF00 sólido e chapado. Sem chão, sem cenário, sem texto, sem moldura.
+• Resolução alta, personagem ocupando ~85% da altura.
+
+Personagem: `,
+
   fofo: `Criatura fofa original para jogo de colecionar monstros, estilo chibi.
 PROPORÇÃO (o que faz ficar fofo): cabeça GRANDE, ~1/3 da altura total. Corpo pequeno e
 redondo, patas curtas e grossas, olhos grandes e brilhantes bem separados.
