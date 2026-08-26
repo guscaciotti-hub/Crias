@@ -15,6 +15,19 @@
   h2{ font-size:15px; font-weight:800; margin:0 0 10px; color:var(--acc); }
   .sub{ color:var(--dim); font-size:13px; margin:4px 0 18px; }
   .abas{ display:flex; gap:8px; flex-wrap:wrap; margin-bottom:18px; }
+  .trilha{ display:flex; align-items:stretch; gap:6px; flex-wrap:wrap; margin:0 0 12px; }
+  .passo{ flex:1; min-width:150px; background:var(--card); border:1px solid var(--line);
+    border-radius:10px; padding:9px 12px; display:flex; flex-direction:column; }
+  .passo b{ font-size:11px; color:var(--acc); font-weight:900; }
+  .passo span{ font-size:13px; font-weight:800; color:#e8f1ff; line-height:1.3; }
+  .passo i{ font-size:11px; color:var(--dim); font-style:normal; }
+  .passo.fora{ border-color:var(--gold); border-style:dashed; }
+  .passo.fora b, .passo.fora i{ color:var(--gold); }
+  .passo.aqui{ border-color:var(--acc); background:#122238; }
+  .seta{ align-self:center; color:var(--dim); font-size:16px; }
+  .proximo{ background:rgba(57,224,138,.08); border:1px solid rgba(57,224,138,.3);
+    border-radius:10px; padding:12px; margin-top:12px; }
+  .proximo h3{ font-size:13px; color:var(--ok); margin-bottom:6px; }
   .abas button{ background:var(--card); border:1px solid var(--line); color:var(--dim);
     border-radius:10px; padding:9px 15px; font-size:13px; font-weight:700; cursor:pointer; }
   .abas button.on{ border-color:var(--acc); color:#fff; background:#122238; }
@@ -57,11 +70,25 @@
 <h1>CRIAS — <span>Estúdio de Assets</span></h1>
 <div class="sub">Imagem limpa → modelo 3D → sprites prontos pro jogo. <a href="/design">← voltar pro database</a></div>
 
+<div class="trilha" id="trilha">
+  <div class="passo" data-p="1"><b>1</b><span>Limpar a imagem</span><i>aqui</i></div>
+  <div class="seta">→</div>
+  <div class="passo fora" data-p="2"><b>2</b><span>Virar 3D</span><i>fora daqui ↗</i></div>
+  <div class="seta">→</div>
+  <div class="passo" data-p="3"><b>3</b><span>Trazer o .glb</span><i>aqui</i></div>
+  <div class="seta">→</div>
+  <div class="passo" data-p="4"><b>4</b><span>Sprites do jogo</span><i>aqui</i></div>
+</div>
+<div class="hint" style="margin:-6px 0 16px">
+  O passo <b>2</b> é o único que não acontece nesta página: nenhum navegador transforma
+  imagem em 3D sozinho. Você sai, gera o <code>.glb</code> num serviço com cota grátis, e volta.
+</div>
+
 <div class="abas" id="abas">
   <button data-t="img" class="on">1 · Imagem</button>
-  <button data-t="glb">2 · Modelo 3D</button>
-  <button data-t="vis">3 · Vistas do jogo</button>
-  <button data-t="bib">4 · Biblioteca</button>
+  <button data-t="glb">2 e 3 · Modelo 3D</button>
+  <button data-t="vis">4 · Vistas do jogo</button>
+  <button data-t="bib">Biblioteca</button>
 </div>
 
 <!-- ══ 1 · IMAGEM ══ -->
@@ -89,6 +116,55 @@
       <button class="b" id="bBaixaImg" disabled>⬇ baixar PNG limpo</button>
       <button class="g" id="bRefaz" disabled>↻ aplicar de novo</button>
     </div>
+    <div class="proximo" id="proximo1" style="display:none">
+      <h3>✅ PNG limpo pronto — e agora?</h3>
+      <div class="hint">
+        Este PNG é o que você leva para o <b>passo 2</b>, que acontece fora daqui: um serviço
+        de <b>Image to 3D</b> transforma ele num arquivo <code>.glb</code>. Depois você volta
+        com esse arquivo e o estúdio faz o resto.
+      </div>
+      <div class="linha" style="margin-top:10px">
+        <button class="b" id="bIrGlb">➡ ver onde gerar o 3D</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="card" style="border-color:var(--acc)">
+    <h2>Spritesheet → quadros separados</h2>
+    <div class="hint" style="margin-bottom:10px">
+      Se o GPT te devolveu uma <b>folha com várias poses</b> (grade de células), solte aqui.
+      Isto corta a grade, tira o fundo verde, usa a <b>mesma escala</b> em todos os quadros da
+      mesma direção e alinha todo mundo pelos <b>pés</b> — senão o boneco muda de tamanho e
+      pula de lado ao andar. Sai com o nome que o jogo espera.
+    </div>
+    <div class="linha">
+      <input type="file" id="fSheet" accept="image/*">
+      <label style="margin:0">colunas <input type="number" id="cols" value="4" min="1" max="8" style="width:60px"></label>
+      <label style="margin:0">linhas <input type="number" id="rows" value="3" min="1" max="8" style="width:60px"></label>
+      <label style="margin:0">nome <input type="text" id="pfx" value="char1" style="width:90px"></label>
+    </div>
+    <div class="hint" style="margin-top:8px">
+      Grade padrão 4×3: linha 1 = frente (parado, passo, passo) · linha 2 = costas (idem) ·
+      linha 3 = perfil esquerdo parado, perfil esquerdo andando, sentado, perfil direito.
+    </div>
+    <div class="vistas" id="gSheet"></div>
+    <div class="linha" style="margin-top:12px">
+      <button class="b" id="bBaixaSheet" disabled>⬇ baixar quadros do jogo</button>
+      <button class="b" id="bBaixa3D" disabled>⬇ baixar as 4 vistas para 3D</button>
+    </div>
+    <div class="proximo" id="proximoSheet" style="display:none">
+      <h3>🎯 as 4 vistas são o melhor caminho para o 3D</h3>
+      <div class="hint">
+        Serviço de <b>imagem única</b> → 3D precisa <i>adivinhar</i> as costas, e é por isso que
+        o modelo sai derretido. Com frente, costas e os dois perfis do mesmo personagem, um
+        serviço <b>multi-vista</b> não adivinha nada — a geometria sai muito melhor.
+        No Meshy procure <b>Multi-Image to 3D</b>; no Tripo, <b>Multiview</b>.
+        <br><br>
+        E olha: para o boneco andando no mapa, esta folha <b>já é tudo</b> — o jogo desenha
+        48×60 pixels, não precisa de 3D nenhum. O 3D compensa na tela de batalha, onde ele
+        aparece grande.
+      </div>
+    </div>
   </div>
 
   <div class="card">
@@ -108,8 +184,35 @@
 
 <!-- ══ 2 · MODELO 3D ══ -->
 <div id="t-glb" class="oculto">
+  <div class="card" style="border-color:var(--gold)">
+    <h2 style="color:var(--gold)">PASSO 2 — virar 3D (isto acontece fora daqui)</h2>
+    <div class="hint" style="margin-bottom:10px">
+      Nenhum navegador transforma imagem em 3D sozinho — precisa de um serviço com GPU.
+      Todos abaixo têm cota grátis, mas pedem conta. Faça uma vez, use sempre.
+    </div>
+    <div class="hint" style="margin-bottom:12px;line-height:2">
+      <b style="color:#e8f1ff">a.</b> Abre um dos sites abaixo e entra em <b>Image to 3D</b><br>
+      <b style="color:#e8f1ff">b.</b> Sobe o <b>PNG limpo</b> que você baixou no passo 1<br>
+      <b style="color:#e8f1ff">c.</b> Espera gerar e <b>baixa em formato GLB</b> (não OBJ, não FBX)<br>
+      <b style="color:#e8f1ff">d.</b> Volta aqui e solta o arquivo no passo 3, logo abaixo
+    </div>
+    <table>
+      <tr><th>Serviço</th><th>Cota grátis</th><th>Observação</th></tr>
+      <tr><td><b><a href="https://www.meshy.ai/" target="_blank" rel="noopener">Meshy ↗</a></b></td>
+          <td>créditos mensais</td><td class="hint">o mais fácil de usar</td></tr>
+      <tr><td><b><a href="https://www.tripo3d.ai/" target="_blank" rel="noopener">Tripo3D ↗</a></b></td>
+          <td>créditos ao criar conta</td><td class="hint">costuma sair mais limpo</td></tr>
+      <tr><td><b><a href="https://huggingface.co/spaces/tencent/Hunyuan3D-2" target="_blank" rel="noopener">Hugging Face ↗</a></b></td>
+          <td>fila pública</td><td class="hint">grátis de verdade, mas cai bastante</td></tr>
+    </table>
+    <div class="hint" style="margin-top:12px">
+      O que mais muda o resultado: mandar a imagem <b>já limpa</b>, com o bicho de frente,
+      inteiro, sem cortar pata nem chifre. Fundo transparente ajuda o serviço a entender o contorno.
+    </div>
+  </div>
+
   <div class="card">
-    <h2>Já tenho o .glb — só quero ver e usar</h2>
+    <h2>PASSO 3 — trouxe o .glb? solta aqui</h2>
     <div class="hint" style="margin-bottom:10px">
       Este é o caminho que funciona sempre. Gere o modelo onde quiser e solte o arquivo aqui.
     </div>
@@ -124,42 +227,10 @@
     </div>
   </div>
 
-  <div class="card">
-    <h2>Gerar o 3D a partir de uma imagem</h2>
-    <div class="aviso" style="margin-bottom:12px">
-      Transformar imagem em 3D depende de um serviço de fora — não existe nada bom rodando
-      dentro do navegador. Todos abaixo têm cota grátis, mas <b>pedem conta</b>. O caminho
-      recomendado é gerar lá, baixar o .glb e soltar aqui em cima.
-    </div>
-    <table>
-      <tr><th>Serviço</th><th>Cota grátis</th><th>Como usar</th></tr>
-      <tr>
-        <td><b><a href="https://www.meshy.ai/" target="_blank" rel="noopener">Meshy</a></b></td>
-        <td>créditos mensais</td>
-        <td class="hint">Image to 3D → sobe o PNG limpo da aba 1 → baixa em <b>GLB</b></td>
-      </tr>
-      <tr>
-        <td><b><a href="https://www.tripo3d.ai/" target="_blank" rel="noopener">Tripo3D</a></b></td>
-        <td>créditos ao criar conta</td>
-        <td class="hint">Image to 3D → mesma coisa, exporta <b>GLB</b></td>
-      </tr>
-      <tr>
-        <td><b><a href="https://huggingface.co/spaces/tencent/Hunyuan3D-2" target="_blank" rel="noopener">Hugging Face</a></b></td>
-        <td>fila pública, instável</td>
-        <td class="hint">Grátis de verdade, mas cai bastante. Tem um painel dedicado em <a href="/forge">/forge</a></td>
-      </tr>
-    </table>
-    <div class="hint" style="margin-top:12px">
-      Dica que muda o resultado: mande a imagem <b>já limpa</b> (aba 1), com o bicho de frente,
-      inteiro, sem cortar pé nem chifre. Fundo transparente ajuda o modelo a entender o contorno.
-    </div>
-  </div>
-</div>
-
 <!-- ══ 3 · VISTAS ══ -->
 <div id="t-vis" class="oculto">
   <div class="card">
-    <h2>Do modelo 3D para os sprites do jogo</h2>
+    <h2>PASSO 4 — do modelo 3D para os sprites do jogo</h2>
     <div class="hint" style="margin-bottom:10px">
       Gira o modelo, fotografa nos ângulos que o jogo usa, recorta o fundo, alinha todo mundo
       pelos pés e entrega os PNGs com o nome certo. É o passo que transforma um .glb qualquer
@@ -227,6 +298,7 @@ document.querySelectorAll('#abas button').forEach(b => b.onclick = () => {
   // O visualizador é UM só e vai junto para a aba ativa. Se ele ficar dentro de
   // uma aba escondida, o WebGL para de desenhar e toda captura devolve o mesmo
   // frame — foi assim que as 4 direções saíram idênticas.
+  acendeTrilha(t0);
   const destino = t0 === 'glb' ? $('slotMv2') : (t0 === 'vis' ? $('slotMv3') : null);
   const mv = $('mv');
   if (destino) { destino.appendChild(mv); mv.style.display = ''; }
@@ -234,6 +306,14 @@ document.querySelectorAll('#abas button').forEach(b => b.onclick = () => {
 });
 $('slotMv2').appendChild($('mv'));
 function abrirAba(t){ document.querySelector('#abas button[data-t="'+t+'"]').click(); }
+// a trilha acende no passo em que você está, para não se perder no meio
+const PASSO_DA_ABA = { img:'1', glb:'3', vis:'4', bib:null };
+function acendeTrilha(t){
+  const p = PASSO_DA_ABA[t];
+  document.querySelectorAll('#trilha .passo').forEach(e =>
+    e.classList.toggle('aqui', !!p && e.dataset.p === p));
+}
+acendeTrilha('img');
 
 function baixar(blobOuCanvas, nome) {
   const fim = b => { const a=document.createElement('a'); a.href=URL.createObjectURL(b); a.download=nome; a.click();
@@ -283,6 +363,7 @@ function limpaFundo() {
   g.putImageData(d, 0, 0);
   $('infoImg').textContent = w + '×' + h + ' · ' + Math.round(fora*100/(w*h)) + '% virou transparência';
   $('bBaixaImg').disabled = $('bRefaz').disabled = false;
+  $('proximo1').style.display = '';
 }
 
 $('fImg').onchange = e => {
@@ -293,6 +374,7 @@ $('fImg').onchange = e => {
 };
 $('modo').onchange = $('tol').oninput = $('bRefaz').onclick = limpaFundo;
 $('bBaixaImg').onclick = () => baixar(CANVAS_IMG, 'limpo.png');
+$('bIrGlb').onclick = () => abrirAba('glb');
 
 const PROMPTS = {
   fofo: `Criatura fofa original para jogo de colecionar monstros, estilo chibi.
@@ -333,6 +415,126 @@ function pintaPrompt(){ $('txtPrompt').textContent = PROMPTS[$('tipoPrompt').val
 $('tipoPrompt').onchange = pintaPrompt; pintaPrompt();
 $('bCopiaPrompt').onclick = e => { navigator.clipboard.writeText($('txtPrompt').textContent);
   e.target.textContent = '✅ copiado!'; setTimeout(()=>e.target.textContent='📋 copiar prompt', 1600); };
+
+
+// ══════════ SPRITESHEET → QUADROS ══════════
+// Mesma receita do pipeline que já roda no projeto: corte por grade, chroma,
+// caixa robusta a pixels soltos, escala única por direção e âncora nos pés.
+const GRADE = {                       // [linha, coluna] -> sufixo
+  '1,1':'down-0','1,2':'down-1','1,3':'down-2',
+  '2,1':'up-0','2,2':'up-1','2,3':'up-2',
+  '3,1':'left-0','3,2':'left-1','3,3':'sit-0','3,4':'right-0',
+};
+const DIRECOES = { down:['down-0','down-1','down-2'], up:['up-0','up-1','up-2'],
+                   left:['left-0','left-1'], right:['right-0'], sit:['sit-0'] };
+let quadros = {}, vistas3D = {};
+
+function tiraVerde(cv) {
+  const g = cv.getContext('2d', { willReadFrequently: true });
+  const d = g.getImageData(0, 0, cv.width, cv.height), px = d.data;
+  for (let i = 0; i < px.length; i += 4) {
+    const r = px[i], gg = px[i+1], b = px[i+2];
+    if (gg > 90 && gg > r*1.35 && gg > b*1.35) px[i+3] = 0;
+    else if (gg > Math.max(r,b)) px[i+1] = Math.max(r,b);   // tira o verde da franja
+  }
+  g.putImageData(d, 0, 0);
+  return cv;
+}
+
+// ignora linha/coluna com menos de `min` pixels opacos: pixel solto do chroma
+// esticava a caixa e bagunçava o alinhamento
+function caixaFirme(cv, min = 6, lim = 40) {
+  const w = cv.width, h = cv.height;
+  const d = cv.getContext('2d').getImageData(0,0,w,h).data;
+  const linhas = [], cols = [];
+  for (let y = 0; y < h; y++) { let n = 0;
+    for (let x = 0; x < w; x++) if (d[(y*w+x)*4+3] > lim) n++;
+    if (n >= min) linhas.push(y); }
+  for (let x = 0; x < w; x++) { let n = 0;
+    for (let y = 0; y < h; y++) if (d[(y*w+x)*4+3] > lim) n++;
+    if (n >= min) cols.push(x); }
+  if (!linhas.length || !cols.length) return null;
+  return { x0: cols[0], y0: linhas[0], x1: cols[cols.length-1]+1, y1: linhas[linhas.length-1]+1 };
+}
+
+$('fSheet').onchange = e => {
+  const f = e.target.files[0]; if (!f) return;
+  const im = new Image();
+  im.onload = () => cortaSheet(im);
+  im.src = URL.createObjectURL(f);
+};
+
+function cortaSheet(im) {
+  const C = +$('cols').value, R = +$('rows').value;
+  const cw = Math.floor(im.naturalWidth / C), ch = Math.floor(im.naturalHeight / R);
+  const celulas = {};
+  for (const [k, sufixo] of Object.entries(GRADE)) {
+    const [lin, col] = k.split(',').map(Number);
+    if (lin > R || col > C) continue;
+    const cv = document.createElement('canvas'); cv.width = cw; cv.height = ch;
+    cv.getContext('2d').drawImage(im, (col-1)*cw, (lin-1)*ch, cw, ch, 0, 0, cw, ch);
+    celulas[sufixo] = tiraVerde(cv);
+  }
+  // as 4 vistas para 3D saem inteiras, sem reescalar: é o que o serviço quer
+  vistas3D = {};
+  for (const s of ['down-0','up-0','left-0','right-0']) if (celulas[s]) vistas3D[s] = celulas[s];
+
+  const ALVO = 760, FOLGA = 6, L = 800, A = 800;
+  quadros = {};
+  for (const [dir, lista] of Object.entries(DIRECOES)) {
+    const presentes = lista.filter(s => celulas[s]);
+    if (!presentes.length) continue;
+    const caixas = {}; for (const s of presentes) caixas[s] = caixaFirme(celulas[s]);
+    const base = caixas[presentes[0]]; if (!base) continue;
+    const h0 = base.y1 - base.y0;
+    // 'sit' usa a escala de quem está EM PÉ: a pose sentada é naturalmente mais
+    // baixa e, se ditasse a própria escala, o boneco sentado sairia gigante
+    const escDir = dir === 'sit' ? (quadros['down-0'] ? quadros['down-0']._esc : ALVO/h0) : ALVO/h0;
+    for (const s of presentes) {
+      const cx = caixas[s]; if (!cx) continue;
+      const h = cx.y1 - cx.y0, w = cx.x1 - cx.x0;
+      // um quadro fora de escala (acontece em folha gerada por IA) se ajusta sozinho
+      const esc = (dir === 'sit' || Math.abs(h - h0)/h0 <= 0.08) ? escDir : ALVO/h;
+      const nw = Math.round(w*esc), nh = Math.round(h*esc);
+      const rec = document.createElement('canvas'); rec.width = nw; rec.height = nh;
+      rec.getContext('2d').drawImage(celulas[s], cx.x0, cx.y0, w, h, 0, 0, nw, nh);
+      // âncora no centro dos PÉS, não da caixa: capa e braço esticado deslocam o
+      // centro e fazem o corpo pular de lado ao alternar frames
+      const dd = rec.getContext('2d').getImageData(0,0,nw,nh).data;
+      const yIni = Math.max(0, nh - Math.max(4, Math.round(nh*0.12)));
+      let soma = 0, n = 0;
+      for (let y = yIni; y < nh; y++) for (let x = 0; x < nw; x++)
+        if (dd[(y*nw+x)*4+3] > 40) { soma += x; n++; }
+      const pes = n ? soma/n : nw/2;
+      const saida = document.createElement('canvas'); saida.width = L; saida.height = A;
+      saida.getContext('2d').drawImage(rec, Math.round(L/2 - pes), A - nh - FOLGA);
+      saida._esc = esc;
+      quadros[s] = saida;
+    }
+  }
+  const g = $('gSheet'); g.innerHTML = '';
+  for (const [nome, cv] of Object.entries(quadros)) {
+    const cel = document.createElement('div'); cel.className = 'vista xadrez';
+    const mini = document.createElement('canvas'); mini.width = 100; mini.height = 100;
+    const e = Math.min(100/cv.width, 100/cv.height);
+    mini.getContext('2d').drawImage(cv, (100-cv.width*e)/2, (100-cv.height*e)/2, cv.width*e, cv.height*e);
+    cel.appendChild(mini);
+    const b = document.createElement('b'); b.textContent = nome; cel.appendChild(b);
+    g.appendChild(cel);
+  }
+  $('bBaixaSheet').disabled = $('bBaixa3D').disabled = false;
+  $('proximoSheet').style.display = '';
+}
+
+async function baixaLote(mapa, molde) {
+  const p = ($('pfx').value || 'char').trim().toLowerCase();
+  for (const [nome, cv] of Object.entries(mapa)) {
+    baixar(cv, molde(p, nome));
+    await new Promise(r => setTimeout(r, 350));   // o browser bloqueia rajada
+  }
+}
+$('bBaixaSheet').onclick = () => baixaLote(quadros, (p,n) => p + '-' + n + '.png');
+$('bBaixa3D').onclick   = () => baixaLote(vistas3D, (p,n) => p + '-vista-' + n.replace('-0','') + '.png');
 
 // ══════════ 2 · MODELO 3D ══════════
 let glbBlob = null;
