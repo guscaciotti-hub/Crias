@@ -102,9 +102,9 @@
           lugares <input type="number" id="bancoLug" min="1" max="4" value="2" style="width:52px;background:#0d1424;border:1px solid var(--line);color:var(--txt);border-radius:6px;padding:3px">
         </label>
       </div>
-      <label>Altura do assento <input type="range" id="bancoDy" min="-45" max="45" value="2"><b id="bancoDyv" style="color:var(--acc)">2%</b></label>
+      <label>Altura do assento <input type="range" id="bancoDy" min="-60" max="90" value="30"><b id="bancoDyv" style="color:var(--acc)">30%</b></label>
       <label>Abertura dos lugares <input type="range" id="bancoEsp" min="40" max="140" value="100"><b id="bancoEspv" style="color:var(--acc)">100%</b></label>
-      <div class="hint" style="margin:0;padding:0">Mova até as bolinhas azuis caírem em cima do assento desenhado.</div>
+      <div class="hint" style="margin:0;padding:0">O personagem aparece na posição exata em que vai sentar. Mova até ele encaixar no banco.</div>
       <div class="hint" style="margin:10px 0 4px;padding:0;font-weight:800;color:var(--txt)">Cor — casar com o mapa</div>
       <div class="hint" style="margin:0 0 6px;padding:0">O tile vem com a luz de outro lugar. Selecione a peça e ajuste.</div>
       <div class="row2">
@@ -299,6 +299,9 @@ function desenhaMapaBase(){
 mapa.onload=desenhaMapaBase;
 mapa.src=mapaAtual().img+'?t='+Date.now();
 const orbeImg=new Image(); orbeImg.onload=desenhaMarcas; orbeImg.src='/orbe.png';
+// Silhueta do personagem sentado, para você ver EXATAMENTE onde ele vai cair.
+// A âncora é a mesma do jogo: sprite de 74px de altura, pés no fundo do tile.
+const senta=new Image(); senta.onload=desenhaMarcas; senta.src='/char1-sit-0.png';
 
 // colisão original do jogo (usada no primeiro acesso e pelo botão de recarregar)
 let COL_JOGO = null;
@@ -440,13 +443,20 @@ function desenhaMarcas(curX,curY){
       const n=Math.max(1,Math.min(4,p.banco.lugares||2));
       const F={1:[.5],2:[.27,.73],3:[.18,.5,.82],4:[.14,.38,.62,.86]}[n];
       const wT=w/TP, hT=h/TP;              // largura e altura da peça, em tiles
-      const dy = p.banco.dy==null ? 0.02 : p.banco.dy;
+      const dy = p.banco.dy==null ? 0.30 : p.banco.dy;
       const esp = p.banco.esp==null ? 1 : p.banco.esp;
       gK.save();
       gK.fillStyle='rgba(127,231,255,.9)'; gK.strokeStyle='#0a1020'; gK.lineWidth=1.5;
       for(const f of F){
         const lx=(p.x + (f-0.5)*wT*esp)*TP, ly=(p.y + hT*dy)*TP;
-        gK.beginPath(); gK.arc(lx, ly, Math.max(4, 7/st.zoom), 0, 6.283);
+        // como o jogo desenha: 74px de altura sobre um tile de 39px de mundo
+        if(senta.complete && senta.naturalWidth){
+          const ah = 74/39*TP, aw = ah*(senta.naturalWidth/senta.naturalHeight);
+          gK.globalAlpha=0.85;
+          gK.drawImage(senta, lx-aw/2, ly + TP - ah + 6/39*TP, aw, ah);
+          gK.globalAlpha=1;
+        }
+        gK.beginPath(); gK.arc(lx, ly, Math.max(3, 5/st.zoom), 0, 6.283);
         gK.fill(); gK.stroke();
       }
       gK.restore();
@@ -585,7 +595,7 @@ function sincronizaBanco(){
   $('ehBanco').checked = !!(p && p.banco);
   const bb = (p && p.banco) || {};
   $('bancoLug').value = bb.lugares || 2;
-  const dy = bb.dy == null ? 0.02 : bb.dy, esp = bb.esp == null ? 1 : bb.esp;
+  const dy = bb.dy == null ? 0.30 : bb.dy, esp = bb.esp == null ? 1 : bb.esp;
   $('bancoDy').value = Math.round(dy*100);   $('bancoDyv').textContent  = Math.round(dy*100)+'%';
   $('bancoEsp').value = Math.round(esp*100); $('bancoEspv').textContent = Math.round(esp*100)+'%';
 }

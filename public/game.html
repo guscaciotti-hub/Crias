@@ -4902,6 +4902,7 @@ function update(t) {
         state.player.x = movingTo.toX;
         state.player.y = movingTo.toY;
       }
+      _distAndada += Math.abs(movingTo.toX - movingTo.fromX) + Math.abs(movingTo.toY - movingTo.fromY);
       const _pos = state.scene === 'cave1' ? state.cavePlayer : state.player;
       craPosHistory.unshift({ x: movingTo.fromX, y: movingTo.fromY, dir: _pos.dir });
       if (craPosHistory.length > 4) craPosHistory.length = 4;
@@ -5047,7 +5048,7 @@ function lugaresDoBanco(p, im) {
   // Onde exatamente fica o assento depende do desenho do banco, então quem
   // ajusta é o editor: dy sobe/desce a linha do assento e esp aperta ou abre os
   // lugares. O padrão serve para um banco visto de cima em 3/4.
-  const dy = b.dy == null ? 0.02 : b.dy;
+  const dy = b.dy == null ? 0.30 : b.dy;
   const esp = b.esp == null ? 1 : b.esp;
   const y = p.y + h * dy;
   return (LUGARES[n] || LUGARES[2]).map(f => ({
@@ -8237,6 +8238,7 @@ window.selectCombo = selectCombo;
 // drawComposedPlayer — player com sprites reais direcionais
 let _lastMovingTo = null;
 let _andandoAte = 0;
+let _distAndada = 0;   // quanto o personagem já andou, em tiles
 let _stepCount = 0;
 function drawComposedPlayer(px, py, now) {
   let dir = (state && state.scene === 'cave1') ? (state.cavePlayer.dir || 'down') : ((state && state.player.dir) || 'down');
@@ -8254,17 +8256,16 @@ function drawComposedPlayer(px, py, now) {
   if (movingTo) _andandoAte = now + MOVE_DURATION * 0.9;
   let frameIdx = 0;
   if (movingTo || now < _andandoAte) {
-    let perc;
-    if (movingTo) {
-      const t = Math.min(1, (now - movingTo.startTime) / MOVE_DURATION);
-      const andado = (Math.abs(movingTo.toX - movingTo.fromX) + Math.abs(movingTo.toY - movingTo.fromY)) * t;
-      perc = Math.abs(movingTo.fromX) + Math.abs(movingTo.fromY) + andado;
-    } else {
-      perc = Math.abs(_pos.x) + Math.abs(_pos.y);
-    }
-    const ciclo = Math.floor(perc * 2) % 2;      // troca a cada meio tile
-    if (dir === 'down' || dir === 'up') frameIdx = ciclo + 1;   // walkA / walkB
-    else frameIdx = ciclo;                                      // perfil / passo
+    // Distância ANDADA, acumulada. Somar |x|+|y| da origem com o trecho do passo
+    // parecia equivalente, mas indo para cima ou para a esquerda os dois se
+    // cancelam: o ciclo congelava e o boneco andava sempre no mesmo quadro.
+    const t = movingTo ? Math.min(1, (now - movingTo.startTime) / MOVE_DURATION) : 0;
+    const noPasso = movingTo
+      ? (Math.abs(movingTo.toX - movingTo.fromX) + Math.abs(movingTo.toY - movingTo.fromY)) * t
+      : 0;
+    const ciclo = Math.floor((_distAndada + noPasso) * 2) % 2;   // troca a cada meio tile
+    if (dir === 'down' || dir === 'up') frameIdx = ciclo + 1;    // walkA / walkB
+    else frameIdx = ciclo;                                       // perfil / passo
   }
   if (movingTo && movingTo !== _lastMovingTo) {
     _stepCount = (_stepCount || 0) + 1;
