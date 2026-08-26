@@ -1280,6 +1280,37 @@
   #onboard .panel { width: min(94vw, 720px); padding: 18px; }
   #onboard h2 { color: #4dc3ff; margin-bottom: 4px; font-size: 20px; letter-spacing: 0.05em; }
   #onboard .sub { font-size: 12px; color: #8ab0dd; margin-bottom: 14px; }
+
+  /* Personalização do treinador */
+  #custom .panel { width: min(94vw, 640px); padding: 18px; }
+  #custom h2 { color: #4dc3ff; margin-bottom: 4px; font-size: 20px; letter-spacing: 0.05em; }
+  #custom .sub { font-size: 12px; color: #8ab0dd; margin-bottom: 14px; }
+  #custom .cz-layout { display: grid; grid-template-columns: 200px 1fr; gap: 16px; align-items: start; }
+  @media (max-width: 600px) { #custom .cz-layout { grid-template-columns: 130px 1fr; gap: 10px; } }
+  #custom .cz-stage {
+    background: radial-gradient(ellipse at center, rgba(77,195,255,0.15) 0%, rgba(10,20,40,0.6) 100%);
+    border: 2px solid #4dc3ff; border-radius: 10px;
+    box-shadow: 0 0 24px rgba(77,195,255,0.25), inset 0 0 30px rgba(0,0,0,0.5);
+    display: flex; align-items: flex-end; justify-content: center; overflow: hidden;
+  }
+  #custom #czPreview { width: 100%; height: auto; display: block; }
+  #custom .cz-row { margin-bottom: 10px; }
+  #custom .cz-row label {
+    display: block; font-size: 11px; font-weight: 700; letter-spacing: 0.06em;
+    color: #8ab0dd; text-transform: uppercase; margin-bottom: 5px;
+  }
+  #custom .cz-ops { display: flex; flex-wrap: wrap; gap: 7px; }
+  #custom .cz-op {
+    width: 30px; height: 30px; border-radius: 50%;
+    border: 2px solid rgba(255,255,255,0.18); cursor: pointer;
+    transition: transform .12s, border-color .12s, box-shadow .12s;
+  }
+  #custom .cz-op:hover { transform: scale(1.12); }
+  #custom .cz-op.sel {
+    border-color: #4dc3ff;
+    box-shadow: 0 0 10px rgba(77,195,255,0.7);
+    transform: scale(1.12);
+  }
   #onboard .ob-layout { display: grid; grid-template-columns: 180px 1fr; gap: 18px; align-items: start; }
   @media (max-width: 600px) { #onboard .ob-layout { grid-template-columns: 140px 1fr; gap: 12px; } }
   #charPreview {
@@ -2163,6 +2194,10 @@
         <canvas id="char1preview" class="char-preview-img" width="56" height="70"></canvas>
         <div class="char-card-name">Pioneiro</div>
         <div class="char-card-label">Treinador Oficial</div>
+      </div><div class="char-card" style="opacity:.45;cursor:not-allowed;">
+        <div class="char-preview-img" style="display:flex;align-items:center;justify-content:center;font-size:36px;">👧</div>
+        <div class="char-card-name">Pioneira</div>
+        <div class="char-card-label">Em breve</div>
       </div></div>
     </div>
     </div>
@@ -2172,7 +2207,23 @@
     </div>
     <div class="ob-actions" style="margin-top:12px;">
       <button class="btn ghost" id="obBack">Voltar</button>
-      <button class="btn" id="obConfirm">Começar Jornada ▶</button>
+      <button class="btn" id="obConfirm">Personalizar ▶</button>
+    </div>
+  </div>
+</div>
+
+<!-- PERSONALIZAÇÃO DO TREINADOR -->
+<div id="custom" class="overlay">
+  <div class="panel">
+    <h2>PERSONALIZE SEU TREINADOR</h2>
+    <div class="sub">Escolha suas cores — cada combinação deixa seu treinador único no Nexus.</div>
+    <div class="cz-layout">
+      <div class="cz-stage"><canvas id="czPreview" width="200" height="260"></canvas></div>
+      <div class="cz-rows" id="czRows"></div>
+    </div>
+    <div class="ob-actions" style="margin-top:14px;">
+      <button class="btn ghost" id="czBack">Voltar</button>
+      <button class="btn" id="czStart">Começar Jornada ▶</button>
     </div>
   </div>
 </div>
@@ -8097,6 +8148,108 @@ const EXTERNAL_COMBO_SPRITES = {
   }
 };
 
+// === Personalização do personagem ===
+// Cada frame do char1 tem um PNG-máscara irmão (/char1-mask-<dir>-<i>.png) que
+// marca as regiões: vermelho=cabelo, verde=roupa, azul=detalhe, amarelo=pele.
+// A repintura multiplica cada pixel pela razão alvo/base da sua região — o
+// sombreado original inteiro é preservado, só a cor muda. Cinto de couro e
+// olhos ficam fora da máscara de propósito: são a identidade do personagem.
+const MASCARAS_COMBO = { char1: true };
+const REGIAO_BASE = {           // cor média de cada região no char1 original
+  cabelo:  [105, 64, 48],
+  roupa:   [41, 38, 45],
+  detalhe: [34, 93, 132],
+  pele:    [213, 159, 115]
+};
+const VISUAL_PALETAS = {
+  cabelo: [
+    { n: 'Castanho', c: null },      { n: 'Preto',  c: '#2b2830' },
+    { n: 'Loiro',    c: '#d6b25e' }, { n: 'Ruivo',  c: '#b4472a' },
+    { n: 'Branco',   c: '#e1e4eb' }, { n: 'Roxo',   c: '#7a4fc0' }
+  ],
+  roupa: [
+    { n: 'Grafite', c: null },      { n: 'Vinho',  c: '#601e26' },
+    { n: 'Verde',   c: '#265432' }, { n: 'Azul',   c: '#1e3a66' },
+    { n: 'Roxo',    c: '#46286e' }, { n: 'Claro',  c: '#b8bfc9' },
+    { n: 'Marrom',  c: '#54402a' }, { n: 'Rosa',   c: '#8c2f5a' }
+  ],
+  detalhe: [
+    { n: 'Azul',     c: null },      { n: 'Dourado', c: '#d4a43c' },
+    { n: 'Verde',    c: '#3cbe78' }, { n: 'Vermelho', c: '#d84040' },
+    { n: 'Rosa',     c: '#d05aa0' }, { n: 'Branco',  c: '#cfd6e2' }
+  ],
+  pele: [
+    { n: 'Clara',  c: null },      { n: 'Dourada', c: '#c48c5c' },
+    { n: 'Morena', c: '#96644a' }, { n: 'Escura',  c: '#623e2a' }
+  ]
+};
+const _fabricaCombo = {};   // material bruto de cada combo, para poder repintar
+let _visualEscolha = null;  // {cabelo, roupa, detalhe, pele} — índices nas paletas
+
+function _hexRgb(hex) {
+  const n = parseInt(hex.slice(1), 16);
+  return [n >> 16, (n >> 8) & 255, n & 255];
+}
+
+// Converte a escolha (índices) nas cores-alvo por região; null = tudo original
+function coresDoVisual(esc) {
+  if (!esc) return null;
+  const out = {};
+  let tem = false;
+  for (const reg in VISUAL_PALETAS) {
+    const op = VISUAL_PALETAS[reg][esc[reg] || 0];
+    if (op && op.c) { out[reg] = _hexRgb(op.c); tem = true; }
+  }
+  return tem ? out : null;
+}
+
+function _repintaRegioes(cv, mk, vis) {
+  const w = cv.width, h = cv.height;
+  const out = document.createElement('canvas');
+  out.width = w; out.height = h;
+  const g = out.getContext('2d', { willReadFrequently: true });
+  g.drawImage(cv, 0, 0);
+  const mc = document.createElement('canvas');
+  mc.width = w; mc.height = h;
+  const mg = mc.getContext('2d', { willReadFrequently: true });
+  mg.drawImage(mk, 0, 0, w, h);
+  let d, md;
+  try {
+    d = g.getImageData(0, 0, w, h);
+    md = mg.getImageData(0, 0, w, h);
+  } catch (e) { return cv; }
+  const px = d.data, mp = md.data;
+  // A cor nova é o alvo escalado pelo claro/escuro do pixel original
+  // (escala por luminância: um brilho azul não pode virar franja verde,
+  // como acontecia multiplicando canal a canal).
+  const escala = {};
+  for (const reg in vis) {
+    const alvo = vis[reg], base = REGIAO_BASE[reg];
+    const lumBase = 0.299 * base[0] + 0.587 * base[1] + 0.114 * base[2];
+    escala[reg] = [alvo[0] / lumBase, alvo[1] / lumBase, alvo[2] / lumBase];
+  }
+  for (let i = 0; i < px.length; i += 4) {
+    if (mp[i + 3] < 128) continue;
+    const R = mp[i] > 128, G = mp[i + 1] > 128, B = mp[i + 2] > 128;
+    const reg = R && G ? 'pele' : R ? 'cabelo' : G ? 'roupa' : B ? 'detalhe' : null;
+    const es = reg && escala[reg];
+    if (!es) continue;
+    const lum = 0.299 * px[i] + 0.587 * px[i + 1] + 0.114 * px[i + 2];
+    px[i]     = Math.min(255, lum * es[0]);
+    px[i + 1] = Math.min(255, lum * es[1]);
+    px[i + 2] = Math.min(255, lum * es[2]);
+  }
+  g.putImageData(d, 0, 0);
+  return out;
+}
+
+// Reaplica o visual escolhido nos sprites do char1 (chamado ao trocar de cor)
+function aplicaVisualChar1(esc) {
+  _visualEscolha = esc || null;
+  if (_fabricaCombo.char1) _montaFramesCombo('char1');
+}
+window.aplicaVisualChar1 = aplicaVisualChar1;
+
 function _removeBlackBg(data, w, h) {
   // BFS flood-fill from all edge pixels that are near-black → make transparent.
   // Preserves black outlines inside the sprite.
@@ -8122,15 +8275,25 @@ function _removeBlackBg(data, w, h) {
 }
 
 function _trimToBox(src, box, flip) {
-  // Recorta src (Image ou Canvas) para box {minX,minY,w,h}; devolve um Image.
+  // Recorta src (Image ou Canvas) para box {minX,minY,w,h}. Devolve um canvas
+  // que se comporta como <img> (complete/naturalWidth) — repintar o visual
+  // refaz todos os frames, e gerar dataURL de cada um travaria a troca de cor.
+  // O .src (usado no avatar e na batalha PvP) é gerado só quando alguém lê.
   const oc = document.createElement('canvas');
   oc.width = box.w; oc.height = box.h;
   const ox = oc.getContext('2d');
   if (flip) { ox.translate(box.w, 0); ox.scale(-1, 1); }
   ox.drawImage(src, box.minX, box.minY, box.w, box.h, 0, 0, box.w, box.h);
-  const out = new Image();
-  try { out.src = oc.toDataURL('image/png'); } catch (e) { return src; }
-  return out;
+  oc.complete = true;
+  oc.naturalWidth = box.w; oc.naturalHeight = box.h;
+  try {
+    Object.defineProperty(oc, 'src', {
+      get() { return this._src || (this._src = this.toDataURL('image/png')); },
+      set(v) { this._src = v; },
+      configurable: true
+    });
+  } catch (e) {}
+  return oc;
 }
 
 function loadExternalCombo(comboId) {
@@ -8142,6 +8305,7 @@ function loadExternalCombo(comboId) {
   if (_prevEl) _prevEl.classList.add('sprite-loading');
   const loaded = []; // {dir, i, img}
   const proms = [];
+  const mascaras = {};  // 'down-0' -> Image da máscara de regiões
   for (const [dir, paths] of Object.entries(spec)) {
     paths.forEach((src, i) => {
       const img = new Image();
@@ -8153,6 +8317,17 @@ function loadExternalCombo(comboId) {
         img.src = src;
         setTimeout(() => fin(img.naturalWidth > 0), 5000);
       }));
+      if (MASCARAS_COMBO[comboId]) {
+        const mk = new Image();
+        proms.push(new Promise(r => {
+          let done = false;
+          const fin = ok => { if (done) return; done = true; if (ok && mk.naturalWidth > 0) mascaras[dir + '-' + i] = mk; r(); };
+          mk.onload = () => fin(true);
+          mk.onerror = () => fin(false);
+          mk.src = '/' + comboId + '-mask-' + dir + '-' + i + '.png';
+          setTimeout(() => fin(mk.naturalWidth > 0), 5000);
+        }));
+      }
     });
   }
   return Promise.all(proms).then(() => {
@@ -8196,21 +8371,41 @@ function loadExternalCombo(comboId) {
       ? { minX, minY, w: maxX - minX + 1, h: maxY - minY + 1 }
       : null;
     if (box) comboAspect[comboId] = box.w / box.h;
-    loaded.forEach((fr, idx) => {
-      const out = (box && px[idx]) ? _trimToBox(procCanvases[idx], box, false) : fr.img;
-      spriteImageCache[comboId][fr.dir][fr.i] = out;
-    });
-    // Fallback: se 'right' não veio em arquivo, espelha horizontalmente o 'left'.
-    const rightArr = spriteImageCache[comboId]['right'];
-    const leftArr = spriteImageCache[comboId]['left'];
-    if (rightArr && leftArr && leftArr.length) {
-      for (let i = 0; i < leftArr.length; i++) {
-        if (!rightArr[i]) {
-          const liIdx = loaded.findIndex(f => f.dir === 'left' && f.i === i);
-          rightArr[i] = (box && liIdx >= 0) ? _trimToBox(procCanvases[liIdx], box, true) : (leftArr[i] || leftArr[0]);
-        }
+    // Guarda o material bruto: trocar a cor do visual só refaz esta última etapa
+    _fabricaCombo[comboId] = { loaded, procCanvases, px, box, mascaras };
+    _montaFramesCombo(comboId);
+  });
+}
+
+// Última etapa da linha: repinta (se houver visual escolhido), recorta e
+// espelha. Rodá-la de novo com outra escolha troca as cores do personagem.
+function _montaFramesCombo(comboId) {
+  const fb = _fabricaCombo[comboId];
+  if (!fb) return;
+  const { loaded, procCanvases, px, box, mascaras } = fb;
+  const vis = comboId === 'char1' ? coresDoVisual(_visualEscolha) : null;
+  const pintadas = procCanvases.map((pc, idx) => {
+    const fr = loaded[idx];
+    const mk = vis && mascaras[fr.dir + '-' + fr.i];
+    return mk ? _repintaRegioes(pc, mk, vis) : pc;
+  });
+  for (const dir in spriteImageCache[comboId]) spriteImageCache[comboId][dir] = [];
+  loaded.forEach((fr, idx) => {
+    const out = (box && px[idx]) ? _trimToBox(pintadas[idx], box, false) : fr.img;
+    spriteImageCache[comboId][fr.dir][fr.i] = out;
+  });
+  // Fallback: se 'right' não veio em arquivo, espelha horizontalmente o 'left'.
+  const rightArr = spriteImageCache[comboId]['right'];
+  const leftArr = spriteImageCache[comboId]['left'];
+  if (rightArr && leftArr && leftArr.length) {
+    for (let i = 0; i < leftArr.length; i++) {
+      if (!rightArr[i]) {
+        const liIdx = loaded.findIndex(f => f.dir === 'left' && f.i === i);
+        rightArr[i] = (box && liIdx >= 0) ? _trimToBox(pintadas[liIdx], box, true) : (leftArr[i] || leftArr[0]);
       }
     }
+  }
+  {
     // Atualiza o preview do card de seleção com o sprite frontal já recortado.
     const prev = document.getElementById(comboId + 'preview');
     const front = spriteImageCache[comboId]['down'] && spriteImageCache[comboId]['down'][0];
@@ -8239,7 +8434,7 @@ function loadExternalCombo(comboId) {
         prev.src = front.src;
       }
     }
-  });
+  }
 }
 
 function preloadComboSprites(comboId) {
@@ -8391,7 +8586,89 @@ document.getElementById('obBack').addEventListener('click', () => {
   document.getElementById('onboard').classList.remove('active');
   document.getElementById('createAcc').classList.add('active');
 });
-document.getElementById('obConfirm').addEventListener('click', async () => {
+// === Tela de personalização ===
+let _czEscolha = { cabelo: 0, roupa: 0, detalhe: 0, pele: 0 };
+let _czAnim = null;
+
+const CZ_ROTULOS = { cabelo: 'Cabelo', roupa: 'Roupa', detalhe: 'Detalhes', pele: 'Pele' };
+
+function _czMontaOpcoes() {
+  const rows = document.getElementById('czRows');
+  if (!rows || rows.childElementCount) return;   // monta uma vez só
+  for (const reg in VISUAL_PALETAS) {
+    const row = document.createElement('div');
+    row.className = 'cz-row';
+    const lab = document.createElement('label');
+    lab.textContent = CZ_ROTULOS[reg] || reg;
+    row.appendChild(lab);
+    const ops = document.createElement('div');
+    ops.className = 'cz-ops';
+    VISUAL_PALETAS[reg].forEach((op, i) => {
+      const b = document.createElement('button');
+      b.className = 'cz-op' + (i === 0 ? ' sel' : '');
+      b.type = 'button';
+      b.title = op.n;
+      const base = REGIAO_BASE[reg];
+      b.style.background = op.c || ('rgb(' + base[0] + ',' + base[1] + ',' + base[2] + ')');
+      b.dataset.reg = reg; b.dataset.i = i;
+      b.addEventListener('click', () => {
+        _czEscolha[reg] = i;
+        ops.querySelectorAll('.cz-op').forEach((el, k) => el.classList.toggle('sel', k === i));
+        aplicaVisualChar1(_czEscolha);
+        if (typeof FX !== 'undefined' && FX.sfx) FX.sfx.ui();
+      });
+      ops.appendChild(b);
+    });
+    row.appendChild(ops);
+    rows.appendChild(row);
+  }
+}
+
+function _czDesenhaPreview() {
+  const cv = document.getElementById('czPreview');
+  if (!cv) return;
+  const g = cv.getContext('2d');
+  const cache = spriteImageCache.char1;
+  if (!cache || !cache.down || !cache.down.length) return;
+  // ciclo de caminhada: parado, passo A, parado, passo B
+  const seq = [0, 1, 0, 2];
+  const fase = Math.floor(performance.now() / 260) % seq.length;
+  const fr = cache.down[seq[fase] % cache.down.length] || cache.down[0];
+  if (!fr || !fr.complete) return;
+  g.clearRect(0, 0, cv.width, cv.height);
+  g.imageSmoothingEnabled = true;
+  const iw = fr.naturalWidth || 1, ih = fr.naturalHeight || 1;
+  const esc = Math.min(cv.width * 0.86 / iw, cv.height * 0.92 / ih);
+  const dw = iw * esc, dh = ih * esc;
+  g.drawImage(fr, (cv.width - dw) / 2, cv.height - dh - 6, dw, dh);
+}
+
+function abreCustomizacao() {
+  _czMontaOpcoes();
+  document.getElementById('onboard').classList.remove('active');
+  document.getElementById('custom').classList.add('active');
+  aplicaVisualChar1(_czEscolha);
+  cancelAnimationFrame(_czAnim);
+  const tick = () => {
+    if (!document.getElementById('custom').classList.contains('active')) return;
+    _czDesenhaPreview();
+    _czAnim = requestAnimationFrame(tick);
+  };
+  tick();
+}
+
+document.getElementById('obConfirm').addEventListener('click', () => {
+  document.getElementById('obName2').value =
+    (document.getElementById('obName2').value.trim()) || 'Treinador';
+  abreCustomizacao();
+});
+
+document.getElementById('czBack').addEventListener('click', () => {
+  document.getElementById('custom').classList.remove('active');
+  document.getElementById('onboard').classList.add('active');
+});
+
+document.getElementById('czStart').addEventListener('click', async () => {
   try {
     const name = (document.getElementById('obName2').value.trim()) || 'Treinador';
     const combo = selectedCombo;
@@ -8399,6 +8676,8 @@ document.getElementById('obConfirm').addEventListener('click', async () => {
     // Prepare state first
     state = newGameState(name, null);
     state.appearance = { comboId: combo };
+    state.custom = Object.assign({}, _czEscolha);
+    aplicaVisualChar1(state.custom);
     // Personagens novos (Errante/char4 e Caçador/char5) já começam com o
     // Ignivar acoplado — companion no mapa desde o primeiro passo, sem o
     // ritual do Core Orb.
@@ -9848,6 +10127,7 @@ function _migrateProfile(s){
   if(!s.playerId) s.playerId = 'CR-' + Math.random().toString(36).slice(2,7).toUpperCase();
   if(!Array.isArray(s.friends)) s.friends = [];
   if(s.photo === undefined) s.photo = null;
+  if(!s.custom) s.custom = { cabelo: 0, roupa: 0, detalhe: 0, pele: 0 };
   if(!s.items) s.items = {};
   if(s.items.orbeCriacao === undefined) s.items.orbeCriacao = 0;
   if(s.items.orbeComum === undefined) s.items.orbeComum = 3;
@@ -10157,6 +10437,7 @@ document.getElementById('btnEnter').addEventListener('click', () => {
     if (state.items.orbeCriacao === undefined) state.items.orbeCriacao = 0;
     if (typeof state.orbFragments !== 'number') state.orbFragments = 0;
     if (!state.party) state.party = [];
+    aplicaVisualChar1(state.custom);   // repinta o char com o visual salvo
     document.getElementById('login').classList.remove('active');
     lockLandscape();
     startGame();
