@@ -24,7 +24,7 @@
    *   (recebe naturalWidth/naturalHeight/complete para passar pelas mesmas
    *   checagens que uma <img>)
    */
-  var TETO = 768;   // as peças são desenhadas com dezenas de px; varrer 1254x1254
+  var TETO = 1024;  // as peças são desenhadas com dezenas de px; varrer 1254x1254
                     // inteiro só para tirar o fundo custava caro na abertura
 
   function semChroma(imagem) {

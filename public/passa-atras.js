@@ -231,10 +231,32 @@
       var tex = p.tile && tiles && tiles[p.tile];
       if (tex && (tex.naturalWidth || tex.width)) {
         // textura repetida, no tamanho pedido (em fração do mapa)
-        var lado = Math.max(2, (p.tesc || 0.02) * destLarg);
-        var tmp = document.createElement('canvas');
-        tmp.width = tmp.height = Math.round(lado);
-        tmp.getContext('2d').drawImage(tex, 0, 0, tmp.width, tmp.height);
+        var lado = Math.max(2, Math.round((p.tesc || 0.02) * destLarg));
+        // Encolher 1024px direto para ~40px numa passada só serrilha; reduzir
+        // por metades preserva o detalhe. O resultado fica guardado na peça —
+        // o mapa sul desenha isto todo frame e refazer custava caro.
+        var chave = p.tile + '@' + lado;
+        var tmp = p._patCv && p._patK === chave ? p._patCv : null;
+        if (!tmp) {
+          var fonte = tex, fw = tex.naturalWidth || tex.width, fh = tex.naturalHeight || tex.height;
+          while (Math.max(fw, fh) > lado * 2) {
+            var meio = document.createElement('canvas');
+            meio.width = Math.max(1, Math.round(fw / 2));
+            meio.height = Math.max(1, Math.round(fh / 2));
+            var mg2 = meio.getContext('2d');
+            mg2.imageSmoothingEnabled = true;
+            if ('imageSmoothingQuality' in mg2) mg2.imageSmoothingQuality = 'high';
+            mg2.drawImage(fonte, 0, 0, meio.width, meio.height);
+            fonte = meio; fw = meio.width; fh = meio.height;
+          }
+          tmp = document.createElement('canvas');
+          tmp.width = tmp.height = lado;
+          var tg = tmp.getContext('2d');
+          tg.imageSmoothingEnabled = true;
+          if ('imageSmoothingQuality' in tg) tg.imageSmoothingQuality = 'high';
+          tg.drawImage(fonte, 0, 0, lado, lado);
+          p._patCv = tmp; p._patK = chave;
+        }
         var pat = g.createPattern(tmp, 'repeat');
         if (pat) {
           g.fillStyle = pat;
