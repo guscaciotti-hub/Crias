@@ -102,9 +102,10 @@
           lugares <input type="number" id="bancoLug" min="1" max="4" value="2" style="width:52px;background:#0d1424;border:1px solid var(--line);color:var(--txt);border-radius:6px;padding:3px">
         </label>
       </div>
-      <label>Altura do assento <input type="range" id="bancoDy" min="-60" max="90" value="30"><b id="bancoDyv" style="color:var(--acc)">30%</b></label>
+      <label>Altura do assento <input type="range" id="bancoDy" min="-200" max="200" value="30"><b id="bancoDyv" style="color:var(--acc)">30%</b></label>
       <label>Abertura dos lugares <input type="range" id="bancoEsp" min="40" max="140" value="100"><b id="bancoEspv" style="color:var(--acc)">100%</b></label>
-      <div class="hint" style="margin:0;padding:0">O personagem aparece na posição exata em que vai sentar. Mova até ele encaixar no banco.</div>
+      <div class="hint" style="margin:0;padding:0">O personagem aparece na posição exata em que vai sentar. Mova até ele encaixar no banco —
+      setas do teclado fazem o acerto fino.<br><b style="color:var(--fre)">Depois clique em 🚀 Publicar no jogo</b>, senão o jogo continua com o valor antigo.</div>
       <div class="hint" style="margin:10px 0 4px;padding:0;font-weight:800;color:var(--txt)">Cor — casar com o mapa</div>
       <div class="hint" style="margin:0 0 6px;padding:0">O tile vem com a luz de outro lugar. Selecione a peça e ajuste.</div>
       <div class="row2">
@@ -1126,6 +1127,19 @@ window.addEventListener('keydown',e=>{
   if(e.key==='Escape'&&recortando){ recortando=false; recA=recB=null; desenhaMarcas(); msg('recorte cancelado'); return; }
   if(st.modo==='pecas'&&st.sel!=null){
     if(e.key==='['){ e.preventDefault(); ordena(-1); return; }
+    // com um banco selecionado, as setas acertam o assento no fino
+    if(st.pecas[st.sel].banco && e.key.startsWith('Arrow')){
+      e.preventDefault();
+      const b=st.pecas[st.sel].banco;
+      if(b.dy==null) b.dy=0.30;
+      if(e.key==='ArrowUp')   b.dy-=0.02;
+      if(e.key==='ArrowDown') b.dy+=0.02;
+      if(e.key==='ArrowLeft'){ b.esp=Math.max(0.2,(b.esp==null?1:b.esp)-0.02); }
+      if(e.key==='ArrowRight'){ b.esp=Math.min(2,(b.esp==null?1:b.esp)+0.02); }
+      sincronizaBanco(); desenhaMarcas(); salvar();
+      msg('assento: altura '+Math.round(b.dy*100)+'% · abertura '+Math.round((b.esp==null?1:b.esp)*100)+'%');
+      return;
+    }
     if(e.key===']'){ e.preventDefault(); ordena(+1); return; }
     if(e.key==='Delete'){ snap(); st.pecas.splice(st.sel,1); st.sel=null; desenhaMarcas(); salvar(); return; }
     if(e.key==='f'||e.key==='F'){ snap(); const p=st.pecas[st.sel]; p.frente=!p.frente;
