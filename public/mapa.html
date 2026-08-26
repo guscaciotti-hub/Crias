@@ -102,6 +102,9 @@
           lugares <input type="number" id="bancoLug" min="1" max="4" value="2" style="width:52px;background:#0d1424;border:1px solid var(--line);color:var(--txt);border-radius:6px;padding:3px">
         </label>
       </div>
+      <label>Altura do assento <input type="range" id="bancoDy" min="-45" max="45" value="2"><b id="bancoDyv" style="color:var(--acc)">2%</b></label>
+      <label>Abertura dos lugares <input type="range" id="bancoEsp" min="40" max="140" value="100"><b id="bancoEspv" style="color:var(--acc)">100%</b></label>
+      <div class="hint" style="margin:0;padding:0">Mova até as bolinhas azuis caírem em cima do assento desenhado.</div>
       <div class="hint" style="margin:10px 0 4px;padding:0;font-weight:800;color:var(--txt)">Cor — casar com o mapa</div>
       <div class="hint" style="margin:0 0 6px;padding:0">O tile vem com a luz de outro lugar. Selecione a peça e ajuste.</div>
       <div class="row2">
@@ -148,6 +151,11 @@
         <button data-fm="quadrado" style="flex:1">■ quadrado</button>
         <button data-fm="retangulo" style="flex:1">▭ retângulo</button>
         <button data-fm="livre" style="flex:1">✎ livre</button>
+      </div>
+      <div class="modo" id="remFormas2" style="display:flex;gap:6px;margin-bottom:8px">
+        <button data-fm="organica" style="flex:1">🪨 orgânica</button>
+        <button data-fm="pedra" style="flex:1">⬟ lasca</button>
+        <button data-fm="borda" style="flex:1">〰 borda
       </div>
       <div class="hint" id="remFormaDica" style="padding:0;margin:0 0 8px">
         <b>Redondo/quadrado:</b> arraste para carimbar. Tamanho pequeno (4–10) dá acabamento
@@ -419,10 +427,12 @@ function desenhaMarcas(curX,curY){
       const n=Math.max(1,Math.min(4,p.banco.lugares||2));
       const F={1:[.5],2:[.27,.73],3:[.18,.5,.82],4:[.14,.38,.62,.86]}[n];
       const wT=w/TP, hT=h/TP;              // largura e altura da peça, em tiles
+      const dy = p.banco.dy==null ? 0.02 : p.banco.dy;
+      const esp = p.banco.esp==null ? 1 : p.banco.esp;
       gK.save();
       gK.fillStyle='rgba(127,231,255,.9)'; gK.strokeStyle='#0a1020'; gK.lineWidth=1.5;
       for(const f of F){
-        const lx=(p.x - wT/2 + wT*f)*TP, ly=(p.y + hT*0.18)*TP;
+        const lx=(p.x + (f-0.5)*wT*esp)*TP, ly=(p.y + hT*dy)*TP;
         gK.beginPath(); gK.arc(lx, ly, Math.max(4, 7/st.zoom), 0, 6.283);
         gK.fill(); gK.stroke();
       }
@@ -440,6 +450,7 @@ function desenhaMarcas(curX,curY){
 
   // orbe
   const o=st.orbe, w=o.tam*TP, h=o.tam*TP;
+  if(mapaAtual().id!=='principal') { /* o orbe é da cidade */ } else
   if(orbeImg.complete&&orbeImg.naturalWidth){
     gK.globalAlpha=.9;
     const hh=h, ww=hh*(orbeImg.naturalWidth/orbeImg.naturalHeight);
@@ -522,6 +533,11 @@ function desenhaMarcas(curX,curY){
       const contorno=(g,cx,cy)=>{
         g.beginPath();
         if(st.remForma==='quadrado') g.rect(cx-R, cy-R, R*2, R*2);
+        else if(FORMAS_LIVRES.includes(st.remForma)){
+          const p=contornoIrregular(st.remForma, cx/TP, cy/TP, R/TP, 7);
+          p.forEach(([x,y],k)=> k? g.lineTo(x*TP,y*TP) : g.moveTo(x*TP,y*TP));
+          g.closePath();
+        }
         else g.arc(cx, cy, R, 0, 6.283);
         g.stroke();
       };
@@ -540,8 +556,8 @@ function desenhaMarcas(curX,curY){
 $('grade').onchange=$('opac').oninput=desenhaMarcas;
 $('brush').oninput=e=>{st.brush=+e.target.value;$('brushv').textContent=e.target.value;};
 $('remTam').oninput=e=>{st.remR=+e.target.value;$('remTamv').textContent=e.target.value;desenhaMarcas();};
-document.querySelectorAll('#remFormas button').forEach(b=>b.onclick=()=>{
-  document.querySelectorAll('#remFormas button').forEach(x=>x.classList.remove('on'));
+document.querySelectorAll('#remFormas button, #remFormas2 button').forEach(b=>b.onclick=()=>{
+  document.querySelectorAll('#remFormas button, #remFormas2 button').forEach(x=>x.classList.remove('on'));
   b.classList.add('on'); st.remForma=b.dataset.fm;
   $('remTam').parentElement.style.display = (st.remForma==='livre'||st.remForma==='retangulo') ? 'none' : '';
   desenhaMarcas(); msg({
@@ -554,7 +570,11 @@ function ajAtual(){ return st.sel!=null ? (st.pecas[st.sel].aj || (st.pecas[st.s
 function sincronizaBanco(){
   const p = st.sel!=null ? st.pecas[st.sel] : null;
   $('ehBanco').checked = !!(p && p.banco);
-  $('bancoLug').value = (p && p.banco && p.banco.lugares) || 2;
+  const bb = (p && p.banco) || {};
+  $('bancoLug').value = bb.lugares || 2;
+  const dy = bb.dy == null ? 0.02 : bb.dy, esp = bb.esp == null ? 1 : bb.esp;
+  $('bancoDy').value = Math.round(dy*100);   $('bancoDyv').textContent  = Math.round(dy*100)+'%';
+  $('bancoEsp').value = Math.round(esp*100); $('bancoEspv').textContent = Math.round(esp*100)+'%';
 }
 $('ehBanco').onchange = e => {
   if(st.sel==null){ e.target.checked=false; return msg('selecione uma peça primeiro'); }
@@ -565,6 +585,12 @@ $('ehBanco').onchange = e => {
   desenhaMarcas(); salvar();
   msg(p.banco ? 'peça marcada como banco de '+p.banco.lugares+' lugares' : 'não é mais banco');
 };
+function mudaBanco(campo, v){
+  if(st.sel==null || !st.pecas[st.sel].banco) return;
+  st.pecas[st.sel].banco[campo]=v; desenhaMarcas(); salvar();
+}
+$('bancoDy').oninput  = e => { $('bancoDyv').textContent = e.target.value+'%';  mudaBanco('dy',  +e.target.value/100); };
+$('bancoEsp').oninput = e => { $('bancoEspv').textContent= e.target.value+'%'; mudaBanco('esp', +e.target.value/100); };
 $('bancoLug').onchange = e => {
   if(st.sel==null || !st.pecas[st.sel].banco) return;
   snap(); st.pecas[st.sel].banco.lugares = Math.max(1, Math.min(4, +e.target.value||2));
@@ -653,6 +679,14 @@ $('remLimpa').onclick=()=>{ if(!st.remendos.length) return msg('nenhum remendo')
   st.remendos=[]; desenhaMapaBase(); desenhaMarcas(); agendaSilhueta(); salvar(); msg('remendos removidos'); };
 $('orbT').oninput=e=>{st.orbe.tam=+e.target.value;$('orbTv').textContent=e.target.value;desenhaMarcas();salvar();};
 
+// O orbe pertence à cidade; nos outros mapas o modo some do menu
+function sincronizaModosPorMapa(){
+  const b = document.querySelector('#modos button[data-m="orbe"]');
+  if(b) b.style.display = mapaAtual().id==='principal' ? '' : 'none';
+  if(mapaAtual().id!=='principal' && st.modo==='orbe'){
+    document.querySelector('#modos button[data-m="colisao"]').click();
+  }
+}
 function pintaAbasMapa(){
   const c=$('mapas'); c.innerHTML='';
   MAPAS.forEach((m,i)=>{
@@ -674,12 +708,12 @@ function trocaMapa(i){
   MAPA_ATUAL=i;
   estadoVazio();
   carregar();
-  pintaAbasMapa();
+  pintaAbasMapa(); sincronizaModosPorMapa();
   mapa.onload=()=>{ desenhaMapaBase(); desenhaMarcas(); agendaSilhueta(); };
   mapa.src=mapaAtual().img+'?t='+Date.now();
   msg('editando: '+mapaAtual().nome);
 }
-pintaAbasMapa();
+pintaAbasMapa(); sincronizaModosPorMapa();
 
 document.querySelectorAll('#modos button').forEach(b=>b.onclick=()=>{
   document.querySelectorAll('#modos button').forEach(x=>x.classList.remove('on'));
@@ -822,6 +856,27 @@ function apagaRemendoEm(fx,fy){
   return true;
 }
 
+// Contornos irregulares para o remendo. Piso de verdade não tem borda redonda
+// nem quadrada: cada carimbo sai com um recorte diferente, e emendando vários
+// a borda fica orgânica. A semente vem junto no remendo, então o desenho é
+// sempre o mesmo depois de aplicado.
+function _r(sem){ const x=Math.sin(sem*127.1)*43758.5453; return x-Math.floor(x); }
+function contornoIrregular(tipo, cx, cy, r, sem){
+  const n = tipo==='pedra' ? 9 : 18;
+  const pts=[];
+  for(let i=0;i<n;i++){
+    const a = i/n*Math.PI*2;
+    let k;
+    if(tipo==='pedra')      k = 0.70 + 0.45*_r(sem+i*7.3);
+    else if(tipo==='borda') k = 0.60 + 0.30*Math.sin(a*2+sem) + 0.22*_r(sem+i*3.1);
+    else                    k = 0.82 + 0.16*Math.sin(a*3+sem*2) + 0.16*_r(sem+i*2.7);
+    const rr = r*k;
+    pts.push([cx+Math.cos(a)*rr, cy+Math.sin(a)*rr*(tipo==='borda'?0.55:1)]);
+  }
+  return pts;
+}
+const FORMAS_LIVRES = ['organica','pedra','borda'];
+
 function remenda(fx,fy){
   if(!remIni||!remOrigemIni) return;
   const rTile = st.remR/TP;                       // raio em tiles
@@ -830,7 +885,13 @@ function remenda(fx,fy){
   const ox = remOrigemIni[0] + (fx-remIni[0]);
   const oy = remOrigemIni[1] + (fy-remIni[1]);
   if(ox-rTile<0||oy-rTile<0||ox+rTile>N||oy+rTile>N){ msg('origem saiu do mapa'); return; }
-  st.remendos.push({ x:fx/N, y:fy/N, ox:ox/N, oy:oy/N, r:rTile/N, f:st.remForma });
+  if(FORMAS_LIVRES.includes(st.remForma)){
+    const sem = Math.random()*1000;
+    const pts = contornoIrregular(st.remForma, fx, fy, rTile, sem).map(([x,y])=>[x/N,y/N]);
+    st.remendos.push({ pts, dx:(ox-fx)/N, dy:(oy-fy)/N, f:'livre' });
+  } else {
+    st.remendos.push({ x:fx/N, y:fy/N, ox:ox/N, oy:oy/N, r:rTile/N, f:st.remForma });
+  }
   desenhaMapaBase(); desenhaMarcas(fx,fy);
 }
 stage.addEventListener('mousedown',e=>{
@@ -1067,12 +1128,29 @@ $('pub').onclick=async()=>{
   try{
     sb = sb || window.supabase.createClient(SB,KEY);
     msg('publicando…');
+    // Os tiles enviados iam DENTRO do json como dataURL. Com poucos tiles de
+    // 1254px isso passa de dezenas de MB: o upload demora, às vezes falha, e o
+    // jogo desiste de baixar — daí a sensação de "publiquei e não mudou nada".
+    // Agora cada tile é um arquivo próprio e o json fica pequeno.
+    const usados = [...new Set(st.pecas.map(p=>p.t))].filter(n=>UP[n]);
+    const urls = {};
+    for(let i=0;i<usados.length;i++){
+      const nome = usados[i];
+      msg('enviando tile '+(i+1)+'/'+usados.length+'…');
+      const bin = await (await fetch(UP[nome])).blob();
+      const cam = 'tiles/'+mapaAtual().id+'/'+nome.replace(/[^\w.\-]/g,'_');
+      const up = await sb.storage.from('mapas').upload(cam, bin, {upsert:true, cacheControl:'0'});
+      if(up.error) throw up.error;
+      urls[nome] = SB + '/storage/v1/object/public/mapas/' + cam;
+    }
     const dados = JSON.stringify({colisao:st.colisao, frente:st.frente, orbe:st.orbe, remendos:st.remendos,
-      pecas:st.pecas, tiles:UP});
+      pecas:st.pecas, tiles:urls});
+    const kb = Math.round(dados.length/1024);
+    msg('enviando a configuração ('+kb+' KB)…');
     const r = await sb.storage.from('mapas').upload(mapaAtual().arquivo, new Blob([dados],{type:'application/json'}),
       {upsert:true, contentType:'application/json', cacheControl:'0'});
     if(r.error) throw r.error;
-    msg('✅ publicado! Abra o jogo e recarregue.');
+    msg('✅ publicado — '+kb+' KB de regras + '+usados.length+' tile(s). Recarregue o jogo.');
   }catch(e){ msg('erro: '+(e.message||e)); }
 };
 $('orbIr').onclick=()=>{

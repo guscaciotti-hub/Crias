@@ -3623,36 +3623,79 @@ function pecaPronta(p, im, w, h) {
 // 1100 remendos = 25 fps). Então eles são assados UMA vez numa cópia do mapa, e
 // o render passa a desenhar essa cópia. O cálculo do passa-atrás continua indo
 // no mapa original, em 1:1, para não perder a paridade com o editor.
-let _forno = null;
+// Os remendos são assados em BLOCOS do mapa, na resolução original. Assar o
+// mapa inteiro numa cópia menor (era 2048) fazia o cenário todo perder
+// definição — o mapa é 4000px e é assim que ele tem que ser desenhado.
+// Só os blocos que contêm remendo entram na memória.
+const BLOCO = 512;
+let _blocos = null, _forno = null;
+
+function caixaDoRemendo(p) {
+  if (p.f === 'livre' && p.pts) {
+    let x0 = 1, y0 = 1, x1 = 0, y1 = 0;
+    for (const [u, v] of p.pts) {
+      if (u < x0) x0 = u; if (u > x1) x1 = u;
+      if (v < y0) y0 = v; if (v > y1) y1 = v;
+    }
+    return { x0, y0, x1, y1 };
+  }
+  return { x0: p.x - p.r, y0: p.y - p.r, x1: p.x + p.r, y1: p.y + p.r };
+}
+
 function assaRemendos() {
   const rem = window.MAPA_REMENDOS;
+  _blocos = null; _forno = null;
+  assets.mapaAssado = null;
   if (!assets.map || !assets.map.complete || !window.PassaAtras) return;
-  if (!rem || !rem.length) { assets.mapaAssado = null; _forno = null; return; }
+  if (!rem || !rem.length) return;
   const nat = assets.map.naturalWidth || assets.map.width;
-  const L = Math.min(2048, nat);            // 2048 já cobre os 1872px do mundo
-  const cv = document.createElement('canvas');
-  cv.width = cv.height = L;
-  const g = cv.getContext('2d');
-  g.imageSmoothingEnabled = true;
-  g.drawImage(assets.map, 0, 0, L, L);
-  cv.naturalWidth = cv.naturalHeight = L;
-  // O mapa já entra em uso com a base pronta; os remendos vão aparecendo. Assar
-  // os mil de uma vez travava a abertura por mais de um segundo.
-  assets.mapaAssado = cv;
-  _forno = { cv: cv, g: g, L: L, lista: rem, i: 0 };
+  const n = Math.ceil(nat / BLOCO);
+  // quais blocos têm remendo
+  const usados = new Map();
+  for (const p of rem) {
+    const c = caixaDoRemendo(p);
+    const bx0 = Math.max(0, Math.floor(c.x0 * nat / BLOCO)), bx1 = Math.min(n - 1, Math.floor(c.x1 * nat / BLOCO));
+    const by0 = Math.max(0, Math.floor(c.y0 * nat / BLOCO)), by1 = Math.min(n - 1, Math.floor(c.y1 * nat / BLOCO));
+    for (let by = by0; by <= by1; by++) for (let bx = bx0; bx <= bx1; bx++) {
+      const k = by * n + bx;
+      if (!usados.has(k)) usados.set(k, { bx, by, lista: [] });
+      usados.get(k).lista.push(p);
+    }
+  }
+  _forno = { n, nat, fila: [...usados.values()], i: 0 };
+  _blocos = new Map();
   requestAnimationFrame(assaFatia);
 }
+
 function assaFatia() {
   if (!_forno) return;
   const t0 = performance.now();
-  while (_forno.i < _forno.lista.length && performance.now() - t0 < 7) {
-    window.PassaAtras.desenharRemendos(_forno.g, assets.map,
-      [_forno.lista[_forno.i]], 0, 0, _forno.L);
-    _forno.i++;
+  while (_forno.i < _forno.fila.length && performance.now() - t0 < 7) {
+    const b = _forno.fila[_forno.i++];
+    const cv = document.createElement('canvas');
+    cv.width = cv.height = BLOCO;
+    const g = cv.getContext('2d');
+    g.imageSmoothingEnabled = true;
+    g.drawImage(assets.map, b.bx * BLOCO, b.by * BLOCO, BLOCO, BLOCO, 0, 0, BLOCO, BLOCO);
+    // desenha os remendos deste bloco no referencial dele
+    window.PassaAtras.desenharRemendos(g, assets.map, b.lista,
+      -b.bx * BLOCO, -b.by * BLOCO, _forno.nat);
+    _blocos.set(b.by * _forno.n + b.bx, { cv, bx: b.bx, by: b.by });
   }
-  if (_forno.i < _forno.lista.length) { requestAnimationFrame(assaFatia); return; }
-  console.log('[mapa] ' + _forno.lista.length + ' remendos assados (' + _forno.L + 'px)');
+  if (_forno.i < _forno.fila.length) { requestAnimationFrame(assaFatia); return; }
+  console.log('[mapa] ' + _forno.fila.length + ' blocos remendados (' + BLOCO + 'px cada)');
   _forno = null;
+}
+
+// Desenha por cima do mapa os blocos remendados que aparecem na tela
+function desenhaBlocosRemendados(camX, camY, cw, ch, kx, ky) {
+  if (!_blocos || !_blocos.size) return;
+  for (const b of _blocos.values()) {
+    const wx = (b.bx * BLOCO) / kx - camX, wy = (b.by * BLOCO) / ky - camY;
+    const ww = BLOCO / kx, wh = BLOCO / ky;
+    if (wx + ww < 0 || wx > cw || wy + wh < 0 || wy > ch) continue;
+    ctx.drawImage(b.cv, wx, wy, ww, wh);
+  }
 }
 
 function desenhaPecasMapa(camX, camY, naFrente, lista, tiles) {
@@ -3802,6 +3845,8 @@ function loadAssets() {
           }
         }
         COLISAO_FINA = fina;
+        let _n = 0; for (const l of fina) for (const v of l) if (v) _n++;
+        window.__colInfo = 'publicada ' + cfg.colisao.length + 'x' + cfg.colisao.length + ', ' + _n + ' células';
       } else if (Array.isArray(cfg.colisao) && cfg.colisao.length === GRID) {
         // A zona do orbe (linhas 18-24, colunas 18-27) é intocável: são os
         // tiles especiais de coleta. Quem publica pelo editor não pode
@@ -3817,6 +3862,7 @@ function loadAssets() {
           }
         }
         COLISAO_FINA = montaColisaoFina(COLLISION);
+        window.__colInfo = 'publicada 48x48 (convertida)';
       }
       if (Array.isArray(cfg.frente)) { window.MAPA_FRENTE = cfg.frente; window._maskCanvas = null; window._maskFalhou = false; }
       if (Array.isArray(cfg.pecas)) {
@@ -4995,11 +5041,18 @@ function getInteractable() {
 const LUGARES = { 2: [0.27, 0.73], 3: [0.18, 0.50, 0.82], 1: [0.50], 4: [0.14, 0.38, 0.62, 0.86] };
 
 function lugaresDoBanco(p, im) {
-  const n = Math.max(1, Math.min(4, (p.banco && p.banco.lugares) || 2));
+  const b = p.banco || {};
+  const n = Math.max(1, Math.min(4, b.lugares || 2));
   const h = p.s, w = h * ((im.naturalWidth || im.width) / (im.naturalHeight || im.height));
-  // o assento fica um pouco abaixo do centro da peça, à frente do encosto
-  const y = p.y + h * 0.18;
-  return (LUGARES[n] || LUGARES[2]).map(f => ({ x: p.x - w / 2 + w * f, y }));
+  // Onde exatamente fica o assento depende do desenho do banco, então quem
+  // ajusta é o editor: dy sobe/desce a linha do assento e esp aperta ou abre os
+  // lugares. O padrão serve para um banco visto de cima em 3/4.
+  const dy = b.dy == null ? 0.02 : b.dy;
+  const esp = b.esp == null ? 1 : b.esp;
+  const y = p.y + h * dy;
+  return (LUGARES[n] || LUGARES[2]).map(f => ({
+    x: p.x + (f - 0.5) * w * esp, y,
+  }));
 }
 
 // Lugar livre mais perto do jogador, dentro do alcance
@@ -8810,7 +8863,7 @@ function render(now) {
   // so any resolution (1254, 2000, 5016…) maps correctly to the same world size.
   // imgScale = image pixels per world pixel (e.g. 5016/1872 ≈ 2.68 for 4× texture)
   // se há remendos, o mapa desenhado é a cópia já assada com eles
-  const _mapaDes = CENA.sul ? CENA.mapa : (assets.mapaAssado || assets.map);
+  const _mapaDes = CENA.mapa;
   const _imgW = _mapaDes.naturalWidth  || _mapaDes.width;
   const _imgH = _mapaDes.naturalHeight || _mapaDes.height;
   const _scaleX = _imgW / MAP_W_PX;  // image px per world px (X)
@@ -8820,6 +8873,8 @@ function render(now) {
     Math.round(camX * _scaleX), Math.round(camY * _scaleY),
     Math.round(cw   * _scaleX), Math.round(ch   * _scaleY),
     0, 0, cw, ch);
+
+  if (!CENA.sul) desenhaBlocosRemendados(camX, camY, cw, ch, _scaleX, _scaleY);
 
   if (CENA.sul && CENA.remendos && CENA.remendos.length && window.PassaAtras) {
     window.PassaAtras.desenharRemendos(ctx, CENA.mapa, CENA.remendos,
@@ -8999,7 +9054,7 @@ function render(now) {
         if (tmp.width !== vw || tmp.height !== vh) { tmp.width = vw; tmp.height = vh; }
         const tg = tmp.getContext('2d');
         tg.clearRect(0, 0, vw, vh);
-        const _fonte = CENA.sul ? CENA.mapa : (assets.mapaAssado || assets.map);
+        const _fonte = CENA.mapa;
         const _iw = _fonte.naturalWidth || _fonte.width;
         const _ih = _fonte.naturalHeight || _fonte.height;
         const kx = _iw / MAP_W_PX, ky = _ih / MAP_H_PX;   // px da imagem por px de mundo
@@ -9007,6 +9062,9 @@ function render(now) {
         tg.imageSmoothingEnabled = true;
         tg.drawImage(_fonte,
           (vx0 + camX) * kx, (vy0 + camY) * ky, vw * kx, vh * ky, 0, 0, vw, vh);
+        if (CENA.remendos && CENA.remendos.length)
+          window.PassaAtras.desenharRemendos(tg, CENA.mapa, CENA.remendos,
+            -(vx0 + camX), -(vy0 + camY), MAP_W_PX, { x: 0, y: 0, w: vw, h: vh });
         // mantém só o que está dentro da silhueta (mesmo pedaço, na escala dela)
         tg.globalCompositeOperation = 'destination-in';
         const mkx = mk.width / aw, mky = mk.height / ah;
@@ -9454,8 +9512,9 @@ function drawDiag(now) {
     fps + ' fps',
     'remendos: ' + rem + (_forno ? '  (assando ' + _forno.i + '/' + _forno.lista.length + ')' : (rem ? '  assados' : '')),
     'peças: ' + pec + '   tiles: ' + til,
+    'colisão: ' + (window.__colInfo || 'padrão do jogo'),
     'passa-atrás: ' + marc + ' marcas' + (window._maskCanvas ? '  (máscara ' + window._maskCanvas.width + 'px)' : marc ? '  (calculando…)' : ''),
-    'mapa: ' + ((assets.map && (assets.map.naturalWidth || 0)) + 'px') + (assets.mapaAssado ? ' + cópia ' + assets.mapaAssado.width + 'px' : ''),
+    'mapa: ' + ((assets.map && (assets.map.naturalWidth || 0)) + 'px') + ((_blocos && _blocos.size ? ' + ' + _blocos.size + ' blocos remendados' : '')),
   ];
   ctx.save();
   ctx.font = 'bold 12px ui-monospace, Menlo, monospace';
