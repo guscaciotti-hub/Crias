@@ -3598,14 +3598,18 @@ function construirMascaraFrente() {
 // pixels na tela. Reescalar isso duas vezes por frame, para cada peça, custa
 // caro — então cada peça guarda uma cópia já no tamanho em que aparece.
 function pecaPronta(p, im, w, h) {
+  // o ajuste de cor publicado pelo editor entra aqui, na mesma função que o
+  // editor usa (public/tiles.js), então a peça fica igual nos dois
+  const base = (window.Tiles && p.aj) ? window.Tiles.ajustada(p, im) : im;
+  const chave = (im.src || '') + '|' + (window.Tiles ? window.Tiles.chaveAjuste(p.aj) : '');
   const lw = Math.max(1, Math.round(w)), lh = Math.max(1, Math.round(h));
-  if (p._cv && p._cv.width === lw && p._cv.height === lh && p._cvSrc === im.src) return p._cv;
+  if (p._cv && p._cv.width === lw && p._cv.height === lh && p._cvChave === chave) return p._cv;
   const cv = document.createElement('canvas');
   cv.width = lw; cv.height = lh;
   const g = cv.getContext('2d');
   g.imageSmoothingEnabled = true;
-  g.drawImage(im, 0, 0, lw, lh);
-  p._cv = cv; p._cvSrc = im.src;
+  g.drawImage(base, 0, 0, lw, lh);
+  p._cv = cv; p._cvChave = chave;
   return cv;
 }
 

@@ -86,6 +86,19 @@
         <button class="gh" id="apara">✂ aparar bordas</button>
         <button class="gh" id="recorta">✂ recortar parte</button>
       </div>
+      <div class="hint" style="margin:10px 0 4px;padding:0;font-weight:800;color:var(--txt)">Cor — casar com o mapa</div>
+      <div class="hint" style="margin:0 0 6px;padding:0">O tile vem com a luz de outro lugar. Selecione a peça e ajuste.</div>
+      <div class="row2">
+        <button class="gh" id="corAuto">✨ casar com a volta</button>
+        <button class="gh" id="corPega">🎨 pegar cor do mapa</button>
+      </div>
+      <label>Brilho <input type="range" id="ajB" min="30" max="150" value="100"><b id="ajBv" style="color:var(--acc)">1.00</b></label>
+      <label>Saturação <input type="range" id="ajS" min="0" max="200" value="100"><b id="ajSv" style="color:var(--acc)">1.00</b></label>
+      <label>Puxar para a cor <input type="range" id="ajF" min="0" max="80" value="0"><b id="ajFv" style="color:var(--acc)">0%</b></label>
+      <div class="row2">
+        <div id="corAmostra" style="height:22px;border-radius:6px;border:1px solid var(--line);background:#333"></div>
+        <button class="gh" id="corZera">↺ tirar ajuste</button>
+      </div>
       <div class="hint" style="margin:10px 0 4px;padding:0;font-weight:800;color:var(--txt)">Quem fica na frente de quem</div>
       <div class="row2">
         <button class="gh" id="prTras">⬇ mandar pra trás</button>
@@ -191,6 +204,7 @@ const st = {
   remForma: 'redondo', // redondo | quadrado | livre
   remOrigem: null,    // [fx,fy] em tiles
   pegandoOrigem: false,
+  pegandoCor: false,   // conta-gotas: próximo clique no mapa vira a cor de referência
   apagando: false,     // borracha: clique tira o remendo que estiver embaixo
   sel: null,          // índice da peça selecionada
   tile: null,         // tile escolhido na paleta
@@ -354,7 +368,8 @@ function desenhaMarcas(curX,curY){
   }
   // peças colocadas (atrás e na frente marcadas por cor)
   st.pecas.forEach((p,i)=>{
-    const im=img(p.t); if(!(im.complete&&im.naturalWidth)) return;
+    let im=img(p.t); if(!(im.complete&&im.naturalWidth)) return;
+    if(window.Tiles) im = window.Tiles.ajustada(p, im);
     const h=p.s*TP, w=h*(im.naturalWidth/im.naturalHeight);
     gK.save();
     gK.translate(p.x*TP, p.y*TP);
@@ -482,6 +497,51 @@ document.querySelectorAll('#remFormas button').forEach(b=>b.onclick=()=>{
     retangulo:'arraste de um canto ao outro da área',
   }[st.remForma] || ('arraste para carimbar em formato '+st.remForma));
 });
+// ── Cor da peça ────────────────────────────────────────────────────────────
+function ajAtual(){ return st.sel!=null ? (st.pecas[st.sel].aj || (st.pecas[st.sel].aj={b:1,s:1,f:0,cor:[128,128,128]})) : null; }
+function sincronizaCor(){
+  const a = st.sel!=null ? (st.pecas[st.sel].aj || {}) : {};
+  $('ajB').value = Math.round((a.b==null?1:a.b)*100); $('ajBv').textContent=((a.b==null?1:a.b)).toFixed(2);
+  $('ajS').value = Math.round((a.s==null?1:a.s)*100); $('ajSv').textContent=((a.s==null?1:a.s)).toFixed(2);
+  $('ajF').value = Math.round((a.f||0)*100); $('ajFv').textContent=Math.round((a.f||0)*100)+'%';
+  const c = a.cor||[128,128,128];
+  $('corAmostra').style.background = 'rgb('+c.map(v=>Math.round(v)).join(',')+')';
+}
+function mudaCor(campo, valor){
+  if(st.sel==null) return msg('selecione uma peça primeiro');
+  const a = ajAtual(); a[campo]=valor;
+  desenhaMarcas(); salvar();
+}
+$('ajB').oninput = e => { $('ajBv').textContent=(e.target.value/100).toFixed(2); mudaCor('b', +e.target.value/100); };
+$('ajS').oninput = e => { $('ajSv').textContent=(e.target.value/100).toFixed(2); mudaCor('s', +e.target.value/100); };
+$('ajF').oninput = e => { $('ajFv').textContent=e.target.value+'%';            mudaCor('f', +e.target.value/100); };
+$('corZera').onclick = ()=>{ if(st.sel==null) return msg('selecione uma peça');
+  snap(); delete st.pecas[st.sel].aj; sincronizaCor(); desenhaMarcas(); salvar(); msg('ajuste removido'); };
+$('corPega').onclick = ()=>{ if(st.sel==null) return msg('selecione uma peça primeiro');
+  st.pegandoCor=true; msg('clique no mapa, num pedaço da cor que você quer imitar'); };
+
+// Compara a peça com o chão em volta dela e reacende para casar.
+$('corAuto').onclick = ()=>{
+  if(st.sel==null) return msg('selecione uma peça primeiro');
+  if(!(mapa.complete&&mapa.naturalWidth)) return msg('mapa ainda carregando');
+  if(!window.Tiles) return;
+  const p=st.pecas[st.sel], base=img(p.t);
+  if(!(base.complete&&base.naturalWidth)) return msg('tile ainda carregando');
+  const h=p.s, w=h*(base.naturalWidth/base.naturalHeight);
+  // anel em volta da peça, no mapa: é a cor que ela precisa imitar
+  const iw=mapa.naturalWidth, ih=mapa.naturalHeight;
+  const fx=(p.x-w)/N, fy=(p.y-h)/N, fw=(w*2)/N, fh=(h*2)/N;
+  const alvo = window.Tiles.mediaDe(mapa, Math.max(0,fx)*iw, Math.max(0,fy)*ih,
+                Math.min(1-Math.max(0,fx), fw)*iw, Math.min(1-Math.max(0,fy), fh)*ih);
+  const dela = window.Tiles.mediaDe(base, 0, 0, base.naturalWidth, base.naturalHeight);
+  if(!alvo||!dela) return msg('não consegui medir as cores');
+  snap();
+  const b = Math.max(0.35, Math.min(1.5, alvo.lum/Math.max(1,dela.lum)));
+  p.aj = { b, s: 1, f: 0.3, cor: alvo.cor };
+  sincronizaCor(); desenhaMarcas(); salvar();
+  msg('casado com a volta: brilho '+b.toFixed(2)+' — ajuste os sliders se quiser');
+};
+
 // A ordem da lista é a ordem de desenho: quem vem depois cobre quem veio antes.
 // Mover a peça na lista é, literalmente, mandar pra trás ou pra frente.
 function ordena(passo){
@@ -711,6 +771,15 @@ stage.addEventListener('mousedown',e=>{
     if(!remLaco && !remRet) remenda(fx,fy);
     return;
   }
+  if(st.modo==='pecas' && st.pegandoCor){
+    st.pegandoCor=false;
+    const iw=mapa.naturalWidth, ih=mapa.naturalHeight;
+    const m=window.Tiles.mediaDe(mapa, fx/N*iw-6, fy/N*ih-6, 12, 12);
+    if(m && st.sel!=null){ snap(); const a=ajAtual(); a.cor=m.cor; if(!a.f) a.f=0.3;
+      sincronizaCor(); desenhaMarcas(); salvar();
+      msg('cor de referência pega — use o slider "puxar para a cor"'); }
+    return;
+  }
   if(st.modo==='pecas' && recortando){
     recA=[fx,fy]; recB=[fx,fy]; pintando=true; return;
   }
@@ -720,7 +789,7 @@ stage.addEventListener('mousedown',e=>{
       base={fx,fy,s:p.s,rot:p.rot||0}; return; }
     const i=pecaEm(fx,fy);
     if(i>=0){ snap(); st.sel=i; movP=true; const p=st.pecas[i];
-      base={fx,fy,px:p.x,py:p.y}; desenhaMarcas(); return; }
+      base={fx,fy,px:p.x,py:p.y}; sincronizaCor(); desenhaMarcas(); return; }
     if(st.tile){ snap();
       st.pecas.push({t:st.tile, x:fx, y:fy, s:(+$('tam').value)/100*3, rot:0, frente:false});
       st.sel=st.pecas.length-1; desenhaMarcas(); salvar(); return; }
