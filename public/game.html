@@ -9539,6 +9539,9 @@ function drawQuestHint(camX, camY, now) {
 // ── Debug: visualize collision grid (toggle with backtick `) ──────────────────
 // F9 mostra o que está pesando. Sem isto, "o jogo está lento" não tem como
 // virar diagnóstico — o que carrega vem da nuvem e muda de jogador para jogador.
+// Carimbo de versão: sem isto não dá para saber se o que está rodando no
+// navegador é a correção que acabou de subir ou o build anterior do cache.
+const VERSAO = '26ago-1300';
 let _diag = false, _diagT = [], _diagUlt = 0;
 window.addEventListener('keydown', e => { if (e.key === 'F9') { _diag = !_diag; e.preventDefault(); } });
 function drawDiag(now) {
@@ -9552,7 +9555,7 @@ function drawDiag(now) {
   const marc = window.MAPA_FRENTE
     ? window.MAPA_FRENTE.reduce((a, l) => a + (l ? l.filter(Boolean).length : 0), 0) : 0;
   const linhas = [
-    fps + ' fps',
+    fps + ' fps    · build ' + VERSAO,
     'remendos: ' + rem + (_forno ? '  (assando ' + _forno.i + '/' + _forno.lista.length + ')' : (rem ? '  assados' : '')),
     'peças: ' + pec + '   tiles: ' + til,
     'colisão: ' + (window.__colInfo || 'padrão do jogo'),
