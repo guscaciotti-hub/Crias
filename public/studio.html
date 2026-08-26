@@ -98,24 +98,29 @@
   <div class="card">
     <h2>PASSO 1 — o prompt para gerar no GPT</h2>
     <div class="hint" style="margin-bottom:10px">
-      Escolha o que você quer criar, copie, cole no GPT e complete a última linha com a
-      descrição. O prompt já vem com as regras que fazem a imagem virar um 3D decente.
+      <b>Personagem novo para o jogo? escolha a primeira opção (⭐).</b> Uma folha 4×3 resolve
+      as duas coisas: os quadros que o jogo usa para andar e as vistas que viram o modelo 3D.
+      As outras opções são para casos específicos — cada uma explica embaixo o que fazer com o
+      resultado.
     </div>
     <div class="linha">
       <select id="tipoPrompt">
-        <optgroup label="Para virar 3D">
-          <option value="char3d">🧍 Personagem — 1 vista (serviço de imagem única)</option>
-          <option value="char3dmv">🧍 Personagem — 4 vistas (serviço multi-vista) ⭐</option>
-          <option value="fofo">🐣 Cria fofa (chibi) — a que sai melhor em 3D</option>
+        <optgroup label="Personagem novo para o jogo">
+          <option value="personagem">⭐ Personagem — folha 4×3 (serve para andar E para o 3D)</option>
         </optgroup>
-        <optgroup label="Para usar direto no jogo">
-          <option value="personagem">Personagem — spritesheet 4×3 (12 poses)</option>
+        <optgroup label="Quando você quer SÓ o modelo 3D">
+          <option value="char3dmv">Personagem — 4 vistas (serviço multi-vista)</option>
+          <option value="char3d">Personagem — 1 vista (serviço de imagem única)</option>
+        </optgroup>
+        <optgroup label="Crias e cenário">
+          <option value="fofo">Cria fofa (chibi) — a que sai melhor em 3D</option>
           <option value="monstro">Cria / monstro — arte de batalha</option>
           <option value="peca">Peça do mapa</option>
         </optgroup>
       </select>
       <button class="g" id="bCopiaPrompt">📋 copiar prompt</button>
     </div>
+    <div class="proximo" id="paraQue" style="margin:10px 0 0"></div>
     <div id="txtPrompt" class="hint" style="margin-top:10px;white-space:pre-wrap;background:#050a12;padding:10px;border-radius:8px;border:1px solid var(--line)"></div>
   </div>
   <div class="card">
@@ -482,7 +487,42 @@ Render 3D estilizado volumétrico, materiais com relevo, luz vinda do canto supe
 A peça ocupa ~90% do quadro, centralizada, sem tocar as bordas.
 Peça: `
 };
-function pintaPrompt(){ $('txtPrompt').textContent = PROMPTS[$('tipoPrompt').value]; }
+// Cada opção diz, ali mesmo, o que fazer com o resultado. Sem isso a tela vira
+// uma lista de seis prompts sem dono.
+const PARA_QUE = {
+  personagem: `<h3>⭐ É esta que você quer para um personagem novo no jogo</h3>
+    <div class="hint">Uma folha só resolve tudo: ela tem as 12 poses que o jogo usa para andar
+    <b>e</b> as 4 vistas que o serviço de 3D precisa.<br>
+    <b>Depois de gerar:</b> passo 2 → card <b>Spritesheet → quadros separados</b> →
+    <b>baixar quadros do jogo</b> (é só me mandar que eu ponho no jogo).<br>
+    Se quiser também o modelo 3D para a batalha, no mesmo card clique em
+    <b>baixar as 4 vistas para 3D</b> e siga para o passo 3.</div>`,
+  char3dmv: `<h3>Só o modelo 3D, com a melhor qualidade</h3>
+    <div class="hint">Gera as 4 vistas numa imagem. Use quando você já tem o sprite do mapa e
+    quer só o <code>.glb</code>.<br>
+    <b>Depois:</b> passo 2 limpa → card do spritesheet corta (4 colunas, 1 linha) →
+    <b>baixar as 4 vistas para 3D</b> → passo 3 num serviço <b>multi-vista</b>.</div>`,
+  char3d: `<h3>Só o modelo 3D, no caminho mais simples</h3>
+    <div class="hint">Uma imagem de frente. O serviço vai <i>adivinhar</i> as costas, então o
+    modelo sai menos fiel — use se o serviço que você tem só aceita uma imagem.<br>
+    <b>Depois:</b> passo 2 limpa → passo 3 sobe esse PNG único.</div>`,
+  fofo: `<h3>Para uma Cria nova</h3>
+    <div class="hint">Proporção chibi e silhueta cheia — é o que a reconstrução 3D entende
+    melhor.<br><b>Depois:</b> passo 2 limpa → passo 3 gera o <code>.glb</code> →
+    passo 5 tira o sprite.</div>`,
+  monstro: `<h3>Arte de batalha, sem 3D</h3>
+    <div class="hint">Ilustração para aparecer grande na tela de batalha.<br>
+    <b>Depois:</b> passo 2 limpa e pronto — me manda o PNG que eu ponho no jogo.</div>`,
+  peca: `<h3>Peça para o mapa</h3>
+    <div class="hint">Vai para <code>public/map-kit/</code> e você coloca no
+    <a href="/mapa">editor de mapa</a>, aba Peças.<br>
+    <b>Depois:</b> passo 2 limpa (modo <b>magenta</b>) e sobe o arquivo.</div>`,
+};
+function pintaPrompt(){
+  const v = $('tipoPrompt').value;
+  $('txtPrompt').textContent = PROMPTS[v];
+  $('paraQue').innerHTML = PARA_QUE[v] || '';
+}
 $('tipoPrompt').onchange = pintaPrompt; pintaPrompt();
 $('bCopiaPrompt').onclick = e => { navigator.clipboard.writeText($('txtPrompt').textContent);
   e.target.textContent = '✅ copiado!'; setTimeout(()=>e.target.textContent='📋 copiar prompt', 1600); };
