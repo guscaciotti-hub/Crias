@@ -3698,10 +3698,28 @@ function desenhaBlocosRemendados(camX, camY, cw, ch, kx, ky) {
   }
 }
 
-function desenhaPecasMapa(camX, camY, naFrente, lista, tiles) {
+// Busca o tile só quando ele é realmente necessário
+function tilePeca(nome, tiles, urls) {
+  const mapa = tiles || window.MAPA_TILES;
+  if (mapa[nome]) return mapa[nome];
+  const src = (urls || window.MAPA_URLS || {})[nome];
+  if (!src) return null;
+  const im = new Image();
+  im.onload = () => { const l = window.Tiles && window.Tiles.semChroma(im); if (l) mapa[nome] = l; };
+  mapa[nome] = im;          // guarda já para não pedir duas vezes
+  im.src = src;
+  return im;
+}
+
+function desenhaPecasMapa(camX, camY, naFrente, lista, tiles, urls) {
   for (const p of (lista || window.MAPA_PECAS)) {
     if (!!p.frente !== !!naFrente) continue;
-    const im = (tiles || window.MAPA_TILES)[p.t];
+    // descarte ANTES de pedir o arquivo: peça fora da tela não baixa nada
+    const alt = p.s * TILE;
+    const cx0 = p.x * TILE - camX, cy0 = p.y * TILE - camY;
+    if (cx0 + alt * 3 < -40 || cx0 - alt * 3 > canvas.width + 40 ||
+        cy0 + alt < -40 || cy0 - alt > canvas.height + 40) continue;
+    const im = tilePeca(p.t, tiles, urls);
     if (!im || !im.complete || !im.naturalWidth) continue;
     const h = p.s * TILE, w = h * (im.naturalWidth / im.naturalHeight);
     const cx = p.x * TILE - camX, cy = p.y * TILE - camY;
@@ -3785,12 +3803,14 @@ function loadAssets() {
   window.MAPA_FRENTE = null;      // matriz 48x48: 1 = cobre o jogador
   // Posição padrão do orbe; o editor /mapa sobrescreve ao publicar.
   window.MAPA_ORBE = { x: 23.5, y: 21.5, tam: 9 };
+  window.MAPA_URLS = {};
   window.MAPA_REMENDOS = [];   // pedaços de chão copiados no editor, por cima do mapa
   // Mapa do SUL (lobby): mesma estrutura, arquivos próprios. O jogador chega
   // nele atravessando a borda de baixo da cidade.
   window.SUL_FRENTE = null;
   window.SUL_PECAS = [];
   window.SUL_TILES = {};
+  window.SUL_URLS = {};
   window.SUL_REMENDOS = [];
   window.SUL_COLISAO = null;
   loadImage('/mapa-lobby.jpg', 20000).then(img => { assets.mapaSul = img; }).catch(() => {});
@@ -3804,13 +3824,9 @@ function loadAssets() {
       if (Array.isArray(cfg.pecas)) {
         window.SUL_PECAS = cfg.pecas;
         window.SUL_TILES = {};
-        for (const p of cfg.pecas) {
-          if (window.SUL_TILES[p.t]) continue;
-          const im = new Image();
-          im.onload = () => { const l = window.Tiles && window.Tiles.semChroma(im); if (l) window.SUL_TILES[p.t] = l; };
-          im.src = (cfg.tiles && cfg.tiles[p.t]) ? cfg.tiles[p.t] : ('/map-kit/' + p.t);
-          window.SUL_TILES[p.t] = im;
-        }
+        window.SUL_URLS = {};
+        for (const p of cfg.pecas)
+          window.SUL_URLS[p.t] = (cfg.tiles && cfg.tiles[p.t]) ? cfg.tiles[p.t] : ('/map-kit/' + p.t);
       }
       console.log('[mapa] configuração do sul aplicada');
     }).catch(() => {});
@@ -3868,17 +3884,12 @@ function loadAssets() {
       if (Array.isArray(cfg.pecas)) {
         window.MAPA_PECAS = cfg.pecas;
         window.MAPA_TILES = {};
-        for (const p of cfg.pecas) {
-          if (window.MAPA_TILES[p.t]) continue;
-          // a peça entra sem o fundo magenta, igual ao editor
-          const im = new Image();
-          im.onload = () => {
-            const limpo = window.Tiles && window.Tiles.semChroma(im);
-            if (limpo) window.MAPA_TILES[p.t] = limpo;
-          };
-          im.src = (cfg.tiles && cfg.tiles[p.t]) ? cfg.tiles[p.t] : ('/map-kit/' + p.t);
-          window.MAPA_TILES[p.t] = im;
-        }
+        // O endereço fica guardado; o arquivo só é baixado quando a peça aparece
+        // na tela. Baixar dezenas de tiles na abertura é o que fazia o jogo
+        // engasgar no começo, mesmo com o desenho leve.
+        window.MAPA_URLS = {};
+        for (const p of cfg.pecas)
+          window.MAPA_URLS[p.t] = (cfg.tiles && cfg.tiles[p.t]) ? cfg.tiles[p.t] : ('/map-kit/' + p.t);
       }
       if (cfg.orbe) window.MAPA_ORBE = cfg.orbe;
       if (Array.isArray(cfg.remendos)) { window.MAPA_REMENDOS = cfg.remendos; window._maskCanvas = null; window._maskFalhou = false; window._framesAte = 0; assaRemendos(); }
@@ -4770,11 +4781,11 @@ document.getElementById('questQuickBtn').addEventListener('click', () => {
 function cena() {
   if (state && state.scene === 'sul') return {
     sul: true, mapa: assets.mapaSul, frente: window.SUL_FRENTE, pecas: window.SUL_PECAS,
-    tiles: window.SUL_TILES, remendos: window.SUL_REMENDOS, orbe: null,
+    tiles: window.SUL_TILES, urls: window.SUL_URLS, remendos: window.SUL_REMENDOS, orbe: null,
   };
   return {
     sul: false, mapa: assets.map, frente: window.MAPA_FRENTE, pecas: window.MAPA_PECAS,
-    tiles: window.MAPA_TILES, remendos: window.MAPA_REMENDOS, orbe: window.MAPA_ORBE,
+    tiles: window.MAPA_TILES, urls: window.MAPA_URLS, remendos: window.MAPA_REMENDOS, orbe: window.MAPA_ORBE,
   };
 }
 
@@ -8889,7 +8900,7 @@ function render(now) {
   AMBIENT.drawGround(ctx, camX, camY, cw, ch, now);
 
   // Peças do editor que ficam ATRÁS do jogador
-  if (state && CENA.pecas) desenhaPecasMapa(camX, camY, false, CENA.pecas, CENA.tiles);
+  if (state && CENA.pecas) desenhaPecasMapa(camX, camY, false, CENA.pecas, CENA.tiles, CENA.urls);
 
   // Orbe do editor: metade de baixo, atrás do jogador
   if (state && CENA.orbe && assets.orbSprite && assets.orbSprite.complete) {
@@ -9078,7 +9089,7 @@ function render(now) {
 
   // Peças que cobrem o jogador — depois da máscara, senão o redesenho do
   // mapa passaria por cima delas e as cortaria pela metade
-  if (state && CENA.pecas) desenhaPecasMapa(camX, camY, true, CENA.pecas, CENA.tiles);
+  if (state && CENA.pecas) desenhaPecasMapa(camX, camY, true, CENA.pecas, CENA.tiles, CENA.urls);
 
   // === ORBE do editor: metade de baixo já foi desenhada; aqui vai a de cima,
   // que cobre o jogador (efeito de passar por trás do cristal) ===
