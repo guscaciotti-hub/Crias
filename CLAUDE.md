@@ -1,5 +1,22 @@
 # CLAUDE.md — Crias RPG (express-js-on-vercel)
 
+## Links — mandar SEMPRE, clicáveis, depois de QUALQUER alteração
+
+Não é opcional e não depende de pedido: toda resposta que muda alguma coisa
+termina com estes quatro links, em markdown clicável.
+
+| # | O que é | URL |
+|---|---------|-----|
+| 1 | 🎮 Jogo | https://express-js-on-vercel-git-clau-939c28-gustavos-projects-0bacb990.vercel.app/game |
+| 2 | 📚 Database oficial | https://express-js-on-vercel-git-clau-939c28-gustavos-projects-0bacb990.vercel.app/design |
+| 3 | 🗺️ Editor de mapa | https://express-js-on-vercel-git-clau-939c28-gustavos-projects-0bacb990.vercel.app/mapa |
+| 4 | 🌎 Produção (celular, sem login) | https://express-js-on-vercel-theta-red-86.vercel.app/game |
+
+Os 3 primeiros são o preview da branch de dev (`claude/crias-rpg-dev-Aj0Fd`) —
+recebem a mudança assim que o push termina, mas **só abrem em quem está logado
+na Vercel**. O 4º é a produção (`main`), público e o único que abre no celular;
+ele só muda quando a branch de dev é mergeada na `main`.
+
 ## Visão geral do projeto
 
 Jogo RPG de coleta/batalha de criaturas no estilo Pokémon, rodando em HTML5 Canvas puro.  
@@ -165,16 +182,20 @@ photo:        null,
 ## Fluxo de deploy
 
 ```
-Branch de dev : claude/gallant-faraday-dpJ6q
-Merge para    : main  (squash merge via PR)
-Deploy auto   : Vercel detecta push em main
+Branch de dev : claude/crias-rpg-dev-Aj0Fd   → preview (links 1, 2 e 3)
+Merge para    : main                          → produção (link 4)
+Deploy auto   : Vercel detecta o push nas duas
 ```
 
-### Rebase quando necessário
+O merge para `main` só acontece com autorização explícita do usuário — é o que
+publica para o público e é o único jeito de o celular ver a mudança.
+
 ```bash
 git fetch origin main
-git rebase origin/main
-git push --force-with-lease origin claude/gallant-faraday-dpJ6q
+git worktree add -B main <tmp> origin/main
+git -C <tmp> merge --no-ff --no-commit claude/crias-rpg-dev-Aj0Fd
+git -C <tmp> checkout --theirs public/game.html   # dev sempre ganha o conflito
+git -C <tmp> add public/game.html && git -C <tmp> commit && git -C <tmp> push origin main
 ```
 
 ---
