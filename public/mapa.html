@@ -45,6 +45,12 @@
     <h1>CRIAS — <span>Mapa</span></h1>
     <div class="hint">Marque onde o jogador <b>não passa</b>, onde ele <b>some por trás</b> e onde fica o <b>orbe</b>.</div>
 
+    <div class="sec" id="secMapas">
+      <h2>Mapa</h2>
+      <div class="modo" id="mapas"></div>
+      <div class="hint" style="margin:6px 0 0;padding:0">Cada mapa guarda a própria colisão, passa-atrás, peças e remendos.
+      O <b>Sul</b> é para onde o jogador vai ao atravessar a borda de baixo da cidade.</div>
+    </div>
     <div class="sec" id="secModos">
       <h2>O que estou marcando</h2>
       <div class="modo" id="modos">
@@ -201,6 +207,14 @@
 <script src="/tiles.js"></script>
 <script>
 const N=48, TP=40, $=i=>document.getElementById(i);
+// Cada mapa é independente: imagem própria, marcações próprias, arquivo próprio
+// na nuvem. O primeiro é o que abre por padrão.
+const MAPAS = [
+  { id:'principal', nome:'Cidade 1',  img:'/mapa-oficial.jpg', chave:'crias_mapa',       arquivo:'mapa-config.json' },
+  { id:'lobby',     nome:'Sul — Lobby', img:'/mapa-lobby.jpg', chave:'crias_mapa_lobby', arquivo:'mapa-config-lobby.json' },
+];
+let MAPA_ATUAL = 0;
+const mapaAtual = () => MAPAS[MAPA_ATUAL];
 // A colisão é 2x mais fina que o tile (96x96): o personagem anda meia célula
 // por passo, então dá para contornar o canto de uma casa em vez de bloquear o
 // tile inteiro. C = lado da grade de colisão.
@@ -262,7 +276,7 @@ function desenhaMapaBase(){
   $('remInfo').textContent = st.remendos.length ? (st.remendos.length+' remendos') : 'nenhum remendo';
 }
 mapa.onload=desenhaMapaBase;
-mapa.src='/mapa-oficial.jpg?t='+Date.now();
+mapa.src=mapaAtual().img+'?t='+Date.now();
 const orbeImg=new Image(); orbeImg.onload=desenhaMarcas; orbeImg.src='/orbe.png';
 
 // colisão original do jogo (usada no primeiro acesso e pelo botão de recarregar)
@@ -278,8 +292,8 @@ function buscaColisaoJogo(){
   }).catch(()=>null);
 }
 buscaColisaoJogo().then(col=>{
-  const salvo = localStorage.getItem('crias_mapa');
-  if(col && !salvo){
+  const salvo = localStorage.getItem(mapaAtual().chave);
+  if(col && !salvo && mapaAtual().id==='principal'){
     st.colisao = paraFina(col);
     msg('colisão atual do jogo carregada — ajuste o que precisar');
   }
@@ -639,6 +653,34 @@ $('remLimpa').onclick=()=>{ if(!st.remendos.length) return msg('nenhum remendo')
   st.remendos=[]; desenhaMapaBase(); desenhaMarcas(); agendaSilhueta(); salvar(); msg('remendos removidos'); };
 $('orbT').oninput=e=>{st.orbe.tam=+e.target.value;$('orbTv').textContent=e.target.value;desenhaMarcas();salvar();};
 
+function pintaAbasMapa(){
+  const c=$('mapas'); c.innerHTML='';
+  MAPAS.forEach((m,i)=>{
+    const b=document.createElement('button');
+    b.textContent=m.nome; if(i===MAPA_ATUAL) b.classList.add('on');
+    b.onclick=()=>trocaMapa(i);
+    c.appendChild(b);
+  });
+}
+function estadoVazio(){
+  st.colisao = Array.from({length:C},()=>Array(C).fill(0));
+  st.frente  = Array.from({length:N*4},()=>Array(N*4).fill(0));
+  st.pecas=[]; st.remendos=[]; st.sel=null; st.orbe={x:23.5,y:21.5,tam:9};
+  SILHUETA=null; HIST.length=0;
+}
+function trocaMapa(i){
+  if(i===MAPA_ATUAL) return;
+  salvarAgora();                  // grava JÁ: o save adiado gravaria na chave errada
+  MAPA_ATUAL=i;
+  estadoVazio();
+  carregar();
+  pintaAbasMapa();
+  mapa.onload=()=>{ desenhaMapaBase(); desenhaMarcas(); agendaSilhueta(); };
+  mapa.src=mapaAtual().img+'?t='+Date.now();
+  msg('editando: '+mapaAtual().nome);
+}
+pintaAbasMapa();
+
 document.querySelectorAll('#modos button').forEach(b=>b.onclick=()=>{
   document.querySelectorAll('#modos button').forEach(x=>x.classList.remove('on'));
   b.classList.add('on'); st.modo=b.dataset.m;
@@ -989,11 +1031,17 @@ $('fit').onclick=verTudo;
 
 // salvar / publicar
 let _t=null;
-function salvar(){ clearTimeout(_t); _t=setTimeout(()=>{
-  try{ localStorage.setItem('crias_mapa', JSON.stringify({c:st.colisao,f:st.frente,o:st.orbe,p:st.pecas,u:UP,rem:st.remendos}));
+// A chave é resolvida na hora de AGENDAR, não na hora de gravar: o save é
+// adiado 600ms e, ao trocar de aba nesse meio tempo, ele gravava o mapa antigo
+// na chave do novo — e apagava os dois.
+function gravar(chave){
+  try{ localStorage.setItem(chave, JSON.stringify({c:st.colisao,f:st.frente,o:st.orbe,p:st.pecas,u:UP,rem:st.remendos}));
     $('auto2').textContent='salvo '+new Date().toLocaleTimeString('pt-BR').slice(0,5);
-  }catch(e){ msg('não consegui salvar — use o Backup'); } },600); }
-function carregar(){ const d=localStorage.getItem('crias_mapa'); if(!d)return;
+  }catch(e){ msg('não consegui salvar — use o Backup'); }
+}
+function salvar(){ const k=mapaAtual().chave; clearTimeout(_t); _t=setTimeout(()=>gravar(k),600); }
+function salvarAgora(){ clearTimeout(_t); gravar(mapaAtual().chave); }
+function carregar(){ const d=localStorage.getItem(mapaAtual().chave); if(!d)return;
   try{
     const j=JSON.parse(d);
     if(Array.isArray(j.c)) st.colisao = j.c.length===C ? j.c : paraFina(j.c);
@@ -1021,7 +1069,7 @@ $('pub').onclick=async()=>{
     msg('publicando…');
     const dados = JSON.stringify({colisao:st.colisao, frente:st.frente, orbe:st.orbe, remendos:st.remendos,
       pecas:st.pecas, tiles:UP});
-    const r = await sb.storage.from('mapas').upload('mapa-config.json', new Blob([dados],{type:'application/json'}),
+    const r = await sb.storage.from('mapas').upload(mapaAtual().arquivo, new Blob([dados],{type:'application/json'}),
       {upsert:true, contentType:'application/json', cacheControl:'0'});
     if(r.error) throw r.error;
     msg('✅ publicado! Abra o jogo e recarregue.');

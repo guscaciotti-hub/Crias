@@ -60,6 +60,21 @@ Sem isso, o sprite "deriva" levemente conforme a câmera move.
 
 ---
 
+## Mapas do mundo
+
+| Cena | Imagem | Config na nuvem | Como se chega |
+|------|--------|-----------------|---------------|
+| `world` — Nexus (cidade 1) | `public/mapa-oficial.jpg` | `mapa-config.json` | é onde o jogo começa |
+| `sul` — Jardim do Sul (lobby) | `public/mapa-lobby.jpg` | `mapa-config-lobby.json` | atravessando a borda de BAIXO da cidade |
+| `cave1` — caverna | embutida | — | pela entrada da caverna |
+
+Cada mapa tem colisão, passa-atrás, peças e remendos próprios. O editor `/mapa`
+tem uma aba por mapa no topo do painel; a primeira abre por padrão.
+
+O Jardim do Sul começa como um gramado liso (textura gerada a partir da cor de
+grama do próprio mapa da cidade) — é base para construir praça, bancos e
+canteiros pelo editor.
+
 ## Sistema de personagens
 
 ### Tamanho de desenho

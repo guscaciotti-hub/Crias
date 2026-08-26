@@ -3591,8 +3591,8 @@ function construirMascaraFrente() {
   // Mesmo código do editor /mapa (public/passa-atras.js): o que aparece em
   // amarelo lá é exatamente o que cobre o jogador aqui.
   if (!window.PassaAtras) return;
-  const r = window.PassaAtras.construirSilhueta(assets.map, window.MAPA_FRENTE,
-    { remendos: window.MAPA_REMENDOS });
+  const c = cena();
+  const r = window.PassaAtras.construirSilhueta(c.mapa, c.frente, { remendos: c.remendos });
   if (!r) { window._maskCanvas = null; window._maskArea = null; window._maskFalhou = true; return; }
   window._maskCanvas = r.canvas;
   window._maskArea = r.area;
@@ -3655,10 +3655,10 @@ function assaFatia() {
   _forno = null;
 }
 
-function desenhaPecasMapa(camX, camY, naFrente) {
-  for (const p of window.MAPA_PECAS) {
+function desenhaPecasMapa(camX, camY, naFrente, lista, tiles) {
+  for (const p of (lista || window.MAPA_PECAS)) {
     if (!!p.frente !== !!naFrente) continue;
-    const im = window.MAPA_TILES[p.t];
+    const im = (tiles || window.MAPA_TILES)[p.t];
     if (!im || !im.complete || !im.naturalWidth) continue;
     const h = p.s * TILE, w = h * (im.naturalWidth / im.naturalHeight);
     const cx = p.x * TILE - camX, cy = p.y * TILE - camY;
@@ -3743,6 +3743,34 @@ function loadAssets() {
   // Posição padrão do orbe; o editor /mapa sobrescreve ao publicar.
   window.MAPA_ORBE = { x: 23.5, y: 21.5, tam: 9 };
   window.MAPA_REMENDOS = [];   // pedaços de chão copiados no editor, por cima do mapa
+  // Mapa do SUL (lobby): mesma estrutura, arquivos próprios. O jogador chega
+  // nele atravessando a borda de baixo da cidade.
+  window.SUL_FRENTE = null;
+  window.SUL_PECAS = [];
+  window.SUL_TILES = {};
+  window.SUL_REMENDOS = [];
+  window.SUL_COLISAO = null;
+  loadImage('/mapa-lobby.jpg', 20000).then(img => { assets.mapaSul = img; }).catch(() => {});
+  fetch('https://gmycqvvvglexbtbqkjzi.supabase.co/storage/v1/object/public/mapas/mapa-config-lobby.json?t=' + Date.now())
+    .then(r => r.ok ? r.json() : null)
+    .then(cfg => {
+      if (!cfg) return;
+      if (Array.isArray(cfg.colisao)) { window.SUL_COLISAO = cfg.colisao; COLISAO_SUL = null; }
+      if (Array.isArray(cfg.frente)) { window.SUL_FRENTE = cfg.frente; window._maskSul = null; }
+      if (Array.isArray(cfg.remendos)) window.SUL_REMENDOS = cfg.remendos;
+      if (Array.isArray(cfg.pecas)) {
+        window.SUL_PECAS = cfg.pecas;
+        window.SUL_TILES = {};
+        for (const p of cfg.pecas) {
+          if (window.SUL_TILES[p.t]) continue;
+          const im = new Image();
+          im.onload = () => { const l = window.Tiles && window.Tiles.semChroma(im); if (l) window.SUL_TILES[p.t] = l; };
+          im.src = (cfg.tiles && cfg.tiles[p.t]) ? cfg.tiles[p.t] : ('/map-kit/' + p.t);
+          window.SUL_TILES[p.t] = im;
+        }
+      }
+      console.log('[mapa] configuração do sul aplicada');
+    }).catch(() => {});
   fetch('https://gmycqvvvglexbtbqkjzi.supabase.co/storage/v1/object/public/mapas/mapa-config.json?t=' + Date.now())
     .then(r => r.ok ? r.json() : null)
     .then(cfg => {
@@ -4691,7 +4719,21 @@ document.getElementById('questQuickBtn').addEventListener('click', () => {
 // ============================================================================
 // Grade fina de colisão (96x96). Nasce da COLLISION de 48 e é substituída pela
 // que o editor publica, se ela vier já na resolução fina.
+// Tudo que muda de um mapa para o outro passa por aqui, para o render não
+// precisar saber em qual cena está.
+function cena() {
+  if (state && state.scene === 'sul') return {
+    sul: true, mapa: assets.mapaSul, frente: window.SUL_FRENTE, pecas: window.SUL_PECAS,
+    tiles: window.SUL_TILES, remendos: window.SUL_REMENDOS, orbe: null,
+  };
+  return {
+    sul: false, mapa: assets.map, frente: window.MAPA_FRENTE, pecas: window.MAPA_PECAS,
+    tiles: window.MAPA_TILES, remendos: window.MAPA_REMENDOS, orbe: window.MAPA_ORBE,
+  };
+}
+
 let COLISAO_FINA = null;
+let COLISAO_SUL = null;
 function montaColisaoFina(base) {
   const F = GRID * SUBCOL;
   const fina = Array.from({ length: F }, () => new Uint8Array(F));
@@ -4703,8 +4745,21 @@ function montaColisaoFina(base) {
   return fina;
 }
 function bloqueado(x, y) {
-  if (!COLISAO_FINA) COLISAO_FINA = montaColisaoFina(COLLISION);
   const fx = Math.floor(x * SUBCOL), fy = Math.floor(y * SUBCOL);
+  if (state && state.scene === 'sul') {
+    if (!COLISAO_SUL) {
+      const F = GRID * SUBCOL;
+      const base = window.SUL_COLISAO;
+      COLISAO_SUL = Array.from({ length: F }, (_, y2) => {
+        const l = base && base[Math.floor(y2 * (base.length / F))];
+        return Array.from({ length: F }, (_, x2) =>
+          (l && l[Math.floor(x2 * (l.length / F))]) ? 1 : 0);
+      });
+    }
+    const ls = COLISAO_SUL[fy];
+    return !ls || ls[fx] === 1;
+  }
+  if (!COLISAO_FINA) COLISAO_FINA = montaColisaoFina(COLLISION);
   const l = COLISAO_FINA[fy];
   return !l || l[fx] === 1;
 }
@@ -4725,7 +4780,7 @@ function canWalkTo(x, y) {
   }
   if (x < 0 || x > GRID - 1 || y < 0 || y > GRID - 1) return false;
   if (bloqueado(x, y)) return false;
-  if (temNpcEm(state.npcs, x, y)) return false;
+  if (state.scene !== 'sul' && temNpcEm(state.npcs, x, y)) return false;
   return true;
 }
 
@@ -4760,9 +4815,33 @@ function tryMove(dir) {
     if (state.sitting) { levanta(); return; }   // andar levanta do banco
     const nx = +(state.player.x + dx * PASSO).toFixed(3);
     const ny = +(state.player.y + dy * PASSO).toFixed(3);
+    // Borda de baixo da cidade leva ao mapa do SUL; borda de cima do sul volta.
+    if (ny > GRID - 1) { if (state.scene !== 'sul') trocaCena('sul', state.player.x, 0.25); return; }
+    if (ny < 0)        { if (state.scene === 'sul') trocaCena('world', state.player.x, GRID - 1.25); return; }
     if (!canWalkTo(nx, ny)) return;
     movingTo = { fromX: state.player.x, fromY: state.player.y, toX: nx, toY: ny, startTime: performance.now() };
   }
+}
+
+// Passagem entre os dois mapas do mundo. A caverna continua sendo outra coisa,
+// com grade e render próprios.
+function trocaCena(destino, x, y) {
+  if (!state) return;
+  const indo = destino === 'sul';
+  if (indo && !(assets.mapaSul && assets.mapaSul.complete)) {
+    showToast('🌾 O caminho do sul ainda está carregando…');
+    return;
+  }
+  state.scene = indo ? 'sul' : 'world';
+  state.player.x = Math.max(0.25, Math.min(GRID - 1.25, +x.toFixed(3)));
+  state.player.y = +y.toFixed(3);
+  movingTo = null;
+  window._maskCanvas = null; window._maskArea = null; window._maskFalhou = false;
+  craPosHistory.length = 0;
+  _ultimoTile = null;
+  if (FX.sfx && FX.sfx.uiBig) FX.sfx.uiBig();
+  showToast(indo ? '🌾 Jardim do Sul' : '🏙️ Nexus');
+  saveGame();
 }
 
 function update(t) {
@@ -4902,6 +4981,7 @@ function getInteractable() {
     if ((t.x === 9 || t.x === 10) && t.y === 1) return { portal: 'cave_exit' };
     return null;
   }
+  if (state.scene === 'sul') return null;
   for (const npc of state.npcs)
     if (Math.abs(npc.x - t.x) <= 0.75 && Math.abs(npc.y - t.y) <= 0.75) return { npc };
   // Core Orb: faixa de tiles à frente do jogador
@@ -4924,12 +5004,14 @@ function lugaresDoBanco(p, im) {
 
 // Lugar livre mais perto do jogador, dentro do alcance
 function lugarPerto(alcance) {
-  if (!window.MAPA_PECAS || !state) return null;
+  if (!state) return null;
+  const _pecas = cena().pecas, _tiles = cena().tiles;
+  if (!_pecas) return null;
   const px = state.player.x, py = state.player.y;
   let melhor = null;
-  for (const p of window.MAPA_PECAS) {
+  for (const p of _pecas) {
     if (!p.banco) continue;
-    const im = window.MAPA_TILES && window.MAPA_TILES[p.t];
+    const im = _tiles && _tiles[p.t];
     if (!im || !(im.naturalWidth || im.width)) continue;
     lugaresDoBanco(p, im).forEach((l, i) => {
       const d = Math.hypot(l.x - px, l.y - py);
@@ -8704,10 +8786,13 @@ function render(now) {
   if (!cw || !ch) return; // skip frame if canvas was resized to 0 mid-rotation
   ctx.fillStyle = '#0a0e1a';
   ctx.fillRect(0, 0, cw, ch);
-  if (!assets.map || !state) return;
+  if (!state) return;
+  if (!assets.map && !assets.mapaSul) return;
 
   // CAVE SCENE
   if (state.scene === 'cave1') { renderCave1(now); return; }
+  const CENA = cena();
+  if (!CENA.mapa || !CENA.mapa.complete) return;
 
   // Compute player world pixel position (interpolated)
   let pX = state.player.x * TILE, pY = state.player.y * TILE;
@@ -8725,7 +8810,7 @@ function render(now) {
   // so any resolution (1254, 2000, 5016…) maps correctly to the same world size.
   // imgScale = image pixels per world pixel (e.g. 5016/1872 ≈ 2.68 for 4× texture)
   // se há remendos, o mapa desenhado é a cópia já assada com eles
-  const _mapaDes = assets.mapaAssado || assets.map;
+  const _mapaDes = CENA.sul ? CENA.mapa : (assets.mapaAssado || assets.map);
   const _imgW = _mapaDes.naturalWidth  || _mapaDes.width;
   const _imgH = _mapaDes.naturalHeight || _mapaDes.height;
   const _scaleX = _imgW / MAP_W_PX;  // image px per world px (X)
@@ -8736,17 +8821,22 @@ function render(now) {
     Math.round(cw   * _scaleX), Math.round(ch   * _scaleY),
     0, 0, cw, ch);
 
+  if (CENA.sul && CENA.remendos && CENA.remendos.length && window.PassaAtras) {
+    window.PassaAtras.desenharRemendos(ctx, CENA.mapa, CENA.remendos,
+      -camX, -camY, MAP_W_PX, { x: 0, y: 0, w: cw, h: ch });
+  }
+
   // Ambiente vivo: brilho da água e sombra das nuvens sobre o chão
-  AMBIENT.init(assets.map);
+  AMBIENT.init(CENA.mapa);
   AMBIENT.update(Math.min(0.05, (now - (AMBIENT._last || now)) / 1000), camX, camY, cw, ch, now);
   AMBIENT._last = now;
   AMBIENT.drawGround(ctx, camX, camY, cw, ch, now);
 
   // Peças do editor que ficam ATRÁS do jogador
-  if (state && window.MAPA_PECAS) desenhaPecasMapa(camX, camY, false);
+  if (state && CENA.pecas) desenhaPecasMapa(camX, camY, false, CENA.pecas, CENA.tiles);
 
   // Orbe do editor: metade de baixo, atrás do jogador
-  if (state && window.MAPA_ORBE && assets.orbSprite && assets.orbSprite.complete) {
+  if (state && CENA.orbe && assets.orbSprite && assets.orbSprite.complete) {
     const o = window.MAPA_ORBE;
     const oh = o.tam * TILE;
     const ow = oh * (assets.orbSprite.naturalWidth / assets.orbSprite.naturalHeight);
@@ -8766,10 +8856,10 @@ function render(now) {
   }
 
   // Draw dark socket + blue neon aura (drawn live each frame with aspect correction).
-  if (!window.MAPA_ORBE) drawOrbGroundFX(camX, camY, now);
+  if (!CENA.orbe && !CENA.sul) drawOrbGroundFX(camX, camY, now);
 
   // Neon quest path — pulsing dots leading player to quest destination
-  drawNeonPath(camX, camY, now);
+  if (!CENA.sul) drawNeonPath(camX, camY, now);
 
   // Cria follow position — always exactly 1 cell behind player
   let cX, cY;
@@ -8791,7 +8881,8 @@ function render(now) {
   // Build render list (entities) — only render those visible on screen
   const margin = TILE * 2;
   const renderables = [];
-  for (const npc of state.npcs) {
+  // os NPCs pertencem à cidade; no sul o mapa começa limpo
+  for (const npc of (CENA.sul ? [] : state.npcs)) {
     const wx = npc.x * TILE, wy = npc.y * TILE;
     if (wx < camX - margin || wx > camX + cw + margin) continue;
     if (wy < camY - margin || wy > camY + ch + margin) continue;
@@ -8887,7 +8978,7 @@ function render(now) {
   // ficou dentro da área marcada não entra.
   // O redesenho é limitado ao pedaço VISÍVEL da área marcada. Cobrir a área
   // inteira todo frame travava o jogo quando a marcação era grande.
-  if (state && state.scene !== 'cave1' && window.MAPA_FRENTE && assets.map && assets.map.complete) {
+  if (state && state.scene !== 'cave1' && CENA.frente && CENA.mapa && CENA.mapa.complete) {
     // a silhueta custa algumas centenas de ms; construir no primeiro frame
     // fazia a abertura engasgar. Espera o jogo já estar rodando.
     if (!window._maskCanvas && !window._maskFalhou) {
@@ -8908,7 +8999,7 @@ function render(now) {
         if (tmp.width !== vw || tmp.height !== vh) { tmp.width = vw; tmp.height = vh; }
         const tg = tmp.getContext('2d');
         tg.clearRect(0, 0, vw, vh);
-        const _fonte = assets.mapaAssado || assets.map;
+        const _fonte = CENA.sul ? CENA.mapa : (assets.mapaAssado || assets.map);
         const _iw = _fonte.naturalWidth || _fonte.width;
         const _ih = _fonte.naturalHeight || _fonte.height;
         const kx = _iw / MAP_W_PX, ky = _ih / MAP_H_PX;   // px da imagem por px de mundo
@@ -8928,11 +9019,11 @@ function render(now) {
 
   // Peças que cobrem o jogador — depois da máscara, senão o redesenho do
   // mapa passaria por cima delas e as cortaria pela metade
-  if (state && window.MAPA_PECAS) desenhaPecasMapa(camX, camY, true);
+  if (state && CENA.pecas) desenhaPecasMapa(camX, camY, true, CENA.pecas, CENA.tiles);
 
   // === ORBE do editor: metade de baixo já foi desenhada; aqui vai a de cima,
   // que cobre o jogador (efeito de passar por trás do cristal) ===
-  if (state && state.scene !== 'cave1' && window.MAPA_ORBE && assets.orbSprite && assets.orbSprite.complete) {
+  if (state && CENA.orbe && assets.orbSprite && assets.orbSprite.complete) {
     const o = window.MAPA_ORBE;
     const oh = o.tam * TILE;
     const ow = oh * (assets.orbSprite.naturalWidth / assets.orbSprite.naturalHeight);
@@ -8952,7 +9043,7 @@ function render(now) {
   }
 
   // Nomes por último: nem a máscara de passa-atrás nem o orbe cortam os rótulos
-  drawLabels(camX, camY, cw, ch);
+  drawLabels(camX, camY, cw, ch, CENA.sul);
 
   // === Cave darkness overlay (radial light around player) ===
   if (isInCaveArea()) {
@@ -8967,7 +9058,7 @@ function render(now) {
   }
 
   // === Quest hint (subtle floor marker for new players) ===
-  drawQuestHint(camX, camY, now);
+  if (!CENA.sul) drawQuestHint(camX, camY, now);
 
   // === Debug collision overlay ===
   drawDebugCollision(camX, camY, cw, ch);
@@ -9591,8 +9682,9 @@ function drawPlayer(px, py, now) {
   ctx.fillText(pname, px + TILE/2, py + TILE + 10);
 }
 
-function drawLabels(camX, camY, cw, ch) {
-  const labels = [
+function drawLabels(camX, camY, cw, ch, semLugares) {
+  // No mapa do sul não existem Coliseu, Loja nem Cúpula — só o nome do jogador.
+  const labels = semLugares ? [] : [
     { x: 4, y: 7.5, text: '🏠 Lar' },
     { x: 11, y: 5.5, text: '🏛️ Coliseu' },
     { x: 20, y: 7.5, text: '🏪 Loja' },
