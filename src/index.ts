@@ -36,6 +36,12 @@ app.get('/game', (req, res) => {
   res.sendFile(path.join(publicDir, 'game.html'))
 })
 
+// /studio → estúdio de assets (imagem limpa → 3D → sprites do jogo)
+app.get('/studio', (req, res) => {
+  res.setHeader('Cache-Control', 'no-cache')
+  res.sendFile(path.join(publicDir, 'studio.html'))
+})
+
 // /forge → fábrica de assets (imagem → chroma limpo → modelo 3D via HF)
 app.get('/forge', (req, res) => {
   res.setHeader('Cache-Control', 'no-store, must-revalidate')

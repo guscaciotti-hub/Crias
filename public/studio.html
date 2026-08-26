@@ -1,0 +1,479 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CRIAS — Estúdio de Assets</title>
+<style>
+  :root{ --bg:#070b14; --card:#0d1424; --line:#1d2942; --acc:#4dc3ff; --gold:#ffc44d;
+         --ok:#39e08a; --dim:#7f93b5; --bad:#ff6b6b; }
+  *{ box-sizing:border-box; margin:0; padding:0; }
+  body{ background:var(--bg); color:#e8f1ff; font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',system-ui,sans-serif;
+        font-size:14px; line-height:1.6; padding:22px; max-width:1180px; margin:0 auto; }
+  h1{ font-size:24px; font-weight:900; letter-spacing:-.02em; }
+  h1 span{ color:var(--acc); }
+  h2{ font-size:15px; font-weight:800; margin:0 0 10px; color:var(--acc); }
+  .sub{ color:var(--dim); font-size:13px; margin:4px 0 18px; }
+  .abas{ display:flex; gap:8px; flex-wrap:wrap; margin-bottom:18px; }
+  .abas button{ background:var(--card); border:1px solid var(--line); color:var(--dim);
+    border-radius:10px; padding:9px 15px; font-size:13px; font-weight:700; cursor:pointer; }
+  .abas button.on{ border-color:var(--acc); color:#fff; background:#122238; }
+  .card{ background:var(--card); border:1px solid var(--line); border-radius:12px; padding:16px; margin-bottom:14px; }
+  .hint{ font-size:12.5px; color:var(--dim); line-height:1.65; }
+  .aviso{ border-left:3px solid var(--gold); padding-left:12px; font-size:12.5px; color:#d9c99a; }
+  button.b{ background:linear-gradient(135deg,#1a5c8a,#2a8ac0); border:1px solid var(--acc); color:#fff;
+    border-radius:9px; padding:9px 16px; font-size:13px; font-weight:700; cursor:pointer; }
+  button.b:disabled{ opacity:.35; cursor:not-allowed; }
+  button.g{ background:transparent; border:1px solid var(--line); color:var(--dim);
+    border-radius:9px; padding:8px 14px; font-size:12.5px; font-weight:700; cursor:pointer; }
+  input[type=text],input[type=number],select{ background:#08101e; border:1px solid var(--line); color:#e8f1ff;
+    border-radius:8px; padding:8px 10px; font-size:13px; }
+  label{ display:block; font-size:12px; color:var(--dim); margin:10px 0 4px; font-weight:700; }
+  .linha{ display:flex; gap:10px; align-items:center; flex-wrap:wrap; }
+  .xadrez{ background-image:
+      linear-gradient(45deg,#131c30 25%,transparent 25%),linear-gradient(-45deg,#131c30 25%,transparent 25%),
+      linear-gradient(45deg,transparent 75%,#131c30 75%),linear-gradient(-45deg,transparent 75%,#131c30 75%);
+    background-size:16px 16px; background-position:0 0,0 8px,8px -8px,-8px 0; border-radius:8px; }
+  .vistas{ display:grid; grid-template-columns:repeat(auto-fill,minmax(120px,1fr)); gap:10px; margin-top:12px; }
+  .vista{ border:1px solid var(--line); border-radius:10px; padding:6px; text-align:center; }
+  .vista canvas{ width:100%; height:auto; display:block; }
+  .vista b{ font-size:11px; color:var(--dim); }
+  model-viewer{ width:100%; height:340px; background:#08101e; border-radius:10px; border:1px solid var(--line); }
+  #log{ background:#050a12; border:1px solid var(--line); border-radius:8px; padding:10px;
+    font-family:ui-monospace,Menlo,monospace; font-size:11.5px; color:#9fb6d4; max-height:180px; overflow:auto;
+    white-space:pre-wrap; margin-top:10px; }
+  table{ width:100%; border-collapse:collapse; font-size:13px; }
+  th,td{ text-align:left; padding:7px 8px; border-bottom:1px solid var(--line); }
+  th{ color:var(--dim); font-size:11px; text-transform:uppercase; letter-spacing:.08em; }
+  .tag{ font-size:10.5px; font-weight:800; padding:2px 8px; border-radius:20px; }
+  .t-ok{ background:rgba(57,224,138,.14); color:var(--ok); }
+  .t-no{ background:rgba(255,107,107,.14); color:var(--bad); }
+  .oculto{ display:none; }
+  a{ color:var(--acc); }
+</style>
+</head>
+<body>
+
+<h1>CRIAS — <span>Estúdio de Assets</span></h1>
+<div class="sub">Imagem limpa → modelo 3D → sprites prontos pro jogo. <a href="/design">← voltar pro database</a></div>
+
+<div class="abas" id="abas">
+  <button data-t="img" class="on">1 · Imagem</button>
+  <button data-t="glb">2 · Modelo 3D</button>
+  <button data-t="vis">3 · Vistas do jogo</button>
+  <button data-t="bib">4 · Biblioteca</button>
+</div>
+
+<!-- ══ 1 · IMAGEM ══ -->
+<div id="t-img">
+  <div class="card">
+    <h2>Limpar o fundo</h2>
+    <div class="hint" style="margin-bottom:10px">
+      Tira o fundo chroma da imagem e devolve PNG transparente. Funciona offline, sem conta
+      em lugar nenhum — é a mesma limpeza que o jogo usa nos sprites.
+    </div>
+    <div class="linha">
+      <input type="file" id="fImg" accept="image/*">
+      <select id="modo">
+        <option value="verde">fundo VERDE #00FF00 (personagem/monstro)</option>
+        <option value="magenta">fundo MAGENTA #FF00FF (peça de mapa)</option>
+        <option value="auto">automático (pega a cor dos cantos)</option>
+      </select>
+      <label style="margin:0">tolerância <input type="number" id="tol" value="70" min="20" max="200" style="width:70px"></label>
+    </div>
+    <div class="linha" style="margin-top:12px">
+      <div class="xadrez" style="padding:8px"><canvas id="cImg" style="max-width:340px;max-height:340px;display:block"></canvas></div>
+      <div class="hint" id="infoImg">nenhuma imagem carregada</div>
+    </div>
+    <div class="linha" style="margin-top:12px">
+      <button class="b" id="bBaixaImg" disabled>⬇ baixar PNG limpo</button>
+      <button class="g" id="bRefaz" disabled>↻ aplicar de novo</button>
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>Prompt para gerar a imagem</h2>
+    <div class="linha">
+      <select id="tipoPrompt">
+        <option value="monstro">Cria / monstro</option>
+        <option value="personagem">Personagem (spritesheet)</option>
+        <option value="peca">Peça do mapa</option>
+      </select>
+      <button class="g" id="bCopiaPrompt">📋 copiar prompt</button>
+    </div>
+    <div id="txtPrompt" class="hint" style="margin-top:10px;white-space:pre-wrap;background:#050a12;padding:10px;border-radius:8px;border:1px solid var(--line)"></div>
+  </div>
+</div>
+
+<!-- ══ 2 · MODELO 3D ══ -->
+<div id="t-glb" class="oculto">
+  <div class="card">
+    <h2>Já tenho o .glb — só quero ver e usar</h2>
+    <div class="hint" style="margin-bottom:10px">
+      Este é o caminho que funciona sempre. Gere o modelo onde quiser e solte o arquivo aqui.
+    </div>
+    <div class="linha">
+      <input type="file" id="fGlb" accept=".glb,.gltf,model/gltf-binary">
+      <span class="hint" id="infoGlb">nenhum modelo carregado</span>
+    </div>
+    <div id="slotMv2" style="margin-top:12px"></div>
+    <div class="linha" style="margin-top:10px">
+      <button class="g" id="bBaixaGlb" disabled>⬇ baixar .glb</button>
+      <button class="b" id="bIrVistas" disabled>➡ gerar as vistas do jogo</button>
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>Gerar o 3D a partir de uma imagem</h2>
+    <div class="aviso" style="margin-bottom:12px">
+      Transformar imagem em 3D depende de um serviço de fora — não existe nada bom rodando
+      dentro do navegador. Todos abaixo têm cota grátis, mas <b>pedem conta</b>. O caminho
+      recomendado é gerar lá, baixar o .glb e soltar aqui em cima.
+    </div>
+    <table>
+      <tr><th>Serviço</th><th>Cota grátis</th><th>Como usar</th></tr>
+      <tr>
+        <td><b><a href="https://www.meshy.ai/" target="_blank" rel="noopener">Meshy</a></b></td>
+        <td>créditos mensais</td>
+        <td class="hint">Image to 3D → sobe o PNG limpo da aba 1 → baixa em <b>GLB</b></td>
+      </tr>
+      <tr>
+        <td><b><a href="https://www.tripo3d.ai/" target="_blank" rel="noopener">Tripo3D</a></b></td>
+        <td>créditos ao criar conta</td>
+        <td class="hint">Image to 3D → mesma coisa, exporta <b>GLB</b></td>
+      </tr>
+      <tr>
+        <td><b><a href="https://huggingface.co/spaces/tencent/Hunyuan3D-2" target="_blank" rel="noopener">Hugging Face</a></b></td>
+        <td>fila pública, instável</td>
+        <td class="hint">Grátis de verdade, mas cai bastante. Tem um painel dedicado em <a href="/forge">/forge</a></td>
+      </tr>
+    </table>
+    <div class="hint" style="margin-top:12px">
+      Dica que muda o resultado: mande a imagem <b>já limpa</b> (aba 1), com o bicho de frente,
+      inteiro, sem cortar pé nem chifre. Fundo transparente ajuda o modelo a entender o contorno.
+    </div>
+  </div>
+</div>
+
+<!-- ══ 3 · VISTAS ══ -->
+<div id="t-vis" class="oculto">
+  <div class="card">
+    <h2>Do modelo 3D para os sprites do jogo</h2>
+    <div class="hint" style="margin-bottom:10px">
+      Gira o modelo, fotografa nos ângulos que o jogo usa, recorta o fundo, alinha todo mundo
+      pelos pés e entrega os PNGs com o nome certo. É o passo que transforma um .glb qualquer
+      em asset jogável.
+    </div>
+    <div class="linha">
+      <label style="margin:0">nome no jogo <input type="text" id="prefixo" value="char6" style="width:110px"></label>
+      <label style="margin:0">tipo
+        <select id="tipoVista">
+          <option value="personagem">personagem (4 direções)</option>
+          <option value="monstro">monstro (só de frente)</option>
+        </select>
+      </label>
+      <label style="margin:0">altura do PNG <input type="number" id="altPng" value="512" min="128" max="1024" style="width:80px"></label>
+    </div>
+    <label>ângulo que fica de frente <input type="range" id="ang" min="0" max="359" value="0" style="width:260px;vertical-align:middle"> <b id="angV" style="color:var(--acc)">0°</b></label>
+    <label>inclinação da câmera <input type="range" id="phi" min="45" max="90" value="76" style="width:200px;vertical-align:middle"> <b id="phiV" style="color:var(--acc)">76°</b></label>
+    <div class="hint">Gire o modelo aqui embaixo até o bicho estar de frente pra você, leia o ângulo e ajuste.
+      A inclinação 76° é a do mapa do jogo (visto meio de cima); 90° é de lado, 45° é mais por cima.</div>
+    <div id="slotMv3" style="margin:12px 0"></div>
+    <div class="linha" style="margin-top:12px">
+      <button class="b" id="bVistas" disabled>🎮 gerar vistas</button>
+      <button class="g" id="bBaixaVistas" disabled>⬇ baixar todas</button>
+    </div>
+    <div class="vistas" id="gVistas"></div>
+    <div id="log">pronto.</div>
+  </div>
+</div>
+
+<!-- ══ 4 · BIBLIOTECA ══ -->
+<div id="t-bib" class="oculto">
+  <div class="card">
+    <h2>O que o jogo já tem</h2>
+    <div class="hint" style="margin-bottom:10px">Verificado direto no servidor, agora.</div>
+    <table id="tBib"><tr><th>Asset</th><th>Arquivo</th><th>Status</th></tr></table>
+  </div>
+</div>
+
+<model-viewer id="mv" camera-controls disable-zoom shadow-intensity="0"
+  environment-image="neutral" exposure="1.1"></model-viewer>
+<script type="module" src="/model-viewer.min.js"></script>
+<script src="/tiles.js"></script>
+<script>
+const $ = i => document.getElementById(i);
+const log = m => { const l=$('log'); l.textContent += '\n' + m; l.scrollTop = l.scrollHeight; };
+
+document.querySelectorAll('#abas button').forEach(b => b.onclick = () => {
+  document.querySelectorAll('#abas button').forEach(x => x.classList.remove('on'));
+  b.classList.add('on');
+  const t0 = b.dataset.t;
+  for (const t of ['img','glb','vis','bib']) $('t-'+t).classList.toggle('oculto', t !== t0);
+  // O visualizador é UM só e vai junto para a aba ativa. Se ele ficar dentro de
+  // uma aba escondida, o WebGL para de desenhar e toda captura devolve o mesmo
+  // frame — foi assim que as 4 direções saíram idênticas.
+  const destino = t0 === 'glb' ? $('slotMv2') : (t0 === 'vis' ? $('slotMv3') : null);
+  const mv = $('mv');
+  if (destino) { destino.appendChild(mv); mv.style.display = ''; }
+  else mv.style.display = 'none';
+});
+$('slotMv2').appendChild($('mv'));
+function abrirAba(t){ document.querySelector('#abas button[data-t="'+t+'"]').click(); }
+
+function baixar(blobOuCanvas, nome) {
+  const fim = b => { const a=document.createElement('a'); a.href=URL.createObjectURL(b); a.download=nome; a.click();
+    setTimeout(()=>URL.revokeObjectURL(a.href), 4000); };
+  if (blobOuCanvas instanceof Blob) fim(blobOuCanvas);
+  else blobOuCanvas.toBlob(fim, 'image/png');
+}
+
+// ══════════ 1 · IMAGEM ══════════
+let imgOrig = null;
+const CANVAS_IMG = $('cImg');
+
+function corDosCantos(px, w, h) {
+  // média dos 4 cantos: se o fundo é chapado, é ele
+  const p = [[2,2],[w-3,2],[2,h-3],[w-3,h-3]];
+  let r=0,g=0,b=0;
+  for (const [x,y] of p) { const k=(y*w+x)*4; r+=px[k]; g+=px[k+1]; b+=px[k+2]; }
+  return [r/4, g/4, b/4];
+}
+
+function limpaFundo() {
+  if (!imgOrig) return;
+  const w = imgOrig.naturalWidth, h = imgOrig.naturalHeight;
+  CANVAS_IMG.width = w; CANVAS_IMG.height = h;
+  const g = CANVAS_IMG.getContext('2d', { willReadFrequently: true });
+  g.clearRect(0,0,w,h); g.drawImage(imgOrig, 0, 0);
+  const d = g.getImageData(0,0,w,h), px = d.data;
+  const modo = $('modo').value, tol = +$('tol').value;
+  const alvo = modo === 'auto' ? corDosCantos(px, w, h) : null;
+  let fora = 0;
+  for (let i = 0; i < px.length; i += 4) {
+    const r = px[i], gg = px[i+1], b = px[i+2];
+    let quanto;
+    if (modo === 'verde')        quanto = gg - Math.max(r, b);
+    else if (modo === 'magenta') quanto = Math.min(r, b) - gg;
+    else quanto = tol - (Math.abs(r-alvo[0]) + Math.abs(gg-alvo[1]) + Math.abs(b-alvo[2])) / 3;
+    const corte = modo === 'auto' ? 0 : tol;
+    if (quanto > corte) { px[i+3] = 0; fora++; continue; }
+    // franja: desbota e tira a cor do fundo que sobrou
+    const meio = corte * 0.35;
+    if (quanto > meio) {
+      px[i+3] = Math.round(px[i+3] * (corte - quanto) / (corte - meio));
+      if (modo === 'verde')   px[i+1] = Math.max(r, b);
+      if (modo === 'magenta') { const t = gg + 25; if (px[i] > t) px[i]=t; if (px[i+2] > t) px[i+2]=t; }
+    }
+  }
+  g.putImageData(d, 0, 0);
+  $('infoImg').textContent = w + '×' + h + ' · ' + Math.round(fora*100/(w*h)) + '% virou transparência';
+  $('bBaixaImg').disabled = $('bRefaz').disabled = false;
+}
+
+$('fImg').onchange = e => {
+  const f = e.target.files[0]; if (!f) return;
+  const im = new Image();
+  im.onload = () => { imgOrig = im; limpaFundo(); };
+  im.src = URL.createObjectURL(f);
+};
+$('modo').onchange = $('tol').oninput = $('bRefaz').onclick = limpaFundo;
+$('bBaixaImg').onclick = () => baixar(CANVAS_IMG, 'limpo.png');
+
+const PROMPTS = {
+  monstro: `Arte de criatura original para jogo RPG de colecionar monstros, render 3D estilizado, detalhado e vibrante.
+Pose de corpo inteiro, vista de FRENTE (leve 3/4), encarando o observador, centralizada.
+Fundo VERDE CHROMA #00FF00 sólido e chapado. Sem sombra no chão, sem borda, sem texto.
+A criatura ocupa ~80% da altura e nada (nem efeitos) toca as bordas.
+Iluminação neutra e uniforme, sem contraluz forte — a imagem vai virar modelo 3D.
+Criatura: `,
+  personagem: `Spritesheet única, grade FIXA de 4 colunas × 3 linhas (12 células iguais).
+Cada célula: 256×256px (total 1024×768). Fundo VERDE CHROMA #00FF00 sólido.
+Personagem SEMPRE do mesmo tamanho, centralizado, pés na MESMA altura em todas as células.
+Linha 1 = frente (parado, passo esquerdo, passo direito, extra)
+Linha 2 = costas (parado, passo esquerdo, passo direito, extra)
+Linha 3 = perfil esquerdo parado, perfil esquerdo andando, sentado de frente, perfil direito parado.
+Estilo render 3D estilizado, iluminação vinda do alto à esquerda. Sem texto, sem moldura.
+Personagem: `,
+  peca: `Peça de arte isolada para o mapa de um jogo RPG top-down.
+Fundo MAGENTA #FF00FF sólido e chapado. Nada além da peça — sem chão, sem sombra projetada no fundo.
+Vista de cima em 3/4, a mesma de um mapa de RPG clássico.
+Render 3D estilizado volumétrico, materiais com relevo, luz vinda do canto superior esquerdo.
+A peça ocupa ~90% do quadro, centralizada, sem tocar as bordas.
+Peça: `
+};
+function pintaPrompt(){ $('txtPrompt').textContent = PROMPTS[$('tipoPrompt').value]; }
+$('tipoPrompt').onchange = pintaPrompt; pintaPrompt();
+$('bCopiaPrompt').onclick = e => { navigator.clipboard.writeText($('txtPrompt').textContent);
+  e.target.textContent = '✅ copiado!'; setTimeout(()=>e.target.textContent='📋 copiar prompt', 1600); };
+
+// ══════════ 2 · MODELO 3D ══════════
+let glbBlob = null;
+$('fGlb').onchange = e => {
+  const f = e.target.files[0]; if (!f) return;
+  glbBlob = f;
+  $('mv').src = URL.createObjectURL(f);
+  $('infoGlb').textContent = f.name + ' · ' + (f.size/1048576).toFixed(2) + ' MB';
+  $('bBaixaGlb').disabled = $('bIrVistas').disabled = $('bVistas').disabled = false;
+};
+$('bBaixaGlb').onclick = () => baixar(glbBlob, ($('prefixo').value || 'modelo') + '.glb');
+$('bIrVistas').onclick = () => abrirAba('vis');
+$('phi').oninput = () => { $('phiV').textContent = $('phi').value + '°'; $('ang').oninput(); };
+$('ang').oninput = () => {
+  $('angV').textContent = $('ang').value + '°';
+  $('mv').cameraOrbit = $('ang').value + 'deg ' + $('phi').value + 'deg auto';
+};
+
+// ══════════ 3 · VISTAS ══════════
+function caixa(cv, lim = 22) {
+  const { width:w, height:h } = cv;
+  const d = cv.getContext('2d').getImageData(0,0,w,h).data;
+  let x0=w, y0=h, x1=-1, y1=-1;
+  for (let y=0;y<h;y++) for (let x=0;x<w;x++)
+    if (d[(y*w+x)*4+3] > lim) { if(x<x0)x0=x; if(x>x1)x1=x; if(y<y0)y0=y; if(y>y1)y1=y; }
+  return x1 < 0 ? null : { x0, y0, x1:x1+1, y1:y1+1 };
+}
+
+// centro dos PÉS (12% de baixo): capa e braço esticado deslocam o centro da
+// caixa e fazem o corpo "pular" de lado ao alternar frames
+function centroDosPes(cv, cx) {
+  const { width:w, height:h } = cv;
+  const d = cv.getContext('2d').getImageData(0,0,w,h).data;
+  const y0 = Math.max(0, cx.y1 - Math.max(4, Math.round((cx.y1-cx.y0)*0.12)));
+  let soma=0, n=0;
+  for (let y=y0;y<cx.y1;y++) for (let x=cx.x0;x<cx.x1;x++)
+    if (d[(y*w+x)*4+3] > 22) { soma += x; n++; }
+  return n ? soma/n : (cx.x0+cx.x1)/2;
+}
+
+let vistas = [];
+$('bVistas').onclick = async () => {
+  const mv = $('mv');
+  if (!mv.src) { log('carrega um modelo na aba 2 primeiro'); return; }
+  $('bVistas').disabled = true;
+  vistas = []; $('gVistas').innerHTML = '';
+  const F = +$('ang').value, ALT = +$('altPng').value;
+  const dirs = $('tipoVista').value === 'monstro'
+    ? [['idle', F]]
+    : [['down', F], ['left', F+90], ['up', F+180], ['right', F+270]];
+  log('capturando ' + dirs.length + ' vista(s) a partir de ' + F + '°…');
+  const sombraAntes = mv.getAttribute('shadow-intensity');
+  mv.setAttribute('shadow-intensity', '0');
+  // Durante a captura o visualizador vira um quadrado grande e a câmera afasta:
+  // num retângulo baixo e com o raio colado, o bicho saía cortado nas laterais
+  // ao girar. A resolução extra também deixa o recorte mais limpo.
+  const wAntes = mv.style.width, hAntes = mv.style.height;
+  mv.style.width = '900px'; mv.style.height = '900px';
+  await new Promise(r => setTimeout(r, 500));
+  if (mv.updateFraming) { try { await mv.updateFraming(); } catch (e) {} }
+  const brutos = [];
+
+  // Fotografa num ângulo e devolve o canvas + a caixa do conteúdo.
+  async function fotografa(alvo, raio) {
+    mv.cameraOrbit = alvo + 'deg ' + $('phi').value + 'deg ' + raio + '%';
+    if (mv.jumpCameraToGoal) mv.jumpCameraToGoal();
+    // espera a câmera CHEGAR no ângulo — o model-viewer interpola, e fotografar
+    // no meio do caminho dava vista em ângulo errado
+    for (let k = 0; k < 25; k++) {
+      await new Promise(r => setTimeout(r, 120));
+      if (!mv.getCameraOrbit) break;
+      let d = Math.abs((mv.getCameraOrbit().theta * 180 / Math.PI % 360 + 360) % 360 - alvo);
+      if (d > 180) d = 360 - d;
+      if (d < 1.5) break;
+      if (mv.jumpCameraToGoal) mv.jumpCameraToGoal();
+    }
+    await new Promise(r => setTimeout(r, 260));
+    await mv.toBlob({ mimeType: 'image/png' });        // descarta: aquece o frame
+    await new Promise(r => setTimeout(r, 160));
+    const blob = await mv.toBlob({ mimeType: 'image/png' });
+    const im = new Image();
+    await new Promise(r => { im.onload = r; im.src = URL.createObjectURL(blob); });
+    const cv = document.createElement('canvas');
+    cv.width = im.naturalWidth; cv.height = im.naturalHeight;
+    cv.getContext('2d').drawImage(im, 0, 0);
+    return { cv, cx: caixa(cv) };
+  }
+  const inteiro = (cv, cx) => cx && cx.x0 > 2 && cx.y0 > 2 && cx.x1 < cv.width - 2 && cx.y1 < cv.height - 2;
+
+  await fotografa(F, 165);   // aquece: a primeira captura depois do redimensionamento sai torta
+
+  for (const [nome, th] of dirs) {
+    const alvo = ((th % 360) + 360) % 360;
+    let cv, cx, raio = 165;
+    // se o bicho encosta na borda, ele está cortado: afasta a câmera e refaz
+    for (let tent = 0; tent < 4; tent++) {
+      ({ cv, cx } = await fotografa(alvo, raio));
+      if (inteiro(cv, cx)) break;
+      raio += 50;
+      log('  ' + nome + ': encostou na borda, afastando para ' + raio + '%');
+    }
+    if (!cx) { log('⚠ ' + nome + ': saiu vazio'); continue; }
+    if (!inteiro(cv, cx)) log('⚠ ' + nome + ': ainda cortado — diminua a inclinação');
+    brutos.push({ nome, cv, cx });
+    log('  ' + nome + ' ok (' + (cx.x1-cx.x0) + '×' + (cx.y1-cx.y0) + ')');
+  }
+  mv.setAttribute('shadow-intensity', sombraAntes || '0');
+  mv.style.width = wAntes; mv.style.height = hAntes;
+  if (!brutos.length) { $('bVistas').disabled = false; return; }
+
+  // escala única para todas as direções: o boneco não pode mudar de tamanho ao virar
+  const hRef = brutos[0].cx.y1 - brutos[0].cx.y0;
+  const esc = ALT / hRef;
+  const LARG = Math.round(ALT * 0.8);
+  for (const { nome, cv, cx } of brutos) {
+    const w = Math.round((cx.x1-cx.x0) * esc), h = Math.round((cx.y1-cx.y0) * esc);
+    const rec = document.createElement('canvas'); rec.width = w; rec.height = h;
+    rec.getContext('2d').drawImage(cv, cx.x0, cx.y0, cx.x1-cx.x0, cx.y1-cx.y0, 0, 0, w, h);
+    const pes = centroDosPes(cv, cx) - cx.x0;
+    const saida = document.createElement('canvas');
+    saida.width = LARG; saida.height = ALT + 8;
+    saida.getContext('2d').drawImage(rec, Math.round(LARG/2 - pes*esc), ALT - h + 4);
+    vistas.push({ nome, cv: saida });
+    const cel = document.createElement('div');
+    cel.className = 'vista xadrez';
+    cel.appendChild(saida.cloneNode(false));
+    cel.lastChild.getContext('2d').drawImage(saida, 0, 0);
+    const b = document.createElement('b'); b.textContent = nome;
+    cel.appendChild(b);
+    $('gVistas').appendChild(cel);
+  }
+  // right é o espelho de left quando o modelo é simétrico e a captura falhou
+  log('✅ ' + vistas.length + ' vista(s) prontas — confere e baixa');
+  $('bVistas').disabled = false;
+  $('bBaixaVistas').disabled = false;
+};
+
+$('bBaixaVistas').onclick = async () => {
+  const p = ($('prefixo').value || 'asset').trim().toLowerCase();
+  for (const v of vistas) {
+    baixar(v.cv, $('tipoVista').value === 'monstro' ? p + '.png' : p + '-' + v.nome + '-0.png');
+    await new Promise(r => setTimeout(r, 350));   // o browser bloqueia rajada de download
+  }
+  log('baixadas ' + vistas.length + ' — sobe em public/ e me avisa');
+};
+
+// ══════════ 4 · BIBLIOTECA ══════════
+const BIB = [
+  ['Personagem char1 — frente', '/char1-down-0.png'],
+  ['Personagem char1 — costas', '/char1-up-0.png'],
+  ['Personagem char1 — sentado', '/char1-sit-0.png'],
+  ['Cria Ignivar — sprite', '/ignivar-down.png'],
+  ['Cria Ignivar — modelo 3D', '/ignivar.glb'],
+  ['Mapa oficial', '/mapa-oficial.jpg'],
+  ['Orbe', '/orbe.png'],
+  ['Banco de 2 lugares', '/map-kit/banco-2.png'],
+  ['Banco de 3 lugares', '/map-kit/banco-3.png'],
+];
+const tb = $('tBib');
+BIB.forEach(([nome, arq]) => {
+  const tr = document.createElement('tr');
+  tr.innerHTML = '<td><b>'+nome+'</b></td><td style="color:var(--dim);font-size:12px">'+arq+'</td>'+
+                 '<td class="st"><span class="tag t-no">falta</span></td>';
+  tb.appendChild(tr);
+  fetch(arq, { method:'HEAD' }).then(r => {
+    if (r.ok) tr.querySelector('.st').innerHTML = '<span class="tag t-ok">no ar</span>';
+  }).catch(()=>{});
+});
+</script>
+</body>
+</html>
