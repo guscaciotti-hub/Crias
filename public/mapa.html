@@ -167,6 +167,16 @@
         de uma vez, no formato que você desenhou.
       </div>
       <label>Tamanho <input type="range" id="remTam" min="3" max="80" value="22"><b id="remTamv" style="color:var(--acc)">22</b></label>
+      <div class="hint" style="margin:8px 0 4px;padding:0;font-weight:800;color:var(--txt)">De onde copiar</div>
+      <div class="modo" id="remFonte" style="display:flex;gap:6px;margin-bottom:6px">
+        <button data-fo="mapa" class="on" style="flex:1">🗺️ do mapa</button>
+        <button data-fo="tile" style="flex:1">🧱 de um tile</button>
+      </div>
+      <div id="remTilePal" style="display:none">
+        <div class="hint" style="margin:0 0 4px;padding:0">Escolha o tile e pinte: a forma é preenchida com ele. É assim que se faz piso num mapa que só tem grama.</div>
+        <div id="palRem" style="display:grid;grid-template-columns:repeat(3,1fr);gap:5px;max-height:150px;overflow-y:auto"></div>
+        <label>Tamanho da textura <input type="range" id="remTesc" min="1" max="12" value="2"><b id="remTescv" style="color:var(--acc)">1.0 tiles</b></label>
+      </div>
       <button class="act" id="remOrigem">🎯 pegar origem</button>
       <button class="act" id="remApaga">🧽 apagar onde eu clicar</button>
       <button class="act" id="remDesfaz">↶ tirar último remendo</button>
@@ -248,6 +258,9 @@ const st = {
   remendos: [],       // {x,y,ox,oy,r} em fração do mapa (0..1) — copia chão de um lugar pro outro
   remR: 22,           // raio do pincel de remendo, em px do canvas do editor
   remForma: 'redondo', // redondo | quadrado | livre
+  remFonte: 'mapa',    // de onde o remendo copia: mapa | tile
+  remTile: null,       // tile escolhido como textura
+  remTesc: 1/24,       // tamanho da textura, em fração do mapa
   remOrigem: null,    // [fx,fy] em tiles
   pegandoOrigem: false,
   pegandoCor: false,   // conta-gotas: próximo clique no mapa vira a cor de referência
@@ -280,7 +293,7 @@ function desenhaMapaBase(){
   const L=N*TP;
   gM.clearRect(0,0,L,L);
   gM.drawImage(mapa,0,0,L,L);
-  if(window.PassaAtras) window.PassaAtras.desenharRemendos(gM, mapa, st.remendos, 0, 0, L);
+  if(window.PassaAtras) window.PassaAtras.desenharRemendos(gM, mapa, st.remendos, 0, 0, L, null, IMGS);
   $('remInfo').textContent = st.remendos.length ? (st.remendos.length+' remendos') : 'nenhum remendo';
 }
 mapa.onload=desenhaMapaBase;
@@ -662,6 +675,38 @@ $('prFrente').onclick = ()=>ordena(+1);
 $('prFundo').onclick  = ()=>ordena('fundo');
 $('prTopo').onclick   = ()=>ordena('topo');
 
+// A fonte do remendo pode ser um pedaço do mapa ou uma TEXTURA de tile. Num
+// mapa que só tem grama, copiar do próprio mapa só dá grama — é o tile que
+// permite pintar piso.
+document.querySelectorAll('#remFonte button').forEach(b=>b.onclick=()=>{
+  document.querySelectorAll('#remFonte button').forEach(x=>x.classList.remove('on'));
+  b.classList.add('on'); st.remFonte=b.dataset.fo;
+  $('remTilePal').style.display = st.remFonte==='tile' ? '' : 'none';
+  $('remOrigem').style.display  = st.remFonte==='tile' ? 'none' : '';
+  if(st.remFonte==='tile') paletaRemendo();
+  desenhaMarcas();
+  msg(st.remFonte==='tile' ? 'escolha o tile e pinte' : 'copia de um pedaço do mapa');
+});
+$('remTesc').oninput = e => { st.remTesc = (+e.target.value/2)/48;
+  $('remTescv').textContent = (+e.target.value/2).toFixed(1)+' tiles'; };
+function paletaRemendo(){
+  const c=$('palRem'); c.innerHTML='';
+  const lista=[...new Set([...KIT, ...Object.keys(UP)])].sort();
+  if(!lista.length){ c.innerHTML='<div class="hint" style="grid-column:1/-1">Envie tiles na aba Peças.</div>'; return; }
+  for(const f of lista){
+    const d=document.createElement('div');
+    d.style.cssText='aspect-ratio:1;border:2px solid '+(st.remTile===f?'var(--acc)':'transparent')+
+      ';border-radius:6px;overflow:hidden;cursor:pointer;background:#0a0f1c';
+    const cx=document.createElement('canvas'); cx.width=cx.height=48;
+    cx.style.cssText='width:100%;height:100%';
+    (function pinta(){ const im=img(f); if(!im||!im.complete||!im.naturalWidth) return setTimeout(pinta,180);
+      cx.getContext('2d').drawImage(im,0,0,48,48); })();
+    d.appendChild(cx);
+    d.onclick=()=>{ st.remTile = st.remTile===f ? null : f; paletaRemendo();
+      msg(st.remTile? 'pintando com '+f : 'nenhum tile escolhido'); };
+    c.appendChild(d);
+  }
+}
 $('remOrigem').onclick=()=>{ st.pegandoOrigem=true; st.apagando=false; sincronizaBorracha();
   msg('clique num pedaço limpo do chão para copiar dali'); };
 function sincronizaBorracha(){
@@ -888,9 +933,11 @@ function remenda(fx,fy){
   if(FORMAS_LIVRES.includes(st.remForma)){
     const sem = Math.random()*1000;
     const pts = contornoIrregular(st.remForma, fx, fy, rTile, sem).map(([x,y])=>[x/N,y/N]);
-    st.remendos.push({ pts, dx:(ox-fx)/N, dy:(oy-fy)/N, f:'livre' });
+    st.remendos.push({ pts, dx:(ox-fx)/N, dy:(oy-fy)/N, f:'livre',
+    ...(st.remFonte==='tile' && st.remTile ? { tile:st.remTile, tesc:st.remTesc } : {}) });
   } else {
-    st.remendos.push({ x:fx/N, y:fy/N, ox:ox/N, oy:oy/N, r:rTile/N, f:st.remForma });
+    st.remendos.push({ x:fx/N, y:fy/N, ox:ox/N, oy:oy/N, r:rTile/N, f:st.remForma,
+    ...(st.remFonte==='tile' && st.remTile ? { tile:st.remTile, tesc:st.remTesc } : {}) });
   }
   desenhaMapaBase(); desenhaMarcas(fx,fy);
 }
@@ -926,7 +973,10 @@ stage.addEventListener('mousedown',e=>{
       desenhaMarcas(); msg('origem em '+fx.toFixed(1)+', '+fy.toFixed(1)+' — agora pinte por cima do que quer sumir');
       return;
     }
-    if(!st.remOrigem){ msg('clique em "pegar origem" e escolha de onde copiar'); return; }
+    if(st.remFonte==='tile'){
+      if(!st.remTile) { msg('escolha um tile na paleta'); return; }
+      if(!st.remOrigem) st.remOrigem=[fx,fy];   // a origem não importa com textura
+    } else if(!st.remOrigem){ msg('clique em "pegar origem" e escolha de onde copiar'); return; }
     snap();
     remIni=[fx,fy]; remOrigemIni=st.remOrigem.slice(); remUltimo=null;
     remLaco = (st.remForma==='livre') ? [[fx,fy]] : null;
@@ -1036,7 +1086,8 @@ window.addEventListener('mouseup',()=>{
       st.remendos.push({
         pts: [[x0/N,y0/N],[x1/N,y0/N],[x1/N,y1/N],[x0/N,y1/N]],
         dx: (remOrigemIni[0]-remIni[0])/N, dy: (remOrigemIni[1]-remIni[1])/N,
-        f: 'livre'
+        f: 'livre',
+    ...(st.remFonte==='tile' && st.remTile ? { tile:st.remTile, tesc:st.remTesc } : {})
       });
       desenhaMapaBase(); desenhaMarcas(); agendaSilhueta(); salvar();
       msg('retângulo de '+(x1-x0).toFixed(1)+'x'+(y1-y0).toFixed(1)+' tiles remendado');
@@ -1046,7 +1097,8 @@ window.addEventListener('mouseup',()=>{
     st.remendos.push({
       pts: remLaco.map(([x,y])=>[x/N, y/N]),
       dx: (remOrigemIni[0]-remIni[0])/N, dy: (remOrigemIni[1]-remIni[1])/N,
-      f: 'livre'
+      f: 'livre',
+    ...(st.remFonte==='tile' && st.remTile ? { tile:st.remTile, tesc:st.remTesc } : {})
     });
     desenhaMapaBase(); desenhaMarcas(); agendaSilhueta(); salvar();
     msg('área livre remendada');

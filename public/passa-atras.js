@@ -21,7 +21,8 @@
     manchaMin: 60,    // manchas menores que isto são textura do chão, não objeto
     ladoMax: 1100,    // teto do recorte: acima disso o custo trava a abertura
                       // (2200 levava ~1s de congelamento; 1100 leva ~250ms)
-    remendos: null    // remendos publicados, para a silhueta ver o mapa corrigido
+    remendos: null,   // remendos publicados, para a silhueta ver o mapa corrigido
+    tiles: null       // texturas usadas por remendos de tile
   };
 
   /**
@@ -69,7 +70,7 @@
     // se o chão foi remendado, a silhueta tem que enxergar o mapa remendado —
     // senão o jogo apagaria a árvore e a máscara continuaria devolvendo ela
     if (o.remendos && o.remendos.length)
-      desenharRemendos(mg, mapa, o.remendos, -sx * (W / sw), -sy * (H / sh), larg * (W / sw));
+      desenharRemendos(mg, mapa, o.remendos, -sx * (W / sw), -sy * (H / sh), larg * (W / sw), null, o.tiles);
     var px;
     try { px = mg.getImageData(0, 0, W, H).data; } catch (e) { return null; }
 
@@ -171,7 +172,10 @@
    * @param destX,destY  onde fica o canto do mapa, no destino
    * @param destLarg     largura do mapa inteiro, no destino
    */
-  function desenharRemendos(g, mapa, remendos, destX, destY, destLarg, recorte) {
+  // `tiles` = { nome: imagem }. Um remendo com `tile` é preenchido com essa
+  // textura em vez de copiar um pedaço do mapa — é o que permite pintar piso
+  // num mapa que ainda não tem piso nenhum.
+  function desenharRemendos(g, mapa, remendos, destX, destY, destLarg, recorte, tiles) {
     if (!remendos || !remendos.length || !mapa) return;
     var iw = mapa.naturalWidth || mapa.width, ih = mapa.naturalHeight || mapa.height;
     if (!iw || !ih) return;
@@ -224,9 +228,23 @@
       g.clip();
       g.imageSmoothingEnabled = true;
       var bw = bx1 - bx0, bh = by1 - by0;
-      g.drawImage(mapa,
-        ox0 * iw, oy0 * ih, bw * iw, bh * ih,
-        X(bx0), Y(by0), bw * destLarg, bh * destAlt);
+      var tex = p.tile && tiles && tiles[p.tile];
+      if (tex && (tex.naturalWidth || tex.width)) {
+        // textura repetida, no tamanho pedido (em fração do mapa)
+        var lado = Math.max(2, (p.tesc || 0.02) * destLarg);
+        var tmp = document.createElement('canvas');
+        tmp.width = tmp.height = Math.round(lado);
+        tmp.getContext('2d').drawImage(tex, 0, 0, tmp.width, tmp.height);
+        var pat = g.createPattern(tmp, 'repeat');
+        if (pat) {
+          g.fillStyle = pat;
+          g.fillRect(X(bx0) - lado, Y(by0) - lado, bw * destLarg + lado * 2, bh * destAlt + lado * 2);
+        }
+      } else {
+        g.drawImage(mapa,
+          ox0 * iw, oy0 * ih, bw * iw, bh * ih,
+          X(bx0), Y(by0), bw * destLarg, bh * destAlt);
+      }
       g.restore();
     }
   }

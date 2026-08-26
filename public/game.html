@@ -3592,7 +3592,7 @@ function construirMascaraFrente() {
   // amarelo lá é exatamente o que cobre o jogador aqui.
   if (!window.PassaAtras) return;
   const c = cena();
-  const r = window.PassaAtras.construirSilhueta(c.mapa, c.frente, { remendos: c.remendos });
+  const r = window.PassaAtras.construirSilhueta(c.mapa, c.frente, { remendos: c.remendos, tiles: c.tiles });
   if (!r) { window._maskCanvas = null; window._maskArea = null; window._maskFalhou = true; return; }
   window._maskCanvas = r.canvas;
   window._maskArea = r.area;
@@ -3679,7 +3679,7 @@ function assaFatia() {
     g.drawImage(assets.map, b.bx * BLOCO, b.by * BLOCO, BLOCO, BLOCO, 0, 0, BLOCO, BLOCO);
     // desenha os remendos deste bloco no referencial dele
     window.PassaAtras.desenharRemendos(g, assets.map, b.lista,
-      -b.bx * BLOCO, -b.by * BLOCO, _forno.nat);
+      -b.bx * BLOCO, -b.by * BLOCO, _forno.nat, null, window.MAPA_TILES);
     _blocos.set(b.by * _forno.n + b.bx, { cv, bx: b.bx, by: b.by });
   }
   if (_forno.i < _forno.fila.length) { requestAnimationFrame(assaFatia); return; }
@@ -8878,7 +8878,7 @@ function render(now) {
 
   if (CENA.sul && CENA.remendos && CENA.remendos.length && window.PassaAtras) {
     window.PassaAtras.desenharRemendos(ctx, CENA.mapa, CENA.remendos,
-      -camX, -camY, MAP_W_PX, { x: 0, y: 0, w: cw, h: ch });
+      -camX, -camY, MAP_W_PX, { x: 0, y: 0, w: cw, h: ch }, CENA.tiles);
   }
 
   // Ambiente vivo: brilho da água e sombra das nuvens sobre o chão
@@ -9064,7 +9064,7 @@ function render(now) {
           (vx0 + camX) * kx, (vy0 + camY) * ky, vw * kx, vh * ky, 0, 0, vw, vh);
         if (CENA.remendos && CENA.remendos.length)
           window.PassaAtras.desenharRemendos(tg, CENA.mapa, CENA.remendos,
-            -(vx0 + camX), -(vy0 + camY), MAP_W_PX, { x: 0, y: 0, w: vw, h: vh });
+            -(vx0 + camX), -(vy0 + camY), MAP_W_PX, { x: 0, y: 0, w: vw, h: vh }, CENA.tiles);
         // mantém só o que está dentro da silhueta (mesmo pedaço, na escala dela)
         tg.globalCompositeOperation = 'destination-in';
         const mkx = mk.width / aw, mky = mk.height / ah;
