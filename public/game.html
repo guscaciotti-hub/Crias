@@ -2685,7 +2685,13 @@ const MAP_SOURCE_W = 1248, MAP_SOURCE_H = 1248;
 const MAP_SCALE = 1.5;
 const MAP_W_PX = MAP_SOURCE_W * MAP_SCALE, MAP_H_PX = MAP_SOURCE_H * MAP_SCALE; // 1872
 const GRID = 48, TILE = MAP_W_PX / GRID; // 39
-const MOVE_DURATION = 252; // walking pace — cadência natural de passo
+// O personagem anda MEIA célula por passo, e a colisão é 2x mais fina que o
+// tile. Sem o passo menor, marcar colisão fina não muda nada: ele continuaria
+// parando exatamente nos mesmos lugares. Com os dois, dá para contornar o
+// canto de uma casa em vez de bloquear o tile inteiro.
+const SUBCOL = 2;              // células de colisão por tile
+const PASSO = 1 / SUBCOL;      // quanto o personagem anda por passo, em tiles
+const MOVE_DURATION = 126; // meio passo: metade do tempo, mesma velocidade
 
 // ============================================================================
 // 5 MONSTROS CANÔNICOS — definição completa
@@ -3741,7 +3747,21 @@ function loadAssets() {
     .then(r => r.ok ? r.json() : null)
     .then(cfg => {
       if (!cfg) return;
-      if (Array.isArray(cfg.colisao) && cfg.colisao.length === GRID) {
+      if (Array.isArray(cfg.colisao) && cfg.colisao.length === GRID * SUBCOL) {
+        // já veio na resolução fina, direto do editor
+        const F = GRID * SUBCOL, fina = Array.from({ length: F }, () => new Uint8Array(F));
+        const zy0 = 18 * SUBCOL, zy1 = 24 * SUBCOL + SUBCOL - 1;
+        const zx0 = 18 * SUBCOL, zx1 = 27 * SUBCOL + SUBCOL - 1;
+        for (let y = 0; y < F; y++) {
+          const linha = cfg.colisao[y];
+          if (!Array.isArray(linha) || linha.length !== F) continue;
+          for (let x = 0; x < F; x++) {
+            if (y >= zy0 && y <= zy1 && x >= zx0 && x <= zx1) continue;  // zona do orbe é intocável
+            fina[y][x] = linha[x] ? 1 : 0;
+          }
+        }
+        COLISAO_FINA = fina;
+      } else if (Array.isArray(cfg.colisao) && cfg.colisao.length === GRID) {
         // A zona do orbe (linhas 18-24, colunas 18-27) é intocável: são os
         // tiles especiais de coleta. Quem publica pelo editor não pode
         // sobrescrevê-la sem querer. Linhas malformadas são ignoradas em vez
@@ -3755,6 +3775,7 @@ function loadAssets() {
             for (let x = 0; x < GRID; x++) COLLISION[y][x] = linha[x];
           }
         }
+        COLISAO_FINA = montaColisaoFina(COLLISION);
       }
       if (Array.isArray(cfg.frente)) { window.MAPA_FRENTE = cfg.frente; window._maskCanvas = null; window._maskFalhou = false; }
       if (Array.isArray(cfg.pecas)) {
@@ -4655,6 +4676,32 @@ document.getElementById('questQuickBtn').addEventListener('click', () => {
 // ============================================================================
 // MOVEMENT
 // ============================================================================
+// Grade fina de colisão (96x96). Nasce da COLLISION de 48 e é substituída pela
+// que o editor publica, se ela vier já na resolução fina.
+let COLISAO_FINA = null;
+function montaColisaoFina(base) {
+  const F = GRID * SUBCOL;
+  const fina = Array.from({ length: F }, () => new Uint8Array(F));
+  for (let y = 0; y < GRID; y++)
+    for (let x = 0; x < GRID; x++)
+      if (base[y] && base[y][x] === 1)
+        for (let dy = 0; dy < SUBCOL; dy++)
+          for (let dx = 0; dx < SUBCOL; dx++) fina[y * SUBCOL + dy][x * SUBCOL + dx] = 1;
+  return fina;
+}
+function bloqueado(x, y) {
+  if (!COLISAO_FINA) COLISAO_FINA = montaColisaoFina(COLLISION);
+  const fx = Math.floor(x * SUBCOL), fy = Math.floor(y * SUBCOL);
+  const l = COLISAO_FINA[fy];
+  return !l || l[fx] === 1;
+}
+// NPC ocupa o próprio tile: com passo de meia célula, comparar por igualdade
+// nunca casaria (o jogador para em .5 e o NPC está em inteiro)
+function temNpcEm(lista, x, y) {
+  for (const npc of lista) if (Math.abs(npc.x - x) < 0.75 && Math.abs(npc.y - y) < 0.75) return true;
+  return false;
+}
+
 function canWalkTo(x, y) {
   if (state && state.scene === 'cave1') {
     if (x < 0 || x >= CAVE1_GRID || y < 0 || y >= CAVE1_GRID) return false;
@@ -4663,9 +4710,9 @@ function canWalkTo(x, y) {
     for (const npc of state.cave1.npcs) if (npc.x === x && npc.y === y) return false;
     return true;
   }
-  if (x < 0 || x >= GRID || y < 0 || y >= GRID) return false;
-  if (COLLISION[y][x] === 1) return false;
-  for (const npc of state.npcs) if (npc.x === x && npc.y === y) return false;
+  if (x < 0 || x > GRID - 1 || y < 0 || y > GRID - 1) return false;
+  if (bloqueado(x, y)) return false;
+  if (temNpcEm(state.npcs, x, y)) return false;
   return true;
 }
 
@@ -4697,7 +4744,8 @@ function tryMove(dir) {
     movingTo = { fromX: state.cavePlayer.x, fromY: state.cavePlayer.y, toX: nx, toY: ny, startTime: performance.now() };
   } else {
     state.player.dir = dir;
-    const nx = state.player.x + dx, ny = state.player.y + dy;
+    const nx = +(state.player.x + dx * PASSO).toFixed(3);
+    const ny = +(state.player.y + dy * PASSO).toFixed(3);
     if (!canWalkTo(nx, ny)) return;
     movingTo = { fromX: state.player.x, fromY: state.player.y, toX: nx, toY: ny, startTime: performance.now() };
   }
@@ -4746,7 +4794,7 @@ function onTileStep() {
   FX.step(px, py, true);
   FX.sfx.step();
   for (const z of WILD_ZONES) {
-    if (z.x === state.player.x && z.y === state.player.y) {
+    if (z.x === Math.floor(state.player.x) && z.y === Math.floor(state.player.y)) {
       if (!state.enteredCave) {
         state.enteredCave = true;
         showToast('🕳️ Entrada da Caverna próxima! Pressione A para entrar.');
@@ -4758,7 +4806,7 @@ function onTileStep() {
   }
   // Wild encounters in the open world
   if (!state.cria) return;
-  const wz = getWorldEncounterZone(state.player.x, state.player.y);
+  const wz = getWorldEncounterZone(Math.floor(state.player.x), Math.floor(state.player.y));
   if (wz && Math.random() < wz.rate) {
     setTimeout(() => startWorldEncounter(wz), 200);
   }
@@ -4827,9 +4875,10 @@ function getInteractable() {
     if ((t.x === 9 || t.x === 10) && t.y === 1) return { portal: 'cave_exit' };
     return null;
   }
-  for (const npc of state.npcs) if (npc.x === t.x && npc.y === t.y) return { npc };
-  // Core Orb interaction — player facing toward orb center (tile 11,11 / 12,11)
-  if ((t.x === 21 || t.x === 22 || t.x === 23 || t.x === 24 || t.x === 25 || t.x === 26) && (t.y === 21 || t.y === 22 || t.y === 23 || t.y === 24 || t.y === 25)) return { coreOrb: true };
+  for (const npc of state.npcs)
+    if (Math.abs(npc.x - t.x) <= 0.75 && Math.abs(npc.y - t.y) <= 0.75) return { npc };
+  // Core Orb: faixa de tiles à frente do jogador
+  if (t.x >= 20.5 && t.x <= 26.5 && t.y >= 20.5 && t.y <= 25.5) return { coreOrb: true };
   return null;
 }
 function updateActionButton() {

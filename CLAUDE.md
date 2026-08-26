@@ -29,6 +29,7 @@ Stack: **Express.js + TypeScript** servido via **Vercel**. Todo o jogo fica em *
 ### ⛔ COLLISION array — zona do orb (INTOCÁVEL)
 O array `COLLISION` (48×48, linhas ~2648-2695) tem uma zona protegida:
 - **Linhas 18-24, colunas 18-27** = zona do orb (tiles especiais de coleta de criaturas)
+- Na grade FINA (96×96) isso vira linhas 36-49, colunas 36-55 — protegido nos dois caminhos
 - **JAMAIS modificar esses valores**, mesmo que o usuário mande um array novo para colar.
 - Antes de aplicar qualquer array novo: verificar se a zona está intacta e, se necessário, preservar manualmente.
 
@@ -39,6 +40,8 @@ O array `COLLISION` (48×48, linhas ~2648-2695) tem uma zona protegida:
 ```
 TILE        = 39px          (cada célula do grid)
 GRID        = 48            (48×48 tiles)
+SUBCOL      = 2             (colisão 2× mais fina: 96×96)
+PASSO       = 0.5 tile      (o personagem anda meia célula por vez)
 MAP_W_PX    = MAP_H_PX = 1872px   (= 48 × 39)
 Imagem mapa = 1254×1254px   (renderizada escalada para 1872×1872)
 ```
