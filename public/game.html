@@ -8244,7 +8244,10 @@ const VISUAL_PALETAS = {
 // Cortes de cabelo: cada corte é um conjunto próprio de frames (gerados da
 // mesma arte, só o cabelo muda) com máscaras próprias. Trocar o corte troca
 // os ARQUIVOS; as cores continuam vindo da repintura por máscara.
-const CORTES_CHAR1 = [{ n: 'Clássico' }, { n: 'Curto' }, { n: 'Moicano' }];
+// Só o Clássico por enquanto: os cortes gerados por código ficaram artificiais.
+// Os próximos entram como arte nova (GPT) nos arquivos /char1-c<N>-*.png — o
+// seletor reaparece sozinho quando houver mais de um corte na lista.
+const CORTES_CHAR1 = [{ n: 'Clássico' }];
 function defineCorteChar1(c) {
   const p = c ? '/char1-c' + c : '/char1';
   EXTERNAL_COMBO_SPRITES.char1 = {
@@ -8674,7 +8677,7 @@ function _czMontaOpcoes() {
   const rows = document.getElementById('czRows');
   if (!rows || rows.childElementCount) return;   // monta uma vez só
   // Corte de cabelo — troca os frames; botões com nome, não bolinha de cor
-  {
+  if (CORTES_CHAR1.length > 1) {
     const row = document.createElement('div');
     row.className = 'cz-row';
     const lab = document.createElement('label');
