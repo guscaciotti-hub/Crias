@@ -941,8 +941,37 @@ cr.lastElementChild.appendChild(mkBtn(P_CHAR, 'Copiar prompt'));
       const d = document.createElement('div');
       d.style.cssText = 'display:flex;align-items:center;gap:10px;padding:5px 0;border-bottom:1px solid rgba(255,255,255,.06)';
       d.innerHTML = '<img src="'+c.img+'" style="height:26px">'+
-        '<b style="color:var(--txt)">'+c.n+'</b>'+
-        '<span>larg '+(c.esc||1.3).toFixed(2)+' · afunda '+(c.dy==null?0.45:c.dy).toFixed(2)+'</span>';
+        '<b style="color:var(--txt);flex:1">'+c.n+'</b>'+
+        '<span>'+(c.preco > 0 ? c.preco+' 🪙' : 'só conquista')+'</span>';
+      // Editar: traz o chapéu publicado de volta para os controles (nome,
+      // preço, como se conquista e os ajustes das 4 vistas). As imagens
+      // continuam as mesmas — publicar de novo com o mesmo nome substitui.
+      const ed = document.createElement('button');
+      ed.className = 'ghost'; ed.textContent = 'editar';
+      ed.onclick = () => {
+        $('chNome').value = c.n;
+        $('chComo').value = /em breve|à venda na loja/i.test(c.como || '') ? '' : (c.como || '');
+        $('chPreco').value = c.preco || 0;
+        const base = { esc: c.esc || 1.6, dy: c.dy == null ? 0.55 : c.dy, dx: c.dx || 0 };
+        for (const k of ['f','t','l','r'])
+          CFG[k] = Object.assign({}, base, (c.vistas && c.vistas[k]) || {});
+        vSel = 'f'; sincronizaSliders();
+        // carrega as imagens publicadas para o preview e para republicar
+        const carrega = (url, aoPronto) => {
+          if (!url) return aoPronto(null);
+          const im = new Image(); im.crossOrigin = 'anonymous';
+          im.onload = () => aoPronto(im); im.onerror = () => aoPronto(null);
+          im.src = url + (url.indexOf('?')<0 ? '?t=' : '&t=') + Date.now();
+        };
+        chapeuIm = chapeuTras = chapeuLado = chapeuLadoDir = null;
+        carrega(c.img, im => { chapeuIm = im; desenha(); });
+        carrega(c.imgTras, im => { chapeuTras = im; desenha(); });
+        carrega(c.imgLado, im => { chapeuLado = im; desenha(); });
+        carrega(c.imgLadoDir, im => { chapeuLadoDir = im; desenha(); });
+        $('chMsg').textContent = 'editando "'+c.n+'" — ajuste e clique em Publicar para salvar';
+        $('chNome').scrollIntoView({ block:'center', behavior:'smooth' });
+      };
+      d.appendChild(ed);
       const rm = document.createElement('button');
       rm.className = 'ghost'; rm.textContent = 'tirar';
       rm.onclick = async () => {
@@ -970,6 +999,10 @@ cr.lastElementChild.appendChild(mkBtn(P_CHAR, 'Copiar prompt'));
         else fetch(cv.src).then(r => r.blob()).then(res);
       });
       const sobe = async (cv, sufixo) => {
+        // imagem que veio do próprio storage (edição sem trocar a arte):
+        // reaproveita o endereço em vez de reenviar o mesmo arquivo
+        if (cv && cv.src && cv.src.indexOf(SB) === 0)
+          return cv.src.split('?')[0];
         const cam = 'chapeus/' + slug + sufixo + '.png';
         const up = await sb.storage.from('mapas').upload(cam, await blobDe(cv), { upsert: true, cacheControl: '0' });
         if (up.error) throw up.error;

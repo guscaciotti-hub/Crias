@@ -293,11 +293,23 @@ const mapa=new Image();
 // Os remendos são desenhados por cima do mapa ORIGINAL, sempre na mesma ordem,
 // então o editor e o jogo mostram exatamente o mesmo resultado.
 function desenhaMapaBase(){
-  if(!(mapa.complete&&mapa.naturalWidth)) return;
   const L=N*TP;
+  const alvo = mapaAtual().img;
+  // A imagem só é usada se for A DESTE mapa e estiver carregada. NUNCA mais
+  // mostrar a imagem do mapa anterior enquanto a certa não chega — era isso
+  // que fazia a aba parecer "presa" na Cidade ao trocar para o Sul.
+  const prontoCerto = mapa.complete && mapa.naturalWidth && mapa.src && mapa.src.indexOf(alvo)>=0;
   gM.clearRect(0,0,L,L);
-  gM.drawImage(mapa,0,0,L,L);
-  if(window.PassaAtras) window.PassaAtras.desenharRemendos(gM, mapa, st.remendos, 0, 0, L, null, IMGS);
+  if(prontoCerto){
+    gM.drawImage(mapa,0,0,L,L);
+  } else {
+    gM.fillStyle = mapaAtual().id==='lobby' ? '#6d8109' : '#3a4152';
+    gM.fillRect(0,0,L,L);
+    gM.fillStyle='rgba(255,255,255,.55)';
+    gM.font='bold 30px sans-serif'; gM.textAlign='center'; gM.textBaseline='middle';
+    gM.fillText('⏳ imagem do mapa carregando… (dá para editar já)', L/2, L*0.45);
+  }
+  if(window.PassaAtras) window.PassaAtras.desenharRemendos(gM, prontoCerto ? mapa : gM.canvas, st.remendos, 0, 0, L, null, IMGS);
   $('remInfo').textContent = st.remendos.length ? (st.remendos.length+' remendos') : 'nenhum remendo';
 }
 // Carregamento vigiado da imagem do mapa. Três jeitos de dar errado, todos
@@ -314,9 +326,14 @@ function pedeImagemMapa(){
     return;
   }
   msg('carregando a imagem do mapa…');
+  // pinta JÁ o mapa certo (chão neutro + aviso): a tela nunca fica exibindo
+  // o mapa anterior enquanto a imagem nova não chega
+  desenhaMapaBase(); desenhaMarcas();
   mapa.src = alvo + (jaAlvo ? '?r='+Date.now() : '');
   _mapaVigia = setTimeout(()=>{
-    if(!mapa.complete || !mapa.naturalWidth){ msg('imagem demorando — tentando de novo…'); pedeImagemMapa(); }
+    if(!mapa.complete || !mapa.naturalWidth || mapa.src.indexOf(alvo)<0){
+      msg('imagem demorando — tentando de novo…'); pedeImagemMapa();
+    }
   }, 4000);
 }
 mapa.onload=()=>{ clearTimeout(_mapaVigia); desenhaMapaBase(); desenhaMarcas(); agendaSilhueta(); };
