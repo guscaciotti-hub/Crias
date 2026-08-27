@@ -9939,7 +9939,14 @@ const NPC_SPRITES = {};
 function npcSprite(id) {
   if (!(id in NPC_SPRITES)) {
     const im = new Image();
-    im.onerror = () => { NPC_SPRITES[id] = null; };
+    im.onerror = () => {
+      // sem arquivo no repositório: tenta a arte publicada pelo database
+      const nu = new Image();
+      nu.crossOrigin = 'anonymous';
+      nu.onerror = () => { NPC_SPRITES[id] = null; };
+      nu.src = 'https://gmycqvvvglexbtbqkjzi.supabase.co/storage/v1/object/public/mapas/npcs/npc-' + id + '.png?t=' + Date.now();
+      NPC_SPRITES[id] = nu;
+    };
     im.src = '/npc-' + id + '.png';
     NPC_SPRITES[id] = im;
   }
