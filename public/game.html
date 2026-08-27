@@ -8343,6 +8343,7 @@ function _chapeuAtivo() {
     frente,
     tras: d.imgTras ? _carregaImgChapeu(d.imgTras) : null,
     lado: d.imgLado ? _carregaImgChapeu(d.imgLado) : null,
+    ladoDir: d.imgLadoDir ? _carregaImgChapeu(d.imgLadoDir) : null,
     esc: d.esc || 1.3,
     dy: d.dy == null ? 0.45 : d.dy,
     dx: d.dx || 0
@@ -8350,7 +8351,8 @@ function _chapeuAtivo() {
 }
 function _imgChapeuPara(chapeu, dir) {
   if (dir === 'up') return chapeu.tras || chapeu.frente;
-  if (dir === 'left' || dir === 'right') return chapeu.lado || chapeu.frente;
+  if (dir === 'right') return chapeu.ladoDir || chapeu.lado || chapeu.frente;
+  if (dir === 'left') return chapeu.lado || chapeu.frente;
   return chapeu.frente;
 }
 
@@ -8600,7 +8602,7 @@ function _montaFramesCombo(comboId) {
         const x = anc.cx - wCh / 2 + anc.larg * (chapeu.dx || 0);
         const y = anc.topo - hCh * (1 - chapeu.dy) + DESL;
         g.imageSmoothingEnabled = true;
-        if (fr.dir === 'right' && chapeu.lado) {
+        if (fr.dir === 'right' && !chapeu.ladoDir && chapeu.lado) {
           // perfil direito = espelho do perfil esquerdo (e o deslocamento
           // ↔ espelha junto, como num chapéu de verdade)
           g.save();

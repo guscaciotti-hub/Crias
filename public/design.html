@@ -236,20 +236,22 @@ FORMATO DE TRABALHO:
   </div>
   <div class="q" id="chPrompt" style="cursor:pointer" title="clique para copiar">
     Crie um chapéu em pixel art para um personagem de jogo estilo Pokémon/Ragnarok, como se
-    estivesse na cabeça de um personagem 2D top-down, numa folha com <b>3 células lado a lado,
-    todas na mesma escala</b>: 1) visto de <b>FRENTE</b> · 2) visto de <b>COSTAS</b> ·
-    3) visto de <b>PERFIL ESQUERDO</b>. Chapéu: <b>[descreva: boné vermelho / cartola /
-    coroa dourada / capuz de raposa…]</b>. Fundo 100% transparente, sem cabeça, sem sombra,
-    sem texto, com espaço vazio separando as 3 células. Pixel art com sombreamento simples,
-    luz vindo da esquerda-cima. <span style="color:var(--dim)">(clique para copiar)</span>
+    estivesse na cabeça de um personagem 2D top-down, numa folha com <b>4 células em UMA LINHA,
+    todas na mesma escala e com bastante espaço vazio entre elas</b>:
+    1) visto de <b>FRENTE</b> · 2) visto de <b>COSTAS</b> · 3) visto de <b>PERFIL ESQUERDO</b>
+    (apontando para a esquerda) · 4) visto de <b>PERFIL DIREITO</b> (apontando para a direita).
+    Chapéu: <b>[descreva: boné vermelho / cartola / coroa dourada / capuz de raposa…]</b>.
+    Fundo 100% transparente, sem cabeça, sem sombra, sem texto.
+    Pixel art com sombreamento simples, luz vindo da esquerda-cima.
+    <span style="color:var(--dim)">(clique para copiar)</span>
   </div>
   <div style="display:grid;grid-template-columns:280px 1fr;gap:16px;margin-top:14px;align-items:start">
     <div>
       <input type="file" id="chArqFolha" accept="image/png,image/webp" style="display:none">
-      <button id="chSoltaFolha" style="width:100%">📄 Soltar a folha com as 3 vistas</button>
-      <div class="note" style="margin-top:4px">A folha traz frente · costas · perfil ESQUERDO,
-        e o lab fatia sozinho. O perfil direito é o espelho do esquerdo — o chapéu
-        vira junto com o personagem.</div>
+      <button id="chSoltaFolha" style="width:100%">📄 Soltar a folha com as 4 vistas</button>
+      <div class="note" style="margin-top:4px">Frente · costas · perfil esquerdo · perfil direito —
+        o lab fatia sozinho (aceita 3 ou 4 células, em linha ou grade 2×2; com 3, o perfil
+        direito é o espelho do esquerdo).</div>
       <div style="margin-top:10px;font-size:12px;color:var(--dim)">Nome no jogo:</div>
       <input type="text" id="chNome" maxlength="18" placeholder="ex.: Boné Vermelho"
         style="width:100%;background:#0a1322;border:1px solid var(--line);border-radius:8px;color:var(--txt);padding:8px;font-size:13px;margin-top:4px">
@@ -617,7 +619,7 @@ cr.lastElementChild.appendChild(mkBtn(P_CHAR, 'Copiar prompt'));
   // ordem do preview: frente · p/ esquerda · p/ direita (espelho) · costas
   const VISTAS = ['down-0', 'left-0', 'right-0', 'up-0'];
   const $ = id => document.getElementById(id);
-  let chapeuIm = null, chapeuTras = null, chapeuLado = null, sb = null;
+  let chapeuIm = null, chapeuTras = null, chapeuLado = null, chapeuLadoDir = null, sb = null;
   const frames = {};
   for (const fr of Object.keys(ANC)) {
     const im = new Image();
@@ -640,14 +642,15 @@ cr.lastElementChild.appendChild(mkBtn(P_CHAR, 'Copiar prompt'));
       const escPrev = 240/940, ox = 10 + i*216, oy = 10;
       g.drawImage(im, ox, oy + 140*escPrev, 800*escPrev, 800*escPrev);
       const imCh = fr === 'up-0' ? (chapeuTras || chapeuIm)
-                 : (fr === 'left-0' || fr === 'right-0') ? (chapeuLado || chapeuIm)
+                 : fr === 'right-0' ? (chapeuLadoDir || chapeuLado || chapeuIm)
+                 : fr === 'left-0' ? (chapeuLado || chapeuIm)
                  : chapeuIm;
       if (imCh && imCh.complete) {
         const a = ANC[fr];
         const wCh = a.larg*esc(), hCh = wCh*imCh.naturalHeight/imCh.naturalWidth;
         const x = ox + (a.cx - wCh/2 + a.larg*dx())*escPrev;
         const y = oy + (a.topo - hCh*(1-dy()) + 140)*escPrev;
-        if (fr === 'right-0' && chapeuLado) {
+        if (fr === 'right-0' && !chapeuLadoDir && chapeuLado) {
           // olhando para a DIREITA: espelho do perfil esquerdo, igual no jogo
           g.save();
           const eixo = ox + a.cx*escPrev;
@@ -714,20 +717,34 @@ cr.lastElementChild.appendChild(mkBtn(P_CHAR, 'Copiar prompt'));
       else if (ini >= 0 && ++vao > 4) { faixas.push([ini, x - vao]); ini = -1; }
     }
     if (ini >= 0) faixas.push([ini, c0.width - 1]);
-    // o GPT nem sempre deixa espaço vazio entre as células: se a separação por
-    // transparência não achar exatamente 3, corta em TERÇOS IGUAIS (o grid do
-    // GPT é regular) e o auto-recorte de cada pedaço ajeita o resto
-    if (faixas.length !== 3) {
-      const t = Math.floor(c0.width / 3);
-      faixas.length = 0;
-      faixas.push([0, t - 1], [t, 2 * t - 1], [2 * t, c0.width - 1]);
-    }
-    return faixas.map(([x0, x1]) => {
+    // aceita 3 ou 4 células em linha; senão tenta grade 2x2; senão corta em
+    // 4 quartos iguais (o grid do GPT é regular) e o auto-recorte ajeita
+    const corta = (x0, x1, y0, y1) => {
       const c = document.createElement('canvas');
-      c.width = x1 - x0 + 1; c.height = c0.height;
-      c.getContext('2d').drawImage(c0, x0, 0, c.width, c.height, 0, 0, c.width, c.height);
+      c.width = x1 - x0 + 1; c.height = y1 - y0 + 1;
+      c.getContext('2d').drawImage(c0, x0, y0, c.width, c.height, 0, 0, c.width, c.height);
       return recortaConteudo(fingeImagem(c));
-    });
+    };
+    if (faixas.length === 3 || faixas.length === 4)
+      return faixas.map(([x0, x1]) => corta(x0, x1, 0, c0.height - 1));
+    // grade 2x2? procura um vão horizontal (linhas 100% vazias) no meio
+    const temLinha = new Array(c0.height).fill(false);
+    for (let y = 0; y < c0.height; y++)
+      for (let x = 0; x < c0.width; x++)
+        if (d[(y*c0.width + x)*4 + 3] > 8) { temLinha[y] = true; break; }
+    let corteY = -1, melhor = 0, vazio = 0;
+    for (let y = (c0.height*0.25)|0; y < c0.height*0.75; y++) {
+      if (!temLinha[y]) { if (++vazio > melhor) { melhor = vazio; corteY = y - (vazio>>1); } }
+      else vazio = 0;
+    }
+    if (faixas.length === 2 && corteY > 0) {
+      const [a, b] = faixas;
+      return [corta(a[0],a[1],0,corteY), corta(b[0],b[1],0,corteY),
+              corta(a[0],a[1],corteY,c0.height-1), corta(b[0],b[1],corteY,c0.height-1)];
+    }
+    const q = Math.floor(c0.width / 4);
+    return [corta(0,q-1,0,c0.height-1), corta(q,2*q-1,0,c0.height-1),
+            corta(2*q,3*q-1,0,c0.height-1), corta(3*q,c0.width-1,0,c0.height-1)];
   }
   function fingeImagem(c){ c.naturalWidth = c.width; c.naturalHeight = c.height; c.complete = true; return c; }
   $('chSoltaFolha').onclick = () => $('chArqFolha').click();
@@ -736,9 +753,10 @@ cr.lastElementChild.appendChild(mkBtn(P_CHAR, 'Copiar prompt'));
     const im = new Image();
     im.onload = () => {
       const partes = fatiaFolha(im);
-      if (!partes) { $('chMsg').textContent = 'não achei 3 vistas separadas na folha — as células precisam de espaço transparente entre elas'; return; }
+      if (!partes || partes.length < 3) { $('chMsg').textContent = 'não consegui fatiar a folha — confira se as células têm espaço entre elas'; return; }
       chapeuIm = partes[0]; chapeuTras = partes[1]; chapeuLado = partes[2];
-      $('chMsg').textContent = 'folha fatiada: frente, costas e perfil prontos — ajuste e publique';
+      chapeuLadoDir = partes[3] || null;
+      $('chMsg').textContent = 'folha fatiada: ' + (chapeuLadoDir ? '4 vistas prontas' : '3 vistas prontas (perfil direito = espelho)') + ' — ajuste e publique';
       if (!$('chNome').value) $('chNome').value = f.name.replace(/\.[^.]+$/,'').slice(0,18);
       desenha();
     };
@@ -810,6 +828,7 @@ cr.lastElementChild.appendChild(mkBtn(P_CHAR, 'Copiar prompt'));
                      como: ($('chComo').value.trim() || 'recompensa especial, em breve') };
       if (chapeuTras) novo.imgTras = await sobe(chapeuTras, '-tras');
       if (chapeuLado) novo.imgLado = await sobe(chapeuLado, '-lado');
+      if (chapeuLadoDir) novo.imgLadoDir = await sobe(chapeuLadoDir, '-ladodir');
       const cat = await catalogo();
       const i = cat.chapeus.findIndex(x => x.n === nome);
       if (i >= 0) cat.chapeus[i] = novo; else cat.chapeus.push(novo);

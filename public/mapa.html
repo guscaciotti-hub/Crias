@@ -299,11 +299,29 @@ function desenhaMapaBase(){
   if(window.PassaAtras) window.PassaAtras.desenharRemendos(gM, mapa, st.remendos, 0, 0, L, null, IMGS);
   $('remInfo').textContent = st.remendos.length ? (st.remendos.length+' remendos') : 'nenhum remendo';
 }
-mapa.onload=desenhaMapaBase;
-// Se a imagem falhar (rede, deploy no meio), tenta de novo sozinha — sem isso
-// a aba ficava "travada": rótulo trocado e canvas parado no mapa anterior.
-mapa.onerror=()=>{ msg('imagem do mapa falhou — tentando de novo…');
-  setTimeout(()=>{ mapa.src=mapaAtual().img+'?r='+Date.now(); }, 1200); };
+// Carregamento vigiado da imagem do mapa. Três jeitos de dar errado, todos
+// cobertos: falha (onerror), request PENDURADO (nem onload nem onerror — o
+// vigia de 4s força retry com cache-buster) e re-clique com o mesmo src
+// (o browser ignora atribuição idêntica — o buster obriga um request novo).
+let _mapaVigia=null;
+function pedeImagemMapa(){
+  const alvo = mapaAtual().img;
+  clearTimeout(_mapaVigia);
+  const jaAlvo = mapa.src && mapa.src.indexOf(alvo)>=0;
+  if(jaAlvo && mapa.complete && mapa.naturalWidth){
+    desenhaMapaBase(); desenhaMarcas(); agendaSilhueta();
+    return;
+  }
+  msg('carregando a imagem do mapa…');
+  mapa.src = alvo + (jaAlvo ? '?r='+Date.now() : '');
+  _mapaVigia = setTimeout(()=>{
+    if(!mapa.complete || !mapa.naturalWidth){ msg('imagem demorando — tentando de novo…'); pedeImagemMapa(); }
+  }, 4000);
+}
+mapa.onload=()=>{ clearTimeout(_mapaVigia); desenhaMapaBase(); desenhaMarcas(); agendaSilhueta(); };
+mapa.onerror=()=>{ clearTimeout(_mapaVigia);
+  msg('imagem do mapa falhou — tentando de novo…');
+  _mapaVigia = setTimeout(pedeImagemMapa, 1200); };
 mapa.src=mapaAtual().img;
 const orbeImg=new Image(); orbeImg.onload=desenhaMarcas; orbeImg.src='/orbe.png';
 // Silhueta do personagem sentado, para você ver EXATAMENTE onde ele vai cair.
@@ -778,17 +796,7 @@ function trocaMapa(i){
     try{ carregar(); }catch(e){ msg('o save deste mapa não abriu: '+(e.message||e)); }
   }
   pintaAbasMapa(); sincronizaModosPorMapa();
-  mapa.onload=()=>{ desenhaMapaBase(); desenhaMarcas(); agendaSilhueta(); };
-  const alvo = mapaAtual().img;
-  // sem ?t=: a imagem é estática, o cache do browser troca de aba na hora.
-  if(mapa.src && mapa.src.indexOf(alvo)>=0 && mapa.complete && mapa.naturalWidth){
-    // mesma imagem já carregada: trocar o src de novo não dispara onload em
-    // todo browser — redesenha direto. Clicar de novo na aba SEMPRE conserta
-    // a tela, mesmo que algum estado tenha ficado preso.
-    desenhaMapaBase(); desenhaMarcas(); agendaSilhueta();
-  } else {
-    mapa.src=alvo;
-  }
+  pedeImagemMapa();   // vigiado: falha, request pendurado e re-clique, tudo coberto
   msg('editando: '+mapaAtual().nome);
 }
 pintaAbasMapa(); sincronizaModosPorMapa();
