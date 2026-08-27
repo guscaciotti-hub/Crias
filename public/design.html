@@ -306,6 +306,9 @@ FORMATO DE TRABALHO:
       <div style="margin-top:8px;font-size:12px;color:var(--dim)">Como se conquista (o jogador vê isso no 🔒):</div>
       <input type="text" id="chComo" maxlength="60" placeholder="ex.: Vença o Líder Júpiter"
         style="width:100%;background:#0a1322;border:1px solid var(--line);border-radius:8px;color:var(--txt);padding:8px;font-size:13px;margin-top:4px">
+      <div style="margin-top:8px;font-size:12px;color:var(--dim)">Preço na loja do Bartô (🪙 ouro · 0 = não vende, só conquista):</div>
+      <input type="number" id="chPreco" min="0" max="999999" value="0" placeholder="0"
+        style="width:100%;background:#0a1322;border:1px solid var(--line);border-radius:8px;color:var(--txt);padding:8px;font-size:13px;margin-top:4px">
       <div style="margin-top:10px;font-size:12px;color:var(--dim)">Ajustando a vista:</div>
       <div style="display:flex;gap:4px;margin-top:4px" id="chVistas">
         <button class="ghost" data-v="f" style="flex:1">Frente</button>
@@ -973,7 +976,9 @@ cr.lastElementChild.appendChild(mkBtn(P_CHAR, 'Copiar prompt'));
       const novo = { n: nome, img: await sobe(chapeuIm, ''),
                      esc: +CFG.f.esc.toFixed(2), dy: +CFG.f.dy.toFixed(2), dx: +CFG.f.dx.toFixed(2),
                      vistas: { f: arred(CFG.f), t: arred(CFG.t), l: arred(CFG.l), r: arred(CFG.r) },
-                     como: ($('chComo').value.trim() || 'recompensa especial, em breve') };
+                     preco: Math.max(0, parseInt($('chPreco').value, 10) || 0),
+                     como: ($('chComo').value.trim() ||
+                       (parseInt($('chPreco').value, 10) > 0 ? 'À venda na loja do Vendedor Bartô' : 'recompensa especial, em breve')) };
       if (chapeuTras) novo.imgTras = await sobe(chapeuTras, '-tras');
       if (chapeuLado) novo.imgLado = await sobe(chapeuLado, '-lado');
       if (chapeuLadoDir) novo.imgLadoDir = await sobe(chapeuLadoDir, '-ladodir');

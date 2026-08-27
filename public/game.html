@@ -5443,6 +5443,46 @@ function openShop(npc) {
       });
       list.appendChild(el);
     });
+
+    // ── 🎩 Equipamentos: chapéus com preço definido no database, pagos em
+    //    ouro. Comprou, é seu para sempre — veste em Perfil → Mudar visual.
+    //    Chapéus sem preço continuam sendo só conquista (missões/eventos).
+    if (npc.type === 'shop') {
+      const aVenda = CHAPEUS_CHAR1.filter(c => c.img && c.preco > 0 && !temChapeu(c.n));
+      if (aVenda.length) {
+        const t = document.createElement('div');
+        t.style.cssText = 'font-size:11px;font-weight:800;color:#ffd700;letter-spacing:.08em;text-transform:uppercase;margin:8px 2px 0;';
+        t.textContent = '🎩 Equipamentos';
+        list.appendChild(t);
+        aVenda.forEach(ch => {
+          const canBuy = (state.coins || 0) >= ch.preco;
+          const el = document.createElement('div');
+          el.className = 'shop-item';
+          el.innerHTML = `
+            <div class="si-icon"><img src="${ch.img}" style="height:34px;max-width:44px;object-fit:contain"></div>
+            <div class="si-info">
+              <div class="si-name">${ch.n}</div>
+              <div class="si-desc">Chapéu — aparece no seu personagem</div>
+              <div class="si-owned">Peça única</div>
+            </div>
+            <div>
+              <button class="si-buy" ${canBuy ? '' : 'disabled'}>
+                Comprar
+                <span class="si-price">${ch.preco} 💰</span>
+              </button>
+            </div>`;
+          el.querySelector('.si-buy').addEventListener('click', () => {
+            if ((state.coins || 0) < ch.preco) { showToast('Moedas insuficientes!'); return; }
+            state.coins -= ch.preco;
+            ganhaChapeu(ch.n);
+            showToast('🎩 ' + ch.n + ' é seu! Vista em Perfil → ⚙️ → Mudar visual');
+            saveGame();
+            refresh();
+          });
+          list.appendChild(el);
+        });
+      }
+    }
   }
 
   refresh();
@@ -9936,13 +9976,34 @@ function drawMageNPC(npc, px, py, now) {
 // Cada NPC espera '/npc-<id>.png' (PNG transparente, personagem inteiro).
 // Enquanto o arquivo não existe, aparece um marcador neutro (nada de emoji).
 const NPC_SPRITES = {};
+// Encolher a arte (1024px) direto para o tamanho de desenho esfarela o NPC;
+// reduzir por metades até ~2x o tamanho final entrega ele nítido.
+function _afinaNpc(im) {
+  const ALVO = 170;
+  let fonte = im, fw = im.naturalWidth, fh = im.naturalHeight;
+  if (!fw || fh <= ALVO * 1.6) return im;
+  while (fh / 2 >= ALVO) {
+    const c = document.createElement('canvas');
+    c.width = Math.max(1, Math.round(fw / 2));
+    c.height = Math.max(1, Math.round(fh / 2));
+    const g = c.getContext('2d');
+    g.imageSmoothingEnabled = true;
+    if ('imageSmoothingQuality' in g) g.imageSmoothingQuality = 'high';
+    g.drawImage(fonte, 0, 0, c.width, c.height);
+    fonte = c; fw = c.width; fh = c.height;
+    fonte.naturalWidth = fw; fonte.naturalHeight = fh; fonte.complete = true;
+  }
+  return fonte;
+}
 function npcSprite(id) {
   if (!(id in NPC_SPRITES)) {
     const im = new Image();
+    im.onload = () => { NPC_SPRITES[id] = _afinaNpc(im); };
     im.onerror = () => {
       // sem arquivo no repositório: tenta a arte publicada pelo database
       const nu = new Image();
       nu.crossOrigin = 'anonymous';
+      nu.onload = () => { NPC_SPRITES[id] = _afinaNpc(nu); };
       nu.onerror = () => { NPC_SPRITES[id] = null; };
       nu.src = 'https://gmycqvvvglexbtbqkjzi.supabase.co/storage/v1/object/public/mapas/npcs/npc-' + id + '.png?t=' + Date.now();
       NPC_SPRITES[id] = nu;
@@ -9966,7 +10027,8 @@ function drawNPC(npc, px, py, now) {
   ctx.fill();
 
   if (spr) {
-    const h = 68, w = h * (spr.naturalWidth / spr.naturalHeight);
+    // NPC adulto: um tico maior que o jogador (74), presença de gente grande
+    const h = 78, w = h * (spr.naturalWidth / spr.naturalHeight);
     ctx.imageSmoothingEnabled = true;
     ctx.drawImage(spr, cx - w / 2, py + TILE - h + 4 + bob, w, h);
     ctx.imageSmoothingEnabled = false;
