@@ -768,17 +768,27 @@ function estadoVazio(){
   SILHUETA=null; HIST.length=0; REFAZ.length=0;
 }
 function trocaMapa(i){
-  if(i===MAPA_ATUAL) return;
-  salvarAgora();                  // grava JÁ: o save adiado gravaria na chave errada
-  MAPA_ATUAL=i;
-  estadoVazio();
-  carregar();
+  const mesmo = i === MAPA_ATUAL;
+  if(!mesmo){
+    salvarAgora();                // grava JÁ: o save adiado gravaria na chave errada
+    MAPA_ATUAL=i;
+    estadoVazio();
+    // um save corrompido não pode parar a troca no meio (era isso que deixava
+    // a aba "presa": rótulo novo com a tela do mapa antigo)
+    try{ carregar(); }catch(e){ msg('o save deste mapa não abriu: '+(e.message||e)); }
+  }
   pintaAbasMapa(); sincronizaModosPorMapa();
   mapa.onload=()=>{ desenhaMapaBase(); desenhaMarcas(); agendaSilhueta(); };
+  const alvo = mapaAtual().img;
   // sem ?t=: a imagem é estática, o cache do browser troca de aba na hora.
-  // (com o cache-buster, cada troca re-baixava o arquivo inteiro — e uma
-  // falha deixava a aba pendurada no mapa anterior)
-  mapa.src=mapaAtual().img;
+  if(mapa.src && mapa.src.indexOf(alvo)>=0 && mapa.complete && mapa.naturalWidth){
+    // mesma imagem já carregada: trocar o src de novo não dispara onload em
+    // todo browser — redesenha direto. Clicar de novo na aba SEMPRE conserta
+    // a tela, mesmo que algum estado tenha ficado preso.
+    desenhaMapaBase(); desenhaMarcas(); agendaSilhueta();
+  } else {
+    mapa.src=alvo;
+  }
   msg('editando: '+mapaAtual().nome);
 }
 pintaAbasMapa(); sincronizaModosPorMapa();

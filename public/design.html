@@ -244,14 +244,27 @@ FORMATO DE TRABALHO:
   <div style="display:grid;grid-template-columns:280px 1fr;gap:16px;margin-top:14px;align-items:start">
     <div>
       <input type="file" id="chArq" accept="image/png,image/webp" style="display:none">
-      <button id="chSolta" style="width:100%">📁 Escolher imagem do chapéu</button>
+      <input type="file" id="chArqTras" accept="image/png,image/webp" style="display:none">
+      <input type="file" id="chArqLado" accept="image/png,image/webp" style="display:none">
+      <button id="chSolta" style="width:100%">📁 Imagem do chapéu (frente)</button>
+      <div style="display:flex;gap:6px;margin-top:6px">
+        <button id="chSoltaTras" class="ghost" style="flex:1">+ costas <span id="chTrasOk"></span></button>
+        <button id="chSoltaLado" class="ghost" style="flex:1">+ perfil <span id="chLadoOk"></span></button>
+      </div>
+      <div class="note" style="margin-top:4px">Chapéu simétrico: só a frente basta. Assimétrico (boné, boina):
+        mande também costas e perfil ESQUERDO — o direito é espelhado sozinho.</div>
       <div style="margin-top:10px;font-size:12px;color:var(--dim)">Nome no jogo:</div>
       <input type="text" id="chNome" maxlength="18" placeholder="ex.: Boné Vermelho"
+        style="width:100%;background:#0a1322;border:1px solid var(--line);border-radius:8px;color:var(--txt);padding:8px;font-size:13px;margin-top:4px">
+      <div style="margin-top:8px;font-size:12px;color:var(--dim)">Como se conquista (o jogador vê isso no 🔒):</div>
+      <input type="text" id="chComo" maxlength="60" placeholder="ex.: Vença o Líder Júpiter"
         style="width:100%;background:#0a1322;border:1px solid var(--line);border-radius:8px;color:var(--txt);padding:8px;font-size:13px;margin-top:4px">
       <div style="margin-top:10px;font-size:12px;color:var(--dim)">Largura (vs. cabeça): <b id="chEscV">1.60</b></div>
       <input type="range" id="chEsc" min="80" max="300" value="160" style="width:100%">
       <div style="margin-top:6px;font-size:12px;color:var(--dim)">Afundar na cabeça: <b id="chDyV">0.55</b></div>
       <input type="range" id="chDy" min="0" max="100" value="55" style="width:100%">
+      <div style="margin-top:6px;font-size:12px;color:var(--dim)">Deslocar ↔ (esq/dir): <b id="chDxV">0.00</b></div>
+      <input type="range" id="chDx" min="-40" max="40" value="0" style="width:100%">
       <button id="chPub" style="width:100%;margin-top:12px">🚀 Publicar no jogo</button>
       <div id="chMsg" class="note"></div>
     </div>
@@ -602,7 +615,7 @@ cr.lastElementChild.appendChild(mkBtn(P_CHAR, 'Copiar prompt'));
     'up-0':   { cx: 396, topo: 35, larg: 177 }
   };
   const $ = id => document.getElementById(id);
-  let chapeuIm = null, sb = null;
+  let chapeuIm = null, chapeuTras = null, chapeuLado = null, sb = null;
   const frames = {};
   for (const fr of Object.keys(ANC)) {
     const im = new Image();
@@ -612,6 +625,7 @@ cr.lastElementChild.appendChild(mkBtn(P_CHAR, 'Copiar prompt'));
   }
   function esc(){ return +$('chEsc').value/100; }
   function dy(){ return +$('chDy').value/100; }
+  function dx(){ return +$('chDx').value/100; }
   function desenha(){
     const cv = $('chPrev'); if (!cv) return;
     const g = cv.getContext('2d');
@@ -623,24 +637,70 @@ cr.lastElementChild.appendChild(mkBtn(P_CHAR, 'Copiar prompt'));
       // 800px crus + 140 de folga em cima -> caixa de 220px de altura no preview
       const escPrev = 240/940, ox = 10 + i*220, oy = 10;
       g.drawImage(im, ox, oy + 140*escPrev, 800*escPrev, 800*escPrev);
-      if (chapeuIm && chapeuIm.complete) {
+      // frente · perfil (imagem de perfil se houver) · costas (idem)
+      const imCh = fr === 'up-0' ? (chapeuTras || chapeuIm)
+                 : fr === 'right-0' ? (chapeuLado || chapeuIm)
+                 : chapeuIm;
+      if (imCh && imCh.complete) {
         const a = ANC[fr];
-        const wCh = a.larg*esc(), hCh = wCh*chapeuIm.naturalHeight/chapeuIm.naturalWidth;
-        g.drawImage(chapeuIm, ox + (a.cx-wCh/2)*escPrev, oy + (a.topo - hCh*(1-dy()) + 140)*escPrev,
-          wCh*escPrev, hCh*escPrev);
+        const wCh = a.larg*esc(), hCh = wCh*imCh.naturalHeight/imCh.naturalWidth;
+        const x = ox + (a.cx - wCh/2 + a.larg*dx())*escPrev;
+        const y = oy + (a.topo - hCh*(1-dy()) + 140)*escPrev;
+        if (fr === 'right-0' && chapeuLado) {
+          // o preview do meio é o perfil DIREITO no jogo: espelho do esquerdo
+          g.save();
+          const eixo = ox + a.cx*escPrev;
+          g.translate(eixo, 0); g.scale(-1,1); g.translate(-eixo, 0);
+          g.drawImage(imCh, x, y, wCh*escPrev, hCh*escPrev);
+          g.restore();
+        } else {
+          g.drawImage(imCh, x, y, wCh*escPrev, hCh*escPrev);
+        }
       }
     });
   }
   $('chEsc').oninput = () => { $('chEscV').textContent = esc().toFixed(2); desenha(); };
   $('chDy').oninput  = () => { $('chDyV').textContent = dy().toFixed(2); desenha(); };
-  $('chSolta').onclick = () => $('chArq').click();
-  $('chArq').onchange = e => {
-    const f = e.target.files[0]; if (!f) return;
+  $('chDx').oninput  = () => { $('chDxV').textContent = dx().toFixed(2); desenha(); };
+  // Auto-recorte: a imagem do GPT vem com margens transparentes enormes e o
+  // conteúdo fora do centro — sem recortar, o chapéu "flutua" longe da cabeça.
+  function recortaConteudo(im){
+    const c0 = document.createElement('canvas');
+    c0.width = im.naturalWidth; c0.height = im.naturalHeight;
+    const g0 = c0.getContext('2d', { willReadFrequently: true });
+    g0.drawImage(im, 0, 0);
+    let d;
+    try { d = g0.getImageData(0, 0, c0.width, c0.height).data; } catch(e){ return im; }
+    let x0 = c0.width, y0 = c0.height, x1 = -1, y1 = -1;
+    for (let y = 0; y < c0.height; y++)
+      for (let x = 0; x < c0.width; x++)
+        if (d[(y*c0.width + x)*4 + 3] > 8) {
+          if (x < x0) x0 = x; if (x > x1) x1 = x;
+          if (y < y0) y0 = y; if (y > y1) y1 = y;
+        }
+    if (x1 < x0) return im;
+    const c = document.createElement('canvas');
+    c.width = x1-x0+1; c.height = y1-y0+1;
+    c.getContext('2d').drawImage(c0, x0, y0, c.width, c.height, 0, 0, c.width, c.height);
+    c.naturalWidth = c.width; c.naturalHeight = c.height; c.complete = true;
+    return c;
+  }
+  function leArquivo(input, aoLer){
+    const f = input.files[0]; if (!f) return;
     const im = new Image();
-    im.onload = () => { chapeuIm = im; $('chMsg').textContent = 'ajuste os controles e publique'; desenha(); };
+    im.onload = () => { aoLer(recortaConteudo(im), f); desenha(); };
     im.src = URL.createObjectURL(f);
+  }
+  $('chSolta').onclick = () => $('chArq').click();
+  $('chSoltaTras').onclick = () => $('chArqTras').click();
+  $('chSoltaLado').onclick = () => $('chArqLado').click();
+  $('chArq').onchange = e => leArquivo(e.target, (im, f) => {
+    chapeuIm = im;
+    $('chMsg').textContent = 'ajuste os controles e publique';
     if (!$('chNome').value) $('chNome').value = f.name.replace(/\.[^.]+$/,'').slice(0,18);
-  };
+  });
+  $('chArqTras').onchange = e => leArquivo(e.target, im => { chapeuTras = im; $('chTrasOk').textContent = '✓'; });
+  $('chArqLado').onchange = e => leArquivo(e.target, im => { chapeuLado = im; $('chLadoOk').textContent = '✓'; });
   $('chPrompt').onclick = () => {
     navigator.clipboard.writeText($('chPrompt').innerText.replace(/\(clique para copiar\)/,'').trim())
       .then(()=> $('chMsg').textContent='prompt copiado');
@@ -692,13 +752,22 @@ cr.lastElementChild.appendChild(mkBtn(P_CHAR, 'Copiar prompt'));
       $('chMsg').textContent = 'publicando…';
       sb = sb || window.supabase.createClient(SB, KEY);
       const slug = nome.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g,'').replace(/[^\w]+/g,'-');
-      const bin = await (await fetch(chapeuIm.src)).blob();
-      const cam = 'chapeus/' + slug + '.png';
-      const up = await sb.storage.from('mapas').upload(cam, bin, { upsert: true, cacheControl: '0' });
-      if (up.error) throw up.error;
+      const blobDe = cv => new Promise(res => {
+        if (cv.toBlob) cv.toBlob(res, 'image/png');
+        else fetch(cv.src).then(r => r.blob()).then(res);
+      });
+      const sobe = async (cv, sufixo) => {
+        const cam = 'chapeus/' + slug + sufixo + '.png';
+        const up = await sb.storage.from('mapas').upload(cam, await blobDe(cv), { upsert: true, cacheControl: '0' });
+        if (up.error) throw up.error;
+        return SB + '/storage/v1/object/public/mapas/' + cam;
+      };
+      const novo = { n: nome, img: await sobe(chapeuIm, ''),
+                     esc: +esc().toFixed(2), dy: +dy().toFixed(2), dx: +dx().toFixed(2),
+                     como: ($('chComo').value.trim() || 'recompensa especial, em breve') };
+      if (chapeuTras) novo.imgTras = await sobe(chapeuTras, '-tras');
+      if (chapeuLado) novo.imgLado = await sobe(chapeuLado, '-lado');
       const cat = await catalogo();
-      const novo = { n: nome, img: SB + '/storage/v1/object/public/mapas/' + cam,
-                     esc: +esc().toFixed(2), dy: +dy().toFixed(2) };
       const i = cat.chapeus.findIndex(x => x.n === nome);
       if (i >= 0) cat.chapeus[i] = novo; else cat.chapeus.push(novo);
       await gravaCatalogo(cat);

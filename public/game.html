@@ -1322,6 +1322,7 @@
     border-color: #4dc3ff; color: #fff;
     box-shadow: 0 0 10px rgba(77,195,255,0.6);
   }
+  #custom .cz-opt.trancado { opacity: 0.5; cursor: help; }
   #onboard .ob-layout { display: grid; grid-template-columns: 180px 1fr; gap: 18px; align-items: start; }
   @media (max-width: 600px) { #onboard .ob-layout { grid-template-columns: 140px 1fr; gap: 12px; } }
   #charPreview {
@@ -8263,7 +8264,9 @@ const VISUAL_PALETAS = {
 // Os próximos entram como arte nova (GPT) nos arquivos /char1-c<N>-*.png — o
 // seletor reaparece sozinho quando houver mais de um corte na lista.
 const CORTES_CHAR1 = [{ n: 'Clássico' }];
+let _corteAtual = 0;
 function defineCorteChar1(c) {
+  _corteAtual = c || 0;
   const p = c ? '/char1-c' + c : '/char1';
   EXTERNAL_COMBO_SPRITES.char1 = {
     down:  [p + '-down-0.png', p + '-down-1.png', p + '-down-2.png'],
@@ -8282,7 +8285,7 @@ function defineCorteChar1(c) {
 // direções; a âncora por frame diz onde a cabeça está naquele quadro.
 const CHAPEUS_CHAR1 = [
   { n: 'Nenhum' },
-  { n: 'Palha', img: '/chapeu-palha.png', esc: 1.95, dy: 0.70 }
+  { n: 'Palha', img: '/chapeu-palha.png', esc: 1.95, dy: 0.70, como: 'Manifeste sua primeira Cria no Core Orb' }
 ];
 // centro/topo/largura da cabeça em cada frame, medidos das máscaras (px crus)
 const ANCORA_CABECA = {
@@ -8298,22 +8301,57 @@ const ANCORA_CABECA = {
   'sit-0':  { cx: 292, topo: 227, larg: 199 }
 };
 const _chapeuImgs = {};
-function _chapeuAtivo() {
-  const i = (_visualEscolha && _visualEscolha.chapeu) || 0;
-  const d = CHAPEUS_CHAR1[i];
-  if (!d || !d.img) return null;
-  let im = _chapeuImgs[i];
+// Chapéu é CONQUISTA, não banalidade: todos aparecem na personalização (para
+// dar vontade), mas só os ganhos podem ser vestidos. state.chapeus guarda os
+// nomes que o jogador já tem; ganhaChapeu() é o que missões/eventos chamam.
+function temChapeu(nome) {
+  return !!(state && Array.isArray(state.chapeus) && state.chapeus.includes(nome));
+}
+function ganhaChapeu(nome) {
+  if (!state) return;
+  if (!Array.isArray(state.chapeus)) state.chapeus = [];
+  if (state.chapeus.includes(nome)) return;
+  state.chapeus.push(nome);
+  saveGame();
+  if (typeof showToast === 'function') showToast('🎩 Chapéu novo desbloqueado: ' + nome + '!');
+}
+window.ganhaChapeu = ganhaChapeu;
+function _carregaImgChapeu(url) {
+  let im = _chapeuImgs[url];
   if (!im) {
     im = new Image();
     // chapéus publicados vêm do storage (outra origem): sem isto o canvas
     // ficaria contaminado e o avatar/batalha não conseguiriam gerar .src
-    if (/^https?:/.test(d.img)) im.crossOrigin = 'anonymous';
+    if (/^https?:/.test(url)) im.crossOrigin = 'anonymous';
     im.onload = () => { if (_fabricaCombo.char1) _montaFramesCombo('char1'); };
-    im.src = d.img;
-    _chapeuImgs[i] = im;
+    im.src = url;
+    _chapeuImgs[url] = im;
   }
-  if (!im.complete || !im.naturalWidth) return null;
-  return { img: im, esc: d.esc || 1.3, dy: d.dy == null ? 0.45 : d.dy };
+  return (im.complete && im.naturalWidth) ? im : null;
+}
+// Um chapéu simétrico tem UMA imagem (vale para tudo). Um assimétrico pode
+// trazer também imgTras (costas) e imgLado (perfil ESQUERDO); o perfil
+// direito é o espelho automático do esquerdo — nunca se desenha duas vezes.
+function _chapeuAtivo() {
+  const nome = _visualEscolha && _visualEscolha.chapeu;
+  if (!nome) return null;
+  const d = CHAPEUS_CHAR1.find(x => x.n === nome);
+  if (!d || !d.img) return null;
+  const frente = _carregaImgChapeu(d.img);
+  if (!frente) return null;
+  return {
+    frente,
+    tras: d.imgTras ? _carregaImgChapeu(d.imgTras) : null,
+    lado: d.imgLado ? _carregaImgChapeu(d.imgLado) : null,
+    esc: d.esc || 1.3,
+    dy: d.dy == null ? 0.45 : d.dy,
+    dx: d.dx || 0
+  };
+}
+function _imgChapeuPara(chapeu, dir) {
+  if (dir === 'up') return chapeu.tras || chapeu.frente;
+  if (dir === 'left' || dir === 'right') return chapeu.lado || chapeu.frente;
+  return chapeu.frente;
 }
 
 const _fabricaCombo = {};   // material bruto de cada combo, para poder repintar
@@ -8382,6 +8420,7 @@ function aplicaVisualChar1(esc) {
   if (_fabricaCombo.char1) _montaFramesCombo('char1');
 }
 window.aplicaVisualChar1 = aplicaVisualChar1;
+window.spriteImageCache = spriteImageCache;   // p/ testes e depuração
 
 function _removeBlackBg(data, w, h) {
   // BFS flood-fill from all edge pixels that are near-black → make transparent.
@@ -8533,14 +8572,17 @@ function _montaFramesCombo(comboId) {
     // cabelo) tem a copa acima do topo do canvas original — sem a folga ela
     // sairia cortada. Todas as coordenadas descem DESL junto.
     const DESL = 140;
+    // margem horizontal também: aba larga + deslocamento ↔ não podem cortar
     let minX = box.minX, minY = box.minY, maxX = box.minX + box.w - 1, maxY = box.minY + box.h - 1;
     loaded.forEach((fr) => {
       const anc = ANCORA_CABECA[fr.dir + '-' + fr.i];
       if (!anc) return;
+      const imCh = _imgChapeuPara(chapeu, fr.dir);
       const wCh = anc.larg * chapeu.esc;
-      const hCh = wCh * chapeu.img.naturalHeight / chapeu.img.naturalWidth;
-      minX = Math.min(minX, Math.floor(anc.cx - wCh / 2));
-      maxX = Math.max(maxX, Math.ceil(anc.cx + wCh / 2));
+      const hCh = wCh * imCh.naturalHeight / imCh.naturalWidth;
+      const desloc = anc.larg * Math.abs(chapeu.dx || 0);
+      minX = Math.min(minX, Math.floor(anc.cx - wCh / 2 - desloc));
+      maxX = Math.max(maxX, Math.ceil(anc.cx + wCh / 2 + desloc));
       minY = Math.min(minY, Math.floor(anc.topo - hCh * (1 - chapeu.dy)));
     });
     boxUso = { minX, minY: minY + DESL, w: maxX - minX + 1, h: maxY - minY + 1 };
@@ -8552,10 +8594,22 @@ function _montaFramesCombo(comboId) {
       const g = cv.getContext('2d');
       g.drawImage(pc, 0, DESL);
       if (anc) {
+        const imCh = _imgChapeuPara(chapeu, fr.dir);
         const wCh = anc.larg * chapeu.esc;
-        const hCh = wCh * chapeu.img.naturalHeight / chapeu.img.naturalWidth;
+        const hCh = wCh * imCh.naturalHeight / imCh.naturalWidth;
+        const x = anc.cx - wCh / 2 + anc.larg * (chapeu.dx || 0);
+        const y = anc.topo - hCh * (1 - chapeu.dy) + DESL;
         g.imageSmoothingEnabled = true;
-        g.drawImage(chapeu.img, anc.cx - wCh / 2, anc.topo - hCh * (1 - chapeu.dy) + DESL, wCh, hCh);
+        if (fr.dir === 'right' && chapeu.lado) {
+          // perfil direito = espelho do perfil esquerdo (e o deslocamento
+          // ↔ espelha junto, como num chapéu de verdade)
+          g.save();
+          g.translate(anc.cx, 0); g.scale(-1, 1); g.translate(-anc.cx, 0);
+          g.drawImage(imCh, x, y, wCh, hCh);
+          g.restore();
+        } else {
+          g.drawImage(imCh, x, y, wCh, hCh);
+        }
       }
       return cv;
     });
@@ -8760,7 +8814,7 @@ document.getElementById('obBack').addEventListener('click', () => {
   document.getElementById('createAcc').classList.add('active');
 });
 // === Tela de personalização ===
-let _czEscolha = { cabelo: 0, roupa: 0, detalhe: 0, pele: 0, corte: 0, chapeu: 0 };
+let _czEscolha = { cabelo: 0, roupa: 0, detalhe: 0, pele: 0, corte: 0, chapeu: null };
 let _czAnim = null;
 
 const CZ_ROTULOS = { cabelo: 'Cabelo', roupa: 'Roupa', detalhe: 'Detalhes', pele: 'Pele' };
@@ -8803,15 +8857,23 @@ function _czMontaOpcoes() {
     row.appendChild(lab);
     const ops = document.createElement('div');
     ops.className = 'cz-ops';
-    CHAPEUS_CHAR1.forEach((op, i) => {
+    CHAPEUS_CHAR1.forEach((op) => {
       const b = document.createElement('button');
-      b.className = 'cz-opt' + (i === (_czEscolha.chapeu || 0) ? ' sel' : '');
+      const meu = !op.img;   // 'Nenhum' é sempre livre
+      const tem = meu || temChapeu(op.n);
+      const selecionado = op.img ? _czEscolha.chapeu === op.n : !_czEscolha.chapeu;
+      b.className = 'cz-opt' + (selecionado ? ' sel' : '') + (tem ? '' : ' trancado');
       b.type = 'button';
-      b.textContent = op.n;
+      b.textContent = (tem ? '' : '🔒 ') + op.n;
       b.addEventListener('click', () => {
-        if (_czEscolha.chapeu === i) return;
-        _czEscolha.chapeu = i;
-        ops.querySelectorAll('.cz-opt').forEach((el, k) => el.classList.toggle('sel', k === i));
+        if (!tem) {
+          if (typeof showToast === 'function')
+            showToast('🔒 ' + op.n + ' — ' + (op.como || 'recompensa especial, em breve'));
+          return;
+        }
+        _czEscolha.chapeu = op.img ? op.n : null;
+        ops.querySelectorAll('.cz-opt').forEach(el =>
+          el.classList.toggle('sel', el === b));
         aplicaVisualChar1(_czEscolha);
         if (typeof FX !== 'undefined' && FX.sfx) FX.sfx.ui();
       });
@@ -8868,11 +8930,24 @@ function _czDesenhaPreview() {
   g.drawImage(fr, (cv.width - dw) / 2, cv.height - dh - 6, dw, dh);
 }
 
-function abreCustomizacao() {
+let _czModo = 'novo';   // 'novo' = criando conta · 'jogo' = mudando o visual de um save
+function abreCustomizacao(modo) {
+  _czModo = modo || 'novo';
+  if (_czModo === 'jogo' && state && state.custom) {
+    // parte do visual salvo, e as linhas renascem já com a seleção certa
+    _czEscolha = Object.assign({ cabelo: 0, roupa: 0, detalhe: 0, pele: 0, corte: 0, chapeu: null }, state.custom);
+    const rows = document.getElementById('czRows');
+    if (rows) rows.innerHTML = '';
+  }
   _czMontaOpcoes();
   document.getElementById('onboard').classList.remove('active');
   document.getElementById('custom').classList.add('active');
-  aplicaVisualChar1(_czEscolha);
+  document.getElementById('czStart').textContent = _czModo === 'jogo' ? '💾 Salvar visual' : 'Começar Jornada ▶';
+  if ((_czEscolha.corte || 0) !== _corteAtual) {
+    defineCorteChar1(_czEscolha.corte || 0).then(() => aplicaVisualChar1(_czEscolha));
+  } else {
+    aplicaVisualChar1(_czEscolha);
+  }
   cancelAnimationFrame(_czAnim);
   const tick = () => {
     if (!document.getElementById('custom').classList.contains('active')) return;
@@ -8881,6 +8956,7 @@ function abreCustomizacao() {
   };
   tick();
 }
+window.abreCustomizacao = abreCustomizacao;
 
 document.getElementById('obConfirm').addEventListener('click', () => {
   document.getElementById('obName2').value =
@@ -8890,10 +8966,27 @@ document.getElementById('obConfirm').addEventListener('click', () => {
 
 document.getElementById('czBack').addEventListener('click', () => {
   document.getElementById('custom').classList.remove('active');
+  if (_czModo === 'jogo') {
+    // volta ao jogo com o visual que estava salvo
+    if (state && state.custom) {
+      _czEscolha = Object.assign({}, state.custom);
+      if ((_czEscolha.corte || 0) !== _corteAtual)
+        defineCorteChar1(_czEscolha.corte || 0).then(() => aplicaVisualChar1(_czEscolha));
+      else aplicaVisualChar1(_czEscolha);
+    }
+    return;
+  }
   document.getElementById('onboard').classList.add('active');
 });
 
 document.getElementById('czStart').addEventListener('click', async () => {
+  if (_czModo === 'jogo') {
+    state.custom = Object.assign({}, _czEscolha);
+    saveGame();
+    document.getElementById('custom').classList.remove('active');
+    showToast('✨ Visual atualizado!');
+    return;
+  }
   try {
     const name = (document.getElementById('obName2').value.trim()) || 'Treinador';
     const combo = selectedCombo;
@@ -8902,6 +8995,7 @@ document.getElementById('czStart').addEventListener('click', async () => {
     state = newGameState(name, null);
     state.appearance = { comboId: combo };
     state.custom = Object.assign({}, _czEscolha);
+    state.chapeus = [];   // chapéus se conquistam jogando
     aplicaVisualChar1(state.custom);
     // Personagens novos (Errante/char4 e Caçador/char5) já começam com o
     // Ignivar acoplado — companion no mapa desde o primeiro passo, sem o
@@ -10354,9 +10448,14 @@ function _migrateProfile(s){
   if(!s.playerId) s.playerId = 'CR-' + Math.random().toString(36).slice(2,7).toUpperCase();
   if(!Array.isArray(s.friends)) s.friends = [];
   if(s.photo === undefined) s.photo = null;
-  if(!s.custom) s.custom = { cabelo: 0, roupa: 0, detalhe: 0, pele: 0, corte: 0, chapeu: 0 };
+  if(!s.custom) s.custom = { cabelo: 0, roupa: 0, detalhe: 0, pele: 0, corte: 0, chapeu: null };
   if(s.custom.corte == null) s.custom.corte = 0;
-  if(s.custom.chapeu == null) s.custom.chapeu = 0;
+  // chapéu era índice; agora é NOME (catálogo dinâmico não pode depender de ordem)
+  if(typeof s.custom.chapeu === 'number') s.custom.chapeu = s.custom.chapeu === 1 ? 'Palha' : null;
+  if(s.custom.chapeu === undefined) s.custom.chapeu = null;
+  if(!Array.isArray(s.chapeus)) s.chapeus = [];
+  // quem já manifestou a primeira Cria ganha a Palha na migração
+  if(s.cria && !s.chapeus.includes('Palha')) s.chapeus.push('Palha');
   if(!s.items) s.items = {};
   if(s.items.orbeCriacao === undefined) s.items.orbeCriacao = 0;
   if(s.items.orbeComum === undefined) s.items.orbeComum = 3;
@@ -10567,6 +10666,7 @@ function popConquistas(){
 }
 function popConfig(){
   document.getElementById('pp-config').innerHTML =
+    '<button class="pf-btn" onclick="closeProfile();abreCustomizacao(\'jogo\');">🎨 Mudar visual (cores e chapéu)</button>'+
     '<button class="pf-btn" onclick="closeProfile();openMenu();">📋 Abrir menu completo (Inventário, Mapa…)</button>'+
     '<button class="pf-btn" onclick="closeProfile();toggleChat(true);">💬 Abrir chat</button>'+
     '<div class="pf-sect-t">Conta</div>'+
@@ -10695,6 +10795,7 @@ document.getElementById('nameInput').addEventListener('keydown', (e) => {
 });
 document.getElementById('btnAcceptMonster').addEventListener('click', () => {
   document.getElementById('reveal').classList.remove('active');
+  ganhaChapeu('Palha');   // primeira Cria manifestada = primeiro chapéu
   // In-game first manifestation: hand control back to that flow
   if (typeof window.__firstManifestationResolver === 'function') {
     window.__firstManifestationResolver();
