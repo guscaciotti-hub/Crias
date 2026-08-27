@@ -261,3 +261,30 @@ git -C <tmp> add public/game.html && git -C <tmp> commit && git -C <tmp> push or
 ## Não multiplayer
 
 O jogo **não tem servidor de jogadores em tempo real**. PvP é simulado localmente com NPCs. Não adicionar WebSocket ou servidor de estado sem aprovação explícita.
+
+---
+
+## 🧠 A DEFINIR — decisões de design em aberto (trazer sugestões elaboradas)
+
+Duas frentes que o usuário levantou e quer discutir a fundo. **Não implementar sem
+conversar**; ele pediu propostas criativas e bem pensadas.
+
+### 1. Loop de jogo / engajamento
+Diagnóstico dele, jogando: cria a primeira Cria → recebe a missão da caverna → e
+**se não houvesse essa missão, ficaria "panguando" no mapa**, com o PvP como única
+opção. Falta sequência e motivo para continuar.
+
+Restrições e desejos:
+- **Não** quer mapas gigantescos.
+- **Captura de monstros está fortemente cogitada como PROIBIDA** — receio de virar
+  plágio de Pokémon. Alternativa aventada por ele: monstros que aparecem apenas para
+  o personagem **upar**.
+- A **mecânica de batalha também precisa ser revista** (faz parte da mesma discussão).
+- Mapas novos podem ser gerados no GPT em 3D, como os atuais.
+
+### 2. Sistema de fazenda / propriedade
+Todo jogador pode **comprar terra e casa**. A casinha é o lugar dele fora da cidade:
+plantação, alguma atividade que rende **bônus**, coisas para fazer.
+Exigência dele: **tem que ser bonito** — "o pessoal olha e fala caraca, dá vontade de ter".
+
+Ambas as frentes são vistas por ele como o que falta para "ficar um jogo foda".

@@ -360,6 +360,7 @@ FORMATO DE TRABALHO:
         <button class="ghost" data-v="t" style="flex:1">Costas</button>
         <button class="ghost" data-v="l" style="flex:1">P. esq</button>
         <button class="ghost" data-v="r" style="flex:1">P. dir</button>
+        <button class="ghost" data-v="s" style="flex:1">🪑 Sentado</button>
       </div>
       <div style="margin-top:8px;font-size:12px;color:var(--dim)">Largura (vs. cabeça): <b id="chEscV">1.60</b></div>
       <input type="range" id="chEsc" min="80" max="300" value="160" style="width:100%">
@@ -372,8 +373,8 @@ FORMATO DE TRABALHO:
       <div id="chMsg" class="note"></div>
     </div>
     <div>
-      <canvas id="chPrev" width="880" height="260" style="width:100%;background:#0a1322;border:1px solid var(--line);border-radius:10px"></canvas>
-      <div class="note">Preview: frente · olhando p/ ESQUERDA · olhando p/ DIREITA · costas.
+      <canvas id="chPrev" width="1090" height="260" style="width:100%;background:#0a1322;border:1px solid var(--line);border-radius:10px"></canvas>
+      <div class="note">Preview: frente · olhando p/ ESQUERDA · olhando p/ DIREITA · costas · sentado no banco.
         O perfil direito é o espelho do esquerdo — igual ao personagem, que também espelha
         ao virar (repare na faixa do peito). Ajuste até a cabeça ficar DENTRO do chapéu.</div>
       <div style="font-size:12px;font-weight:800;color:var(--gold);margin:12px 0 4px">Publicados</div>
@@ -771,10 +772,11 @@ cr.lastElementChild.appendChild(mkBtn(P_CHAR, 'Copiar prompt'));
     'down-0': { cx: 404, topo: 34, larg: 185 },
     'left-0': { cx: 394, topo: 34, larg: 223 },
     'right-0':{ cx: 396, topo: 34, larg: 211 },
-    'up-0':   { cx: 396, topo: 35, larg: 177 }
+    'up-0':   { cx: 396, topo: 35, larg: 177 },
+    'sit-0':  { cx: 292, topo: 227, larg: 199 }
   };
-  // ordem do preview: frente · p/ esquerda · p/ direita (espelho) · costas
-  const VISTAS = ['down-0', 'left-0', 'right-0', 'up-0'];
+  // ordem do preview: frente · p/ esquerda · p/ direita (espelho) · costas · sentado
+  const VISTAS = ['down-0', 'left-0', 'right-0', 'up-0', 'sit-0'];
   const $ = id => document.getElementById(id);
   let chapeuIm = null, chapeuTras = null, chapeuLado = null, chapeuLadoDir = null, sb = null;
   const frames = {};
@@ -790,10 +792,11 @@ cr.lastElementChild.appendChild(mkBtn(P_CHAR, 'Copiar prompt'));
     f: { esc: 1.6, dy: 0.55, dx: 0 },
     t: { esc: 1.6, dy: 0.55, dx: 0 },
     l: { esc: 1.6, dy: 0.55, dx: 0 },
-    r: { esc: 1.6, dy: 0.55, dx: 0 }
+    r: { esc: 1.6, dy: 0.55, dx: 0 },
+    s: { esc: 1.6, dy: 0.55, dx: 0 }
   };
   let vSel = 'f';
-  const VISTA_DE = { 'down-0': 'f', 'up-0': 't', 'left-0': 'l', 'right-0': 'r' };
+  const VISTA_DE = { 'down-0': 'f', 'up-0': 't', 'left-0': 'l', 'right-0': 'r', 'sit-0': 's' };
   function sincronizaSliders(){
     const c = CFG[vSel];
     $('chEsc').value = Math.round(c.esc*100); $('chEscV').textContent = c.esc.toFixed(2);
@@ -808,7 +811,7 @@ cr.lastElementChild.appendChild(mkBtn(P_CHAR, 'Copiar prompt'));
   document.querySelectorAll('#chVistas button').forEach(b =>
     b.onclick = () => { vSel = b.dataset.v; sincronizaSliders(); desenha(); });
   $('chIgual').onclick = () => {
-    for (const k of ['f','t','l','r']) if (k !== vSel) CFG[k] = { ...CFG[vSel] };
+    for (const k of ['f','t','l','r','s']) if (k !== vSel) CFG[k] = { ...CFG[vSel] };
     $('chMsg').textContent = 'ajuste copiado para as 4 vistas';
     desenha();
   };
@@ -821,12 +824,12 @@ cr.lastElementChild.appendChild(mkBtn(P_CHAR, 'Copiar prompt'));
       const im = frames[fr];
       if (!im.complete || !im.naturalWidth) return;
       // 800px crus + 140 de folga em cima -> caixa de 220px de altura no preview
-      const escPrev = 240/940, ox = 10 + i*216, oy = 10;
+      const escPrev = 240/940, ox = 10 + i*214, oy = 10;
       g.drawImage(im, ox, oy + 140*escPrev, 800*escPrev, 800*escPrev);
       const imCh = fr === 'up-0' ? (chapeuTras || chapeuIm)
                  : fr === 'right-0' ? (chapeuLadoDir || chapeuLado || chapeuIm)
                  : fr === 'left-0' ? (chapeuLado || chapeuIm)
-                 : chapeuIm;
+                 : chapeuIm;   // frente e sentado usam a arte de frente
       if (imCh && imCh.complete) {
         const a = ANC[fr], c = CFG[VISTA_DE[fr]];
         const wCh = a.larg*c.esc, hCh = wCh*imCh.naturalHeight/imCh.naturalWidth;
@@ -847,7 +850,7 @@ cr.lastElementChild.appendChild(mkBtn(P_CHAR, 'Copiar prompt'));
       if (VISTA_DE[fr] === vSel) {
         g.strokeStyle = 'rgba(77,195,255,.8)';
         g.lineWidth = 2;
-        g.strokeRect(ox + 2, 4, 210, 250);
+        g.strokeRect(ox + 2, 4, 208, 250);
       }
     });
   }
@@ -998,7 +1001,7 @@ cr.lastElementChild.appendChild(mkBtn(P_CHAR, 'Copiar prompt'));
         $('chComo').value = /em breve|à venda na loja/i.test(c.como || '') ? '' : (c.como || '');
         $('chPreco').value = c.preco || 0;
         const base = { esc: c.esc || 1.6, dy: c.dy == null ? 0.55 : c.dy, dx: c.dx || 0 };
-        for (const k of ['f','t','l','r'])
+        for (const k of ['f','t','l','r','s'])
           CFG[k] = Object.assign({}, base, (c.vistas && c.vistas[k]) || {});
         vSel = 'f'; sincronizaSliders();
         // carrega as imagens publicadas para o preview e para republicar
@@ -1056,7 +1059,7 @@ cr.lastElementChild.appendChild(mkBtn(P_CHAR, 'Copiar prompt'));
       const arred = c => ({ esc: +c.esc.toFixed(2), dy: +c.dy.toFixed(2), dx: +c.dx.toFixed(2) });
       const novo = { n: nome, img: await sobe(chapeuIm, ''),
                      esc: +CFG.f.esc.toFixed(2), dy: +CFG.f.dy.toFixed(2), dx: +CFG.f.dx.toFixed(2),
-                     vistas: { f: arred(CFG.f), t: arred(CFG.t), l: arred(CFG.l), r: arred(CFG.r) },
+                     vistas: { f: arred(CFG.f), t: arred(CFG.t), l: arred(CFG.l), r: arred(CFG.r), s: arred(CFG.s) },
                      preco: Math.max(0, parseInt($('chPreco').value, 10) || 0),
                      como: ($('chComo').value.trim() ||
                        (parseInt($('chPreco').value, 10) > 0 ? 'À venda na loja do Vendedor Bartô' : 'recompensa especial, em breve')) };
