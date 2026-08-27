@@ -3925,6 +3925,21 @@ function loadAssets() {
   window.SUL_REMENDOS = [];
   window.SUL_COLISAO = null;
   loadImage('/mapa-lobby.jpg', 20000).then(img => { assets.mapaSul = img; }).catch(() => {});
+  // Catálogo de chapéus publicado pelo database /design — os embutidos ficam,
+  // os publicados entram por cima (mesmo nome substitui, nome novo soma)
+  fetch('https://gmycqvvvglexbtbqkjzi.supabase.co/storage/v1/object/public/mapas/chapeus.json?t=' + Date.now())
+    .then(r => r.ok ? r.json() : null)
+    .then(cfg => {
+      if (!cfg || !Array.isArray(cfg.chapeus)) return;
+      for (const c of cfg.chapeus) {
+        if (!c || !c.n || !c.img) continue;
+        const j = CHAPEUS_CHAR1.findIndex(x => x.n === c.n);
+        if (j >= 0) CHAPEUS_CHAR1[j] = c; else CHAPEUS_CHAR1.push(c);
+      }
+      const rows = document.getElementById('czRows');
+      if (rows) rows.innerHTML = '';   // as linhas renascem com o catálogo novo
+      console.log('[chapeus] catálogo carregado: ' + CHAPEUS_CHAR1.length + ' opções');
+    }).catch(() => {});
   fetch('https://gmycqvvvglexbtbqkjzi.supabase.co/storage/v1/object/public/mapas/mapa-config-lobby.json?t=' + Date.now())
     .then(r => r.ok ? r.json() : null)
     .then(cfg => {
@@ -8267,7 +8282,7 @@ function defineCorteChar1(c) {
 // direções; a âncora por frame diz onde a cabeça está naquele quadro.
 const CHAPEUS_CHAR1 = [
   { n: 'Nenhum' },
-  { n: 'Palha', img: '/chapeu-palha.png', esc: 1.9, dy: 0.40 }
+  { n: 'Palha', img: '/chapeu-palha.png', esc: 1.95, dy: 0.70 }
 ];
 // centro/topo/largura da cabeça em cada frame, medidos das máscaras (px crus)
 const ANCORA_CABECA = {
@@ -8290,6 +8305,9 @@ function _chapeuAtivo() {
   let im = _chapeuImgs[i];
   if (!im) {
     im = new Image();
+    // chapéus publicados vêm do storage (outra origem): sem isto o canvas
+    // ficaria contaminado e o avatar/batalha não conseguiriam gerar .src
+    if (/^https?:/.test(d.img)) im.crossOrigin = 'anonymous';
     im.onload = () => { if (_fabricaCombo.char1) _montaFramesCombo('char1'); };
     im.src = d.img;
     _chapeuImgs[i] = im;
@@ -8511,6 +8529,10 @@ function _montaFramesCombo(comboId) {
   let boxUso = box;
   const chapeu = comboId === 'char1' ? _chapeuAtivo() : null;
   if (chapeu && box) {
+    // Folga em cima: um chapéu bem assentado (cabeça DENTRO, aba cruzando o
+    // cabelo) tem a copa acima do topo do canvas original — sem a folga ela
+    // sairia cortada. Todas as coordenadas descem DESL junto.
+    const DESL = 140;
     let minX = box.minX, minY = box.minY, maxX = box.minX + box.w - 1, maxY = box.minY + box.h - 1;
     loaded.forEach((fr) => {
       const anc = ANCORA_CABECA[fr.dir + '-' + fr.i];
@@ -8521,19 +8543,20 @@ function _montaFramesCombo(comboId) {
       maxX = Math.max(maxX, Math.ceil(anc.cx + wCh / 2));
       minY = Math.min(minY, Math.floor(anc.topo - hCh * (1 - chapeu.dy)));
     });
-    boxUso = { minX, minY, w: maxX - minX + 1, h: maxY - minY + 1 };
+    boxUso = { minX, minY: minY + DESL, w: maxX - minX + 1, h: maxY - minY + 1 };
     pintadas = pintadas.map((pc, idx) => {
       const fr = loaded[idx];
       const anc = ANCORA_CABECA[fr.dir + '-' + fr.i];
-      if (!anc) return pc;
       const cv = document.createElement('canvas');
-      cv.width = pc.width; cv.height = pc.height;
+      cv.width = pc.width; cv.height = pc.height + DESL;
       const g = cv.getContext('2d');
-      g.drawImage(pc, 0, 0);
-      const wCh = anc.larg * chapeu.esc;
-      const hCh = wCh * chapeu.img.naturalHeight / chapeu.img.naturalWidth;
-      g.imageSmoothingEnabled = true;
-      g.drawImage(chapeu.img, anc.cx - wCh / 2, anc.topo - hCh * (1 - chapeu.dy), wCh, hCh);
+      g.drawImage(pc, 0, DESL);
+      if (anc) {
+        const wCh = anc.larg * chapeu.esc;
+        const hCh = wCh * chapeu.img.naturalHeight / chapeu.img.naturalWidth;
+        g.imageSmoothingEnabled = true;
+        g.drawImage(chapeu.img, anc.cx - wCh / 2, anc.topo - hCh * (1 - chapeu.dy) + DESL, wCh, hCh);
+      }
       return cv;
     });
   }
@@ -8756,7 +8779,7 @@ function _czMontaOpcoes() {
     ops.className = 'cz-ops';
     CORTES_CHAR1.forEach((op, i) => {
       const b = document.createElement('button');
-      b.className = 'cz-opt' + (i === 0 ? ' sel' : '');
+      b.className = 'cz-opt' + (i === (_czEscolha.corte || 0) ? ' sel' : '');
       b.type = 'button';
       b.textContent = op.n;
       b.addEventListener('click', () => {
@@ -8782,7 +8805,7 @@ function _czMontaOpcoes() {
     ops.className = 'cz-ops';
     CHAPEUS_CHAR1.forEach((op, i) => {
       const b = document.createElement('button');
-      b.className = 'cz-opt' + (i === 0 ? ' sel' : '');
+      b.className = 'cz-opt' + (i === (_czEscolha.chapeu || 0) ? ' sel' : '');
       b.type = 'button';
       b.textContent = op.n;
       b.addEventListener('click', () => {
@@ -8807,7 +8830,7 @@ function _czMontaOpcoes() {
     ops.className = 'cz-ops';
     VISUAL_PALETAS[reg].forEach((op, i) => {
       const b = document.createElement('button');
-      b.className = 'cz-op' + (i === 0 ? ' sel' : '');
+      b.className = 'cz-op' + (i === (_czEscolha[reg] || 0) ? ' sel' : '');
       b.type = 'button';
       b.title = op.n;
       const base = REGIAO_BASE[reg];

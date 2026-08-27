@@ -4,6 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>CRIAS — Database Oficial</title>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2" defer></script>
 <style>
   :root { --bg:#0a0e1a; --card:#131a2e; --line:#243250; --txt:#dce6f5; --dim:#8ab0dd; --acc:#4dc3ff;
           --gold:#ffd700; --ok:#3ddc84; --warn:#ffa94d; --cut:#ff6b6b; }
@@ -222,6 +223,44 @@ FORMATO DE TRABALHO:
     Por isso a arte precisa de proporção travada: o jogo calcula a posição de cada lugar
     a partir da largura da peça. Banco de 2 → lugares a <b>27%</b> e <b>73%</b> da largura.
     Banco de 3 → <b>18%</b>, <b>50%</b> e <b>82%</b>. Os prompts já exigem isso.
+  </div>
+</div>
+
+<h2>11.5 · Chapéus — laboratório e publicação</h2>
+<div class="card" style="border-color:var(--gold)">
+  <div style="font-size:13px;margin-bottom:10px;line-height:1.7">
+    Chapéu é <b>overlay</b>: uma imagem só (se for simétrico) vestida por cima da cabeça
+    em todas as poses — nada do personagem é editado. Gere no GPT com o prompt abaixo,
+    solte o arquivo aqui, ajuste os dois controles olhando o preview e clique em
+    <b>Publicar</b>: o chapéu aparece na personalização do jogo na hora, sem deploy.
+  </div>
+  <div class="q" id="chPrompt" style="cursor:pointer" title="clique para copiar">
+    Crie um chapéu em pixel art para um personagem de jogo estilo Pokémon/Ragnarok,
+    visto de frente e levemente de cima (como se estivesse na cabeça de um personagem 2D
+    top-down). Chapéu: <b>[descreva: boné vermelho / cartola / coroa dourada / capuz de raposa…]</b>.
+    Fundo 100% transparente, sem cabeça, sem sombra, sem texto. Pixel art com sombreamento
+    simples, luz vindo da esquerda-cima. <span style="color:var(--dim)">(clique para copiar)</span>
+  </div>
+  <div style="display:grid;grid-template-columns:280px 1fr;gap:16px;margin-top:14px;align-items:start">
+    <div>
+      <input type="file" id="chArq" accept="image/png,image/webp" style="display:none">
+      <button id="chSolta" style="width:100%">📁 Escolher imagem do chapéu</button>
+      <div style="margin-top:10px;font-size:12px;color:var(--dim)">Nome no jogo:</div>
+      <input type="text" id="chNome" maxlength="18" placeholder="ex.: Boné Vermelho"
+        style="width:100%;background:#0a1322;border:1px solid var(--line);border-radius:8px;color:var(--txt);padding:8px;font-size:13px;margin-top:4px">
+      <div style="margin-top:10px;font-size:12px;color:var(--dim)">Largura (vs. cabeça): <b id="chEscV">1.60</b></div>
+      <input type="range" id="chEsc" min="80" max="300" value="160" style="width:100%">
+      <div style="margin-top:6px;font-size:12px;color:var(--dim)">Afundar na cabeça: <b id="chDyV">0.55</b></div>
+      <input type="range" id="chDy" min="0" max="100" value="55" style="width:100%">
+      <button id="chPub" style="width:100%;margin-top:12px">🚀 Publicar no jogo</button>
+      <div id="chMsg" class="note"></div>
+    </div>
+    <div>
+      <canvas id="chPrev" width="660" height="260" style="width:100%;background:#0a1322;border:1px solid var(--line);border-radius:10px"></canvas>
+      <div class="note">Preview: frente · perfil · costas — ajuste até a cabeça ficar DENTRO do chapéu, aba cruzando o cabelo.</div>
+      <div style="font-size:12px;font-weight:800;color:var(--gold);margin:12px 0 4px">Publicados</div>
+      <div id="chLista" style="font-size:13px;color:var(--dim)">carregando…</div>
+    </div>
   </div>
 </div>
 
@@ -550,6 +589,125 @@ if (mb) mb.appendChild(mkBtn(P_MAPA, '📋 copiar prompt do mapa'));
 
 const cr = document.getElementById('charRow');
 cr.lastElementChild.appendChild(mkBtn(P_CHAR, 'Copiar prompt'));
+</script>
+<script>
+// ── Laboratório de chapéus ─────────────────────────────────────────────────
+(function(){
+  const SB='https://gmycqvvvglexbtbqkjzi.supabase.co', KEY='sb_publishable_N4DdqinjzjnMBWsik5qj2A_ksPBX9Av';
+  const CHAPEUS_URL = SB+'/storage/v1/object/public/mapas/chapeus.json';
+  // âncoras da cabeça (mesmos números do jogo)
+  const ANC = {
+    'down-0': { cx: 404, topo: 34, larg: 185 },
+    'right-0':{ cx: 396, topo: 34, larg: 211 },
+    'up-0':   { cx: 396, topo: 35, larg: 177 }
+  };
+  const $ = id => document.getElementById(id);
+  let chapeuIm = null, sb = null;
+  const frames = {};
+  for (const fr of Object.keys(ANC)) {
+    const im = new Image();
+    im.src = '/char1-' + fr + '.png';
+    im.onload = desenha;
+    frames[fr] = im;
+  }
+  function esc(){ return +$('chEsc').value/100; }
+  function dy(){ return +$('chDy').value/100; }
+  function desenha(){
+    const cv = $('chPrev'); if (!cv) return;
+    const g = cv.getContext('2d');
+    g.clearRect(0,0,cv.width,cv.height);
+    g.imageSmoothingEnabled = true;
+    Object.keys(ANC).forEach((fr, i) => {
+      const im = frames[fr];
+      if (!im.complete || !im.naturalWidth) return;
+      // 800px crus + 140 de folga em cima -> caixa de 220px de altura no preview
+      const escPrev = 240/940, ox = 10 + i*220, oy = 10;
+      g.drawImage(im, ox, oy + 140*escPrev, 800*escPrev, 800*escPrev);
+      if (chapeuIm && chapeuIm.complete) {
+        const a = ANC[fr];
+        const wCh = a.larg*esc(), hCh = wCh*chapeuIm.naturalHeight/chapeuIm.naturalWidth;
+        g.drawImage(chapeuIm, ox + (a.cx-wCh/2)*escPrev, oy + (a.topo - hCh*(1-dy()) + 140)*escPrev,
+          wCh*escPrev, hCh*escPrev);
+      }
+    });
+  }
+  $('chEsc').oninput = () => { $('chEscV').textContent = esc().toFixed(2); desenha(); };
+  $('chDy').oninput  = () => { $('chDyV').textContent = dy().toFixed(2); desenha(); };
+  $('chSolta').onclick = () => $('chArq').click();
+  $('chArq').onchange = e => {
+    const f = e.target.files[0]; if (!f) return;
+    const im = new Image();
+    im.onload = () => { chapeuIm = im; $('chMsg').textContent = 'ajuste os controles e publique'; desenha(); };
+    im.src = URL.createObjectURL(f);
+    if (!$('chNome').value) $('chNome').value = f.name.replace(/\.[^.]+$/,'').slice(0,18);
+  };
+  $('chPrompt').onclick = () => {
+    navigator.clipboard.writeText($('chPrompt').innerText.replace(/\(clique para copiar\)/,'').trim())
+      .then(()=> $('chMsg').textContent='prompt copiado');
+  };
+  async function catalogo(){
+    try { const r = await fetch(CHAPEUS_URL + '?t=' + Date.now());
+      if (!r.ok) return { chapeus: [] };
+      const j = await r.json();
+      return Array.isArray(j.chapeus) ? j : { chapeus: [] };
+    } catch(e){ return { chapeus: [] }; }
+  }
+  async function gravaCatalogo(cat){
+    sb = sb || window.supabase.createClient(SB, KEY);
+    const r = await sb.storage.from('mapas').upload('chapeus.json',
+      new Blob([JSON.stringify(cat)], {type:'application/json'}),
+      { upsert: true, contentType: 'application/json', cacheControl: '0' });
+    if (r.error) throw r.error;
+  }
+  async function lista(){
+    const cat = await catalogo();
+    const el = $('chLista');
+    if (!cat.chapeus.length) { el.textContent = 'nenhum chapéu publicado ainda'; return; }
+    el.innerHTML = '';
+    cat.chapeus.forEach(c => {
+      const d = document.createElement('div');
+      d.style.cssText = 'display:flex;align-items:center;gap:10px;padding:5px 0;border-bottom:1px solid rgba(255,255,255,.06)';
+      d.innerHTML = '<img src="'+c.img+'" style="height:26px">'+
+        '<b style="color:var(--txt)">'+c.n+'</b>'+
+        '<span>larg '+(c.esc||1.3).toFixed(2)+' · afunda '+(c.dy==null?0.45:c.dy).toFixed(2)+'</span>';
+      const rm = document.createElement('button');
+      rm.className = 'ghost'; rm.textContent = 'tirar';
+      rm.onclick = async () => {
+        if (!confirm('Tirar "'+c.n+'" do jogo?')) return;
+        try { const cat2 = await catalogo();
+          cat2.chapeus = cat2.chapeus.filter(x => x.n !== c.n);
+          await gravaCatalogo(cat2); lista();
+          $('chMsg').textContent = '"'+c.n+'" removido';
+        } catch(e){ $('chMsg').textContent = 'erro: '+(e.message||e); }
+      };
+      d.appendChild(rm);
+      el.appendChild(d);
+    });
+  }
+  $('chPub').onclick = async () => {
+    const nome = $('chNome').value.trim();
+    if (!chapeuIm) { $('chMsg').textContent = 'escolha a imagem primeiro'; return; }
+    if (!nome) { $('chMsg').textContent = 'dê um nome ao chapéu'; return; }
+    try {
+      $('chMsg').textContent = 'publicando…';
+      sb = sb || window.supabase.createClient(SB, KEY);
+      const slug = nome.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g,'').replace(/[^\w]+/g,'-');
+      const bin = await (await fetch(chapeuIm.src)).blob();
+      const cam = 'chapeus/' + slug + '.png';
+      const up = await sb.storage.from('mapas').upload(cam, bin, { upsert: true, cacheControl: '0' });
+      if (up.error) throw up.error;
+      const cat = await catalogo();
+      const novo = { n: nome, img: SB + '/storage/v1/object/public/mapas/' + cam,
+                     esc: +esc().toFixed(2), dy: +dy().toFixed(2) };
+      const i = cat.chapeus.findIndex(x => x.n === nome);
+      if (i >= 0) cat.chapeus[i] = novo; else cat.chapeus.push(novo);
+      await gravaCatalogo(cat);
+      $('chMsg').textContent = '✅ "'+nome+'" publicado — recarregue o jogo e veja na personalização';
+      lista();
+    } catch(e){ $('chMsg').textContent = 'erro: '+(e.message||e); }
+  };
+  lista();
+})();
 </script>
 </body>
 </html>
