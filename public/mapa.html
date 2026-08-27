@@ -978,6 +978,30 @@ function contornoIrregular(tipo, cx, cy, r, sem){
 }
 const FORMAS_LIVRES = ['organica','pedra','borda'];
 
+// "Pegar origem" copia O QUE ESTÁ NA TELA — base + remendos já aplicados —
+// não a camada crua do mapa. O pedaço vira um carimbo (tile embutido) preso
+// ao destino por âncora, então o resultado é 1:1 aqui e no jogo.
+let _nCarimbo = 0;
+function carimboDoQueSeVe(bx0f, by0f, bwf, bhf){
+  const L = N*TP;
+  const px0 = Math.max(0, Math.round(bx0f*L)), py0 = Math.max(0, Math.round(by0f*L));
+  const pw = Math.max(2, Math.min(L-px0, Math.round(bwf*L)));
+  const ph = Math.max(2, Math.min(L-py0, Math.round(bhf*L)));
+  const c = document.createElement('canvas'); c.width=pw; c.height=ph;
+  c.getContext('2d').drawImage(cM, px0, py0, pw, ph, 0, 0, pw, ph);
+  const nome = 'carimbo-'+Date.now().toString(36)+'-'+(_nCarimbo++);
+  UP[nome] = c.toDataURL('image/png');
+  c.naturalWidth=pw; c.naturalHeight=ph; c.complete=true;
+  IMGS[nome] = c;
+  return nome;
+}
+// campos do remendo-carimbo: textura + tamanho e âncora no DESTINO
+function fonteDoRemendo(txf, tyf, twf, thf, oxf, oyf){
+  if(st.remFonte==='tile' && st.remTile) return { tile:st.remTile, tesc:st.remTesc };
+  const nome = carimboDoQueSeVe(oxf, oyf, twf, thf);
+  return { tile:nome, tesc:twf, tesy:thf, tox:txf, toy:tyf };
+}
+
 function remenda(fx,fy){
   if(!remIni||!remOrigemIni) return;
   const rTile = st.remR/TP;                       // raio em tiles
@@ -985,15 +1009,15 @@ function remenda(fx,fy){
   remUltimo=[fx,fy];
   const ox = remOrigemIni[0] + (fx-remIni[0]);
   const oy = remOrigemIni[1] + (fy-remIni[1]);
-  if(ox-rTile<0||oy-rTile<0||ox+rTile>N||oy+rTile>N){ msg('origem saiu do mapa'); return; }
+  if(st.remFonte!=='tile' && (ox-rTile<0||oy-rTile<0||ox+rTile>N||oy+rTile>N)){ msg('origem saiu do mapa'); return; }
   if(FORMAS_LIVRES.includes(st.remForma)){
     const sem = Math.random()*1000;
     const pts = contornoIrregular(st.remForma, fx, fy, rTile, sem).map(([x,y])=>[x/N,y/N]);
-    st.remendos.push({ pts, dx:(ox-fx)/N, dy:(oy-fy)/N, f:'livre',
-    ...(st.remFonte==='tile' && st.remTile ? { tile:st.remTile, tesc:st.remTesc } : {}) });
+    st.remendos.push({ pts, dx:0, dy:0, f:'livre',
+      ...fonteDoRemendo((fx-rTile)/N,(fy-rTile)/N, 2*rTile/N, 2*rTile/N, (ox-rTile)/N,(oy-rTile)/N) });
   } else {
     st.remendos.push({ x:fx/N, y:fy/N, ox:ox/N, oy:oy/N, r:rTile/N, f:st.remForma,
-    ...(st.remFonte==='tile' && st.remTile ? { tile:st.remTile, tesc:st.remTesc } : {}) });
+      ...fonteDoRemendo((fx-rTile)/N,(fy-rTile)/N, 2*rTile/N, 2*rTile/N, (ox-rTile)/N,(oy-rTile)/N) });
   }
   desenhaMapaBase(); desenhaMarcas(fx,fy);
 }
@@ -1141,20 +1165,24 @@ window.addEventListener('mouseup',()=>{
     if(x1-x0>0.1 && y1-y0>0.1){
       st.remendos.push({
         pts: [[x0/N,y0/N],[x1/N,y0/N],[x1/N,y1/N],[x0/N,y1/N]],
-        dx: (remOrigemIni[0]-remIni[0])/N, dy: (remOrigemIni[1]-remIni[1])/N,
+        dx: 0, dy: 0,
         f: 'livre',
-    ...(st.remFonte==='tile' && st.remTile ? { tile:st.remTile, tesc:st.remTesc } : {})
+        ...fonteDoRemendo(x0/N, y0/N, (x1-x0)/N, (y1-y0)/N,
+          (x0+remOrigemIni[0]-remIni[0])/N, (y0+remOrigemIni[1]-remIni[1])/N)
       });
       desenhaMapaBase(); desenhaMarcas(); agendaSilhueta(); salvar();
       msg('retângulo de '+(x1-x0).toFixed(1)+'x'+(y1-y0).toFixed(1)+' tiles remendado');
     }
   }
   if(remLaco && remLaco.length>2 && remOrigemIni && remIni){
+    const lx = remLaco.map(p=>p[0]), ly = remLaco.map(p=>p[1]);
+    const lx0 = Math.min(...lx), lx1 = Math.max(...lx), ly0 = Math.min(...ly), ly1 = Math.max(...ly);
     st.remendos.push({
       pts: remLaco.map(([x,y])=>[x/N, y/N]),
-      dx: (remOrigemIni[0]-remIni[0])/N, dy: (remOrigemIni[1]-remIni[1])/N,
+      dx: 0, dy: 0,
       f: 'livre',
-    ...(st.remFonte==='tile' && st.remTile ? { tile:st.remTile, tesc:st.remTesc } : {})
+      ...fonteDoRemendo(lx0/N, ly0/N, (lx1-lx0)/N, (ly1-ly0)/N,
+        (lx0+remOrigemIni[0]-remIni[0])/N, (ly0+remOrigemIni[1]-remIni[1])/N)
     });
     desenhaMapaBase(); desenhaMarcas(); agendaSilhueta(); salvar();
     msg('área livre remendada');

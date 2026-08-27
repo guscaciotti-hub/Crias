@@ -258,12 +258,20 @@ FORMATO DE TRABALHO:
       <div style="margin-top:8px;font-size:12px;color:var(--dim)">Como se conquista (o jogador vê isso no 🔒):</div>
       <input type="text" id="chComo" maxlength="60" placeholder="ex.: Vença o Líder Júpiter"
         style="width:100%;background:#0a1322;border:1px solid var(--line);border-radius:8px;color:var(--txt);padding:8px;font-size:13px;margin-top:4px">
-      <div style="margin-top:10px;font-size:12px;color:var(--dim)">Largura (vs. cabeça): <b id="chEscV">1.60</b></div>
+      <div style="margin-top:10px;font-size:12px;color:var(--dim)">Ajustando a vista:</div>
+      <div style="display:flex;gap:4px;margin-top:4px" id="chVistas">
+        <button class="ghost" data-v="f" style="flex:1">Frente</button>
+        <button class="ghost" data-v="t" style="flex:1">Costas</button>
+        <button class="ghost" data-v="l" style="flex:1">P. esq</button>
+        <button class="ghost" data-v="r" style="flex:1">P. dir</button>
+      </div>
+      <div style="margin-top:8px;font-size:12px;color:var(--dim)">Largura (vs. cabeça): <b id="chEscV">1.60</b></div>
       <input type="range" id="chEsc" min="80" max="300" value="160" style="width:100%">
       <div style="margin-top:6px;font-size:12px;color:var(--dim)">Afundar na cabeça: <b id="chDyV">0.55</b></div>
       <input type="range" id="chDy" min="0" max="100" value="55" style="width:100%">
       <div style="margin-top:6px;font-size:12px;color:var(--dim)">Deslocar ↔ (esq/dir): <b id="chDxV">0.00</b></div>
       <input type="range" id="chDx" min="-40" max="40" value="0" style="width:100%">
+      <button id="chIgual" class="ghost" style="width:100%;margin-top:6px">≡ copiar este ajuste para as 4 vistas</button>
       <button id="chPub" style="width:100%;margin-top:12px">🚀 Publicar no jogo</button>
       <div id="chMsg" class="note"></div>
     </div>
@@ -627,9 +635,34 @@ cr.lastElementChild.appendChild(mkBtn(P_CHAR, 'Copiar prompt'));
     im.onload = desenha;
     frames[fr] = im;
   }
-  function esc(){ return +$('chEsc').value/100; }
-  function dy(){ return +$('chDy').value/100; }
-  function dx(){ return +$('chDx').value/100; }
+  // ajuste POR VISTA: cada uma tem largura/afundar/deslocar próprios —
+  // a copa fica bonita maior de frente e menor de perfil, por exemplo
+  const CFG = {
+    f: { esc: 1.6, dy: 0.55, dx: 0 },
+    t: { esc: 1.6, dy: 0.55, dx: 0 },
+    l: { esc: 1.6, dy: 0.55, dx: 0 },
+    r: { esc: 1.6, dy: 0.55, dx: 0 }
+  };
+  let vSel = 'f';
+  const VISTA_DE = { 'down-0': 'f', 'up-0': 't', 'left-0': 'l', 'right-0': 'r' };
+  function sincronizaSliders(){
+    const c = CFG[vSel];
+    $('chEsc').value = Math.round(c.esc*100); $('chEscV').textContent = c.esc.toFixed(2);
+    $('chDy').value = Math.round(c.dy*100);   $('chDyV').textContent = c.dy.toFixed(2);
+    $('chDx').value = Math.round(c.dx*100);   $('chDxV').textContent = c.dx.toFixed(2);
+    document.querySelectorAll('#chVistas button').forEach(b => {
+      const on = b.dataset.v === vSel;
+      b.style.borderColor = on ? 'var(--acc)' : '';
+      b.style.color = on ? 'var(--acc)' : '';
+    });
+  }
+  document.querySelectorAll('#chVistas button').forEach(b =>
+    b.onclick = () => { vSel = b.dataset.v; sincronizaSliders(); desenha(); });
+  $('chIgual').onclick = () => {
+    for (const k of ['f','t','l','r']) if (k !== vSel) CFG[k] = { ...CFG[vSel] };
+    $('chMsg').textContent = 'ajuste copiado para as 4 vistas';
+    desenha();
+  };
   function desenha(){
     const cv = $('chPrev'); if (!cv) return;
     const g = cv.getContext('2d');
@@ -646,10 +679,10 @@ cr.lastElementChild.appendChild(mkBtn(P_CHAR, 'Copiar prompt'));
                  : fr === 'left-0' ? (chapeuLado || chapeuIm)
                  : chapeuIm;
       if (imCh && imCh.complete) {
-        const a = ANC[fr];
-        const wCh = a.larg*esc(), hCh = wCh*imCh.naturalHeight/imCh.naturalWidth;
-        const x = ox + (a.cx - wCh/2 + a.larg*dx())*escPrev;
-        const y = oy + (a.topo - hCh*(1-dy()) + 140)*escPrev;
+        const a = ANC[fr], c = CFG[VISTA_DE[fr]];
+        const wCh = a.larg*c.esc, hCh = wCh*imCh.naturalHeight/imCh.naturalWidth;
+        const x = ox + (a.cx - wCh/2 + a.larg*c.dx)*escPrev;
+        const y = oy + (a.topo - hCh*(1-c.dy) + 140)*escPrev;
         if (fr === 'right-0' && !chapeuLadoDir && chapeuLado) {
           // olhando para a DIREITA: espelho do perfil esquerdo, igual no jogo
           g.save();
@@ -661,11 +694,18 @@ cr.lastElementChild.appendChild(mkBtn(P_CHAR, 'Copiar prompt'));
           g.drawImage(imCh, x, y, wCh*escPrev, hCh*escPrev);
         }
       }
+      // moldura na vista que está sendo ajustada
+      if (VISTA_DE[fr] === vSel) {
+        g.strokeStyle = 'rgba(77,195,255,.8)';
+        g.lineWidth = 2;
+        g.strokeRect(ox + 2, 4, 210, 250);
+      }
     });
   }
-  $('chEsc').oninput = () => { $('chEscV').textContent = esc().toFixed(2); desenha(); };
-  $('chDy').oninput  = () => { $('chDyV').textContent = dy().toFixed(2); desenha(); };
-  $('chDx').oninput  = () => { $('chDxV').textContent = dx().toFixed(2); desenha(); };
+  $('chEsc').oninput = () => { CFG[vSel].esc = +$('chEsc').value/100; $('chEscV').textContent = CFG[vSel].esc.toFixed(2); desenha(); };
+  $('chDy').oninput  = () => { CFG[vSel].dy = +$('chDy').value/100; $('chDyV').textContent = CFG[vSel].dy.toFixed(2); desenha(); };
+  $('chDx').oninput  = () => { CFG[vSel].dx = +$('chDx').value/100; $('chDxV').textContent = CFG[vSel].dx.toFixed(2); desenha(); };
+  sincronizaSliders();
   // Auto-recorte: a imagem do GPT vem com margens transparentes enormes e o
   // conteúdo fora do centro — sem recortar, o chapéu "flutua" longe da cabeça.
   function recortaConteudo(im){
@@ -823,8 +863,10 @@ cr.lastElementChild.appendChild(mkBtn(P_CHAR, 'Copiar prompt'));
         if (up.error) throw up.error;
         return SB + '/storage/v1/object/public/mapas/' + cam;
       };
+      const arred = c => ({ esc: +c.esc.toFixed(2), dy: +c.dy.toFixed(2), dx: +c.dx.toFixed(2) });
       const novo = { n: nome, img: await sobe(chapeuIm, ''),
-                     esc: +esc().toFixed(2), dy: +dy().toFixed(2), dx: +dx().toFixed(2),
+                     esc: +CFG.f.esc.toFixed(2), dy: +CFG.f.dy.toFixed(2), dx: +CFG.f.dx.toFixed(2),
+                     vistas: { f: arred(CFG.f), t: arred(CFG.t), l: arred(CFG.l), r: arred(CFG.r) },
                      como: ($('chComo').value.trim() || 'recompensa especial, em breve') };
       if (chapeuTras) novo.imgTras = await sobe(chapeuTras, '-tras');
       if (chapeuLado) novo.imgLado = await sobe(chapeuLado, '-lado');

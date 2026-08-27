@@ -230,16 +230,20 @@
       var bw = bx1 - bx0, bh = by1 - by0;
       var tex = p.tile && tiles && tiles[p.tile];
       if (tex && (tex.naturalWidth || tex.width)) {
-        // textura repetida, no tamanho pedido (em fração do mapa)
-        var lado = Math.max(2, Math.round((p.tesc || 0.02) * destLarg));
+        // textura repetida, no tamanho pedido (em fração do mapa).
+        // p.tesy: repetição retangular (carimbos do "copiar o que se vê").
+        // p.tox/p.toy: âncora do padrão em fração do mapa — o carimbo cai
+        // 1:1 exatamente onde foi desenhado, no editor e no jogo.
+        var ladoX = Math.max(2, Math.round((p.tesc || 0.02) * destLarg));
+        var ladoY = p.tesy ? Math.max(2, Math.round(p.tesy * destAlt)) : ladoX;
         // Encolher 1024px direto para ~40px numa passada só serrilha; reduzir
         // por metades preserva o detalhe. O resultado fica guardado na peça —
         // o mapa sul desenha isto todo frame e refazer custava caro.
-        var chave = p.tile + '@' + lado;
+        var chave = p.tile + '@' + ladoX + 'x' + ladoY;
         var tmp = p._patCv && p._patK === chave ? p._patCv : null;
         if (!tmp) {
           var fonte = tex, fw = tex.naturalWidth || tex.width, fh = tex.naturalHeight || tex.height;
-          while (Math.max(fw, fh) > lado * 2) {
+          while (fw > ladoX * 2 && fh > ladoY * 2) {
             var meio = document.createElement('canvas');
             meio.width = Math.max(1, Math.round(fw / 2));
             meio.height = Math.max(1, Math.round(fh / 2));
@@ -250,11 +254,11 @@
             fonte = meio; fw = meio.width; fh = meio.height;
           }
           tmp = document.createElement('canvas');
-          tmp.width = tmp.height = lado;
+          tmp.width = ladoX; tmp.height = ladoY;
           var tg = tmp.getContext('2d');
           tg.imageSmoothingEnabled = true;
           if ('imageSmoothingQuality' in tg) tg.imageSmoothingQuality = 'high';
-          tg.drawImage(fonte, 0, 0, lado, lado);
+          tg.drawImage(fonte, 0, 0, ladoX, ladoY);
           p._patCv = tmp; p._patK = chave;
         }
         var pat = g.createPattern(tmp, 'repeat');
@@ -263,11 +267,13 @@
           // com a câmera (mapa sul), a pedra ficava parada na tela enquanto o
           // chão andava. Transladar para o canto do mapa prende o padrão ao
           // MUNDO: cada pedra tem lugar fixo no chão, como qualquer tile.
-          g.translate(destX, destY);
+          var ancX = destX + (p.tox || 0) * destLarg;
+          var ancY = destY + (p.toy || 0) * destAlt;
+          g.translate(ancX, ancY);
           g.fillStyle = pat;
-          g.fillRect(bx0 * destLarg - lado, by0 * destAlt - lado,
-                     bw * destLarg + lado * 2, bh * destAlt + lado * 2);
-          g.translate(-destX, -destY);
+          g.fillRect((bx0 - (p.tox || 0)) * destLarg - ladoX, (by0 - (p.toy || 0)) * destAlt - ladoY,
+                     bw * destLarg + ladoX * 2, bh * destAlt + ladoY * 2);
+          g.translate(-ancX, -ancY);
         }
       } else {
         g.drawImage(mapa,

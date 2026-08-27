@@ -8346,7 +8346,19 @@ function _chapeuAtivo() {
     ladoDir: d.imgLadoDir ? _carregaImgChapeu(d.imgLadoDir) : null,
     esc: d.esc || 1.3,
     dy: d.dy == null ? 0.45 : d.dy,
-    dx: d.dx || 0
+    dx: d.dx || 0,
+    vistas: d.vistas || null
+  };
+}
+// ajuste por vista: cada direção pode ter largura/afundar/deslocar próprios
+function _cfgChapeu(chapeu, dir) {
+  const k = dir === 'up' ? 't' : dir === 'left' ? 'l' : dir === 'right' ? 'r' : 'f';
+  const v = chapeu.vistas && chapeu.vistas[k];
+  if (!v) return chapeu;
+  return {
+    esc: v.esc == null ? chapeu.esc : v.esc,
+    dy: v.dy == null ? chapeu.dy : v.dy,
+    dx: v.dx == null ? chapeu.dx : v.dx
   };
 }
 function _imgChapeuPara(chapeu, dir) {
@@ -8580,12 +8592,13 @@ function _montaFramesCombo(comboId) {
       const anc = ANCORA_CABECA[fr.dir + '-' + fr.i];
       if (!anc) return;
       const imCh = _imgChapeuPara(chapeu, fr.dir);
-      const wCh = anc.larg * chapeu.esc;
+      const cfg = _cfgChapeu(chapeu, fr.dir);
+      const wCh = anc.larg * cfg.esc;
       const hCh = wCh * imCh.naturalHeight / imCh.naturalWidth;
-      const desloc = anc.larg * Math.abs(chapeu.dx || 0);
+      const desloc = anc.larg * Math.abs(cfg.dx || 0);
       minX = Math.min(minX, Math.floor(anc.cx - wCh / 2 - desloc));
       maxX = Math.max(maxX, Math.ceil(anc.cx + wCh / 2 + desloc));
-      minY = Math.min(minY, Math.floor(anc.topo - hCh * (1 - chapeu.dy)));
+      minY = Math.min(minY, Math.floor(anc.topo - hCh * (1 - cfg.dy)));
     });
     boxUso = { minX, minY: minY + DESL, w: maxX - minX + 1, h: maxY - minY + 1 };
     pintadas = pintadas.map((pc, idx) => {
@@ -8597,10 +8610,11 @@ function _montaFramesCombo(comboId) {
       g.drawImage(pc, 0, DESL);
       if (anc) {
         const imCh = _imgChapeuPara(chapeu, fr.dir);
-        const wCh = anc.larg * chapeu.esc;
+        const cfg = _cfgChapeu(chapeu, fr.dir);
+        const wCh = anc.larg * cfg.esc;
         const hCh = wCh * imCh.naturalHeight / imCh.naturalWidth;
-        const x = anc.cx - wCh / 2 + anc.larg * (chapeu.dx || 0);
-        const y = anc.topo - hCh * (1 - chapeu.dy) + DESL;
+        const x = anc.cx - wCh / 2 + anc.larg * (cfg.dx || 0);
+        const y = anc.topo - hCh * (1 - cfg.dy) + DESL;
         g.imageSmoothingEnabled = true;
         if (fr.dir === 'right' && !chapeu.ladoDir && chapeu.lado) {
           // perfil direito = espelho do perfil esquerdo (e o deslocamento
