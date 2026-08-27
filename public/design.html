@@ -245,18 +245,11 @@ FORMATO DE TRABALHO:
   </div>
   <div style="display:grid;grid-template-columns:280px 1fr;gap:16px;margin-top:14px;align-items:start">
     <div>
-      <input type="file" id="chArq" accept="image/png,image/webp" style="display:none">
-      <input type="file" id="chArqTras" accept="image/png,image/webp" style="display:none">
-      <input type="file" id="chArqLado" accept="image/png,image/webp" style="display:none">
       <input type="file" id="chArqFolha" accept="image/png,image/webp" style="display:none">
-      <button id="chSoltaFolha" style="width:100%">📄 Folha com as 3 vistas (fatia sozinho)</button>
-      <button id="chSolta" class="ghost" style="width:100%;margin-top:6px">📁 Só a frente (chapéu simétrico)</button>
-      <div style="display:flex;gap:6px;margin-top:6px">
-        <button id="chSoltaTras" class="ghost" style="flex:1">+ costas <span id="chTrasOk"></span></button>
-        <button id="chSoltaLado" class="ghost" style="flex:1">+ perfil <span id="chLadoOk"></span></button>
-      </div>
-      <div class="note" style="margin-top:4px">A folha traz frente · costas · perfil ESQUERDO
-        (o direito é espelhado sozinho). Chapéu redondo/simétrico: só a frente basta.</div>
+      <button id="chSoltaFolha" style="width:100%">📄 Soltar a folha com as 3 vistas</button>
+      <div class="note" style="margin-top:4px">A folha traz frente · costas · perfil ESQUERDO,
+        e o lab fatia sozinho. O perfil direito é o espelho do esquerdo — o chapéu
+        vira junto com o personagem.</div>
       <div style="margin-top:10px;font-size:12px;color:var(--dim)">Nome no jogo:</div>
       <input type="text" id="chNome" maxlength="18" placeholder="ex.: Boné Vermelho"
         style="width:100%;background:#0a1322;border:1px solid var(--line);border-radius:8px;color:var(--txt);padding:8px;font-size:13px;margin-top:4px">
@@ -273,8 +266,10 @@ FORMATO DE TRABALHO:
       <div id="chMsg" class="note"></div>
     </div>
     <div>
-      <canvas id="chPrev" width="660" height="260" style="width:100%;background:#0a1322;border:1px solid var(--line);border-radius:10px"></canvas>
-      <div class="note">Preview: frente · perfil · costas — ajuste até a cabeça ficar DENTRO do chapéu, aba cruzando o cabelo.</div>
+      <canvas id="chPrev" width="880" height="260" style="width:100%;background:#0a1322;border:1px solid var(--line);border-radius:10px"></canvas>
+      <div class="note">Preview: frente · olhando p/ ESQUERDA · olhando p/ DIREITA · costas.
+        O perfil direito é o espelho do esquerdo — igual ao personagem, que também espelha
+        ao virar (repare na faixa do peito). Ajuste até a cabeça ficar DENTRO do chapéu.</div>
       <div style="font-size:12px;font-weight:800;color:var(--gold);margin:12px 0 4px">Publicados</div>
       <div id="chLista" style="font-size:13px;color:var(--dim)">carregando…</div>
     </div>
@@ -615,9 +610,12 @@ cr.lastElementChild.appendChild(mkBtn(P_CHAR, 'Copiar prompt'));
   // âncoras da cabeça (mesmos números do jogo)
   const ANC = {
     'down-0': { cx: 404, topo: 34, larg: 185 },
+    'left-0': { cx: 394, topo: 34, larg: 223 },
     'right-0':{ cx: 396, topo: 34, larg: 211 },
     'up-0':   { cx: 396, topo: 35, larg: 177 }
   };
+  // ordem do preview: frente · p/ esquerda · p/ direita (espelho) · costas
+  const VISTAS = ['down-0', 'left-0', 'right-0', 'up-0'];
   const $ = id => document.getElementById(id);
   let chapeuIm = null, chapeuTras = null, chapeuLado = null, sb = null;
   const frames = {};
@@ -635,15 +633,14 @@ cr.lastElementChild.appendChild(mkBtn(P_CHAR, 'Copiar prompt'));
     const g = cv.getContext('2d');
     g.clearRect(0,0,cv.width,cv.height);
     g.imageSmoothingEnabled = true;
-    Object.keys(ANC).forEach((fr, i) => {
+    VISTAS.forEach((fr, i) => {
       const im = frames[fr];
       if (!im.complete || !im.naturalWidth) return;
       // 800px crus + 140 de folga em cima -> caixa de 220px de altura no preview
-      const escPrev = 240/940, ox = 10 + i*220, oy = 10;
+      const escPrev = 240/940, ox = 10 + i*216, oy = 10;
       g.drawImage(im, ox, oy + 140*escPrev, 800*escPrev, 800*escPrev);
-      // frente · perfil (imagem de perfil se houver) · costas (idem)
       const imCh = fr === 'up-0' ? (chapeuTras || chapeuIm)
-                 : fr === 'right-0' ? (chapeuLado || chapeuIm)
+                 : (fr === 'left-0' || fr === 'right-0') ? (chapeuLado || chapeuIm)
                  : chapeuIm;
       if (imCh && imCh.complete) {
         const a = ANC[fr];
@@ -651,7 +648,7 @@ cr.lastElementChild.appendChild(mkBtn(P_CHAR, 'Copiar prompt'));
         const x = ox + (a.cx - wCh/2 + a.larg*dx())*escPrev;
         const y = oy + (a.topo - hCh*(1-dy()) + 140)*escPrev;
         if (fr === 'right-0' && chapeuLado) {
-          // o preview do meio é o perfil DIREITO no jogo: espelho do esquerdo
+          // olhando para a DIREITA: espelho do perfil esquerdo, igual no jogo
           g.save();
           const eixo = ox + a.cx*escPrev;
           g.translate(eixo, 0); g.scale(-1,1); g.translate(-eixo, 0);
@@ -717,7 +714,14 @@ cr.lastElementChild.appendChild(mkBtn(P_CHAR, 'Copiar prompt'));
       else if (ini >= 0 && ++vao > 4) { faixas.push([ini, x - vao]); ini = -1; }
     }
     if (ini >= 0) faixas.push([ini, c0.width - 1]);
-    if (faixas.length !== 3) return null;
+    // o GPT nem sempre deixa espaço vazio entre as células: se a separação por
+    // transparência não achar exatamente 3, corta em TERÇOS IGUAIS (o grid do
+    // GPT é regular) e o auto-recorte de cada pedaço ajeita o resto
+    if (faixas.length !== 3) {
+      const t = Math.floor(c0.width / 3);
+      faixas.length = 0;
+      faixas.push([0, t - 1], [t, 2 * t - 1], [2 * t, c0.width - 1]);
+    }
     return faixas.map(([x0, x1]) => {
       const c = document.createElement('canvas');
       c.width = x1 - x0 + 1; c.height = c0.height;
@@ -734,23 +738,12 @@ cr.lastElementChild.appendChild(mkBtn(P_CHAR, 'Copiar prompt'));
       const partes = fatiaFolha(im);
       if (!partes) { $('chMsg').textContent = 'não achei 3 vistas separadas na folha — as células precisam de espaço transparente entre elas'; return; }
       chapeuIm = partes[0]; chapeuTras = partes[1]; chapeuLado = partes[2];
-      $('chTrasOk').textContent = '✓'; $('chLadoOk').textContent = '✓';
       $('chMsg').textContent = 'folha fatiada: frente, costas e perfil prontos — ajuste e publique';
       if (!$('chNome').value) $('chNome').value = f.name.replace(/\.[^.]+$/,'').slice(0,18);
       desenha();
     };
     im.src = URL.createObjectURL(f);
   };
-  $('chSolta').onclick = () => $('chArq').click();
-  $('chSoltaTras').onclick = () => $('chArqTras').click();
-  $('chSoltaLado').onclick = () => $('chArqLado').click();
-  $('chArq').onchange = e => leArquivo(e.target, (im, f) => {
-    chapeuIm = im;
-    $('chMsg').textContent = 'ajuste os controles e publique';
-    if (!$('chNome').value) $('chNome').value = f.name.replace(/\.[^.]+$/,'').slice(0,18);
-  });
-  $('chArqTras').onchange = e => leArquivo(e.target, im => { chapeuTras = im; $('chTrasOk').textContent = '✓'; });
-  $('chArqLado').onchange = e => leArquivo(e.target, im => { chapeuLado = im; $('chLadoOk').textContent = '✓'; });
   $('chPrompt').onclick = () => {
     navigator.clipboard.writeText($('chPrompt').innerText.replace(/\(clique para copiar\)/,'').trim())
       .then(()=> $('chMsg').textContent='prompt copiado');
