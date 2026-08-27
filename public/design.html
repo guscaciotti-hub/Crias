@@ -110,9 +110,36 @@
     <tr><th>NPC</th><th>Função</th></tr>
     <tr><td>🧙 <b>Guia</b></td><td>Explica o jogo. Entrega o primeiro orbe.</td></tr>
     <tr><td>🚪 <b>Masmorra</b></td><td>Entrada das salas. Coração do jogo.</td></tr>
-    <tr><td>🔄 <b>Troca</b></td><td>Fragmentos → Orbes. Só isso.</td></tr>
+    <tr><td>🧔 <b>Vendedor Bartô</b></td><td>Troca fragmentos → orbes e vende chapéus por 🪙 ouro.</td></tr>
     <tr><td>⚔️ <b>PvP</b></td><td>Arena contra outros treinadores.</td></tr>
   </table>
+
+  <div style="font-size:13px;font-weight:800;color:var(--gold);margin:14px 0 4px;">🧔 Prompt — arte do Vendedor Bartô</div>
+  <div style="font-size:12px;color:var(--dim);margin-bottom:6px;">
+    Estilo 3D bonito, igual ao do mapa (não pixel art). O jogo usa <b>uma imagem só</b>
+    (parado, de frente) e o arquivo se chama <code>npc-shop.png</code> — me mande a
+    imagem pronta que eu limpo o fundo se precisar e coloco: o Bartô aparece no jogo
+    automaticamente, no lugar onde ele já está hoje.
+  </div>
+  <div class="q" id="npcShopPrompt" style="cursor:pointer" title="clique para copiar">
+    Crie um NPC para um jogo de coleta de criaturas, em <b>RENDER 3D ESTILIZADO de jogo
+    moderno</b> — volumétrico de verdade, materiais ricos (couro com textura, madeira,
+    metal dourado polido, cristal translúcido), cores vibrantes e saturadas, acabamento
+    caprichado e aconchegante, iluminação cinematográfica suave vinda da esquerda-cima.
+    <b>NÃO é pixel art.</b> Estética de vitrine de jogo AAA fofo (estilo Zelda: Link's
+    Awakening remake / Fae Farm).
+    Personagem: <b>Vendedor Bartô</b>, mercador carismático de meia-idade, barba castanha
+    cheia e bem penteada, sorriso confiante, colete de couro com bolsos e avental de
+    mascate. Nas costas, uma <b>mochila-bancada de madeira</b> com <b>chapéus variados
+    pendurados</b> (chapéu de palha, boné, cartola). No cinto, um <b>saquinho transbordando
+    moedas de OURO reluzentes</b>; na mão estendida, um <b>frasco de vidro com fragmentos
+    de cristal AZUL brilhando</b>, como quem oferece ao jogador. Detalhes dourados no
+    figurino ecoando as moedas. Proporção heroica-fofa (cabeça um pouco grande, corpo
+    compacto), compatível com personagem de jogo top-down.
+    Corpo inteiro, EM PÉ, VISTO DE FRENTE e levemente de cima. Uma imagem só.
+    Fundo 100% transparente, sem chão, sem sombra projetada, sem texto.
+    <span style="color:var(--dim)">(clique para copiar)</span>
+  </div>
 </div>
 
 <h2>7 · Personagem oficial</h2>
@@ -805,6 +832,11 @@ cr.lastElementChild.appendChild(mkBtn(P_CHAR, 'Copiar prompt'));
   $('chPrompt').onclick = () => {
     navigator.clipboard.writeText($('chPrompt').innerText.replace(/\(clique para copiar\)/,'').trim())
       .then(()=> $('chMsg').textContent='prompt copiado');
+  };
+  const np = $('npcShopPrompt');
+  if (np) np.onclick = () => {
+    navigator.clipboard.writeText(np.innerText.replace(/\(clique para copiar\)/,'').trim())
+      .then(()=> { np.style.borderLeftColor = 'var(--ok)'; setTimeout(()=> np.style.borderLeftColor='', 900); });
   };
   async function catalogo(){
     try { const r = await fetch(CHAPEUS_URL + '?t=' + Date.now());
