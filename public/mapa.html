@@ -71,6 +71,7 @@
     <div class="sec" id="secVer">
       <h2>Ver</h2>
       <label>Grade <input type="checkbox" id="grade" checked></label>
+      <label>NPCs <input type="checkbox" id="verNpcs" checked></label>
       <label>Marcações <input type="range" id="opac" min="10" max="90" value="45"></label>
       <div class="row2"><button class="gh" id="fit">🔍 Ver tudo</button><button class="gh" id="auto">✨ Auto-colisão</button></div>
       <div class="row2"><button class="gh" id="undo">↶ Desfazer</button><button class="gh" id="redo">↷ Refazer</button></div>
@@ -597,11 +598,37 @@ function desenhaMarcas(curX,curY){
       }
     }
   }
+  // NPCs do jogo (só na Cidade 1): mostra ONDE cada um fica para você editar
+  // o mapa em volta deles sem chutar. Posições espelham o NPCS_TEMPLATE do jogo.
+  if($('verNpcs') && $('verNpcs').checked && mapaAtual().id==='principal'){
+    const NPCS_JOGO=[
+      ['👩‍🦰','Mãe Lyra',8,20], ['🧙','Guia Solis',16,22], ['🧔','Bartô',36,20],
+      ['👧','Lulu',12,22], ['🧑‍🦱','Rocco',32,22], ['🥋','Yuri',10,34],
+      ['🎭','Augusto',22,10], ['🔮','Júpiter',36,26], ['⚔️','Kalos',36,6],
+      ['🕳️','Caverna',36,2], ['⚔️','PVP',23,17]
+    ];
+    gK.globalAlpha=1;
+    for(const [emo,nome,x,y] of NPCS_JOGO){
+      const px=(x+0.5)*TP, py=(y+0.5)*TP;
+      gK.fillStyle='rgba(20,40,80,.75)';
+      gK.beginPath(); gK.arc(px,py,TP*0.42,0,6.283); gK.fill();
+      gK.strokeStyle='#4dc3ff'; gK.lineWidth=2; gK.stroke();
+      gK.font=(TP*0.5|0)+'px sans-serif'; gK.textAlign='center'; gK.textBaseline='middle';
+      gK.fillText(emo,px,py+1);
+      gK.font='bold '+(TP*0.3|0)+'px sans-serif';
+      const tw=gK.measureText(nome).width;
+      gK.fillStyle='rgba(0,0,0,.7)';
+      gK.fillRect(px-tw/2-3,py+TP*0.48,tw+6,TP*0.4);
+      gK.fillStyle='#cfe6ff';
+      gK.fillText(nome,px,py+TP*0.68);
+    }
+  }
   const nc=st.colisao.flat().filter(Boolean).length;
   const nf=st.frente.flat().filter(Boolean).length;
   $('stats').textContent = `${nc} células bloqueadas (${Math.round(nc/16*10)/10} tiles) · ${Math.round(nf/16)} tiles de passa-atrás`;
 }
 $('grade').onchange=$('opac').oninput=desenhaMarcas;
+$('verNpcs').onchange=desenhaMarcas;
 $('brush').oninput=e=>{st.brush=+e.target.value;$('brushv').textContent=e.target.value;};
 $('remTam').oninput=e=>{st.remR=+e.target.value;$('remTamv').textContent=e.target.value;desenhaMarcas();};
 document.querySelectorAll('#remFormas button, #remFormas2 button').forEach(b=>b.onclick=()=>{
