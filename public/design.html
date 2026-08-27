@@ -235,24 +235,28 @@ FORMATO DE TRABALHO:
     <b>Publicar</b>: o chapéu aparece na personalização do jogo na hora, sem deploy.
   </div>
   <div class="q" id="chPrompt" style="cursor:pointer" title="clique para copiar">
-    Crie um chapéu em pixel art para um personagem de jogo estilo Pokémon/Ragnarok,
-    visto de frente e levemente de cima (como se estivesse na cabeça de um personagem 2D
-    top-down). Chapéu: <b>[descreva: boné vermelho / cartola / coroa dourada / capuz de raposa…]</b>.
-    Fundo 100% transparente, sem cabeça, sem sombra, sem texto. Pixel art com sombreamento
-    simples, luz vindo da esquerda-cima. <span style="color:var(--dim)">(clique para copiar)</span>
+    Crie um chapéu em pixel art para um personagem de jogo estilo Pokémon/Ragnarok, como se
+    estivesse na cabeça de um personagem 2D top-down, numa folha com <b>3 células lado a lado,
+    todas na mesma escala</b>: 1) visto de <b>FRENTE</b> · 2) visto de <b>COSTAS</b> ·
+    3) visto de <b>PERFIL ESQUERDO</b>. Chapéu: <b>[descreva: boné vermelho / cartola /
+    coroa dourada / capuz de raposa…]</b>. Fundo 100% transparente, sem cabeça, sem sombra,
+    sem texto, com espaço vazio separando as 3 células. Pixel art com sombreamento simples,
+    luz vindo da esquerda-cima. <span style="color:var(--dim)">(clique para copiar)</span>
   </div>
   <div style="display:grid;grid-template-columns:280px 1fr;gap:16px;margin-top:14px;align-items:start">
     <div>
       <input type="file" id="chArq" accept="image/png,image/webp" style="display:none">
       <input type="file" id="chArqTras" accept="image/png,image/webp" style="display:none">
       <input type="file" id="chArqLado" accept="image/png,image/webp" style="display:none">
-      <button id="chSolta" style="width:100%">📁 Imagem do chapéu (frente)</button>
+      <input type="file" id="chArqFolha" accept="image/png,image/webp" style="display:none">
+      <button id="chSoltaFolha" style="width:100%">📄 Folha com as 3 vistas (fatia sozinho)</button>
+      <button id="chSolta" class="ghost" style="width:100%;margin-top:6px">📁 Só a frente (chapéu simétrico)</button>
       <div style="display:flex;gap:6px;margin-top:6px">
         <button id="chSoltaTras" class="ghost" style="flex:1">+ costas <span id="chTrasOk"></span></button>
         <button id="chSoltaLado" class="ghost" style="flex:1">+ perfil <span id="chLadoOk"></span></button>
       </div>
-      <div class="note" style="margin-top:4px">Chapéu simétrico: só a frente basta. Assimétrico (boné, boina):
-        mande também costas e perfil ESQUERDO — o direito é espelhado sozinho.</div>
+      <div class="note" style="margin-top:4px">A folha traz frente · costas · perfil ESQUERDO
+        (o direito é espelhado sozinho). Chapéu redondo/simétrico: só a frente basta.</div>
       <div style="margin-top:10px;font-size:12px;color:var(--dim)">Nome no jogo:</div>
       <input type="text" id="chNome" maxlength="18" placeholder="ex.: Boné Vermelho"
         style="width:100%;background:#0a1322;border:1px solid var(--line);border-radius:8px;color:var(--txt);padding:8px;font-size:13px;margin-top:4px">
@@ -691,6 +695,52 @@ cr.lastElementChild.appendChild(mkBtn(P_CHAR, 'Copiar prompt'));
     im.onload = () => { aoLer(recortaConteudo(im), f); desenha(); };
     im.src = URL.createObjectURL(f);
   }
+  // Folha 3-em-1: acha as faixas de conteúdo separadas por colunas 100%
+  // transparentes e devolve os pedaços na ordem (frente, costas, perfil)
+  function fatiaFolha(im){
+    const c0 = document.createElement('canvas');
+    c0.width = im.naturalWidth || im.width; c0.height = im.naturalHeight || im.height;
+    const g0 = c0.getContext('2d', { willReadFrequently: true });
+    g0.drawImage(im, 0, 0);
+    let d;
+    try { d = g0.getImageData(0, 0, c0.width, c0.height).data; } catch(e){ return null; }
+    const temConteudo = new Array(c0.width).fill(false);
+    for (let x = 0; x < c0.width; x++)
+      for (let y = 0; y < c0.height; y++)
+        if (d[(y*c0.width + x)*4 + 3] > 8) { temConteudo[x] = true; break; }
+    // agrupa colunas com conteúdo em faixas (ignora vãos menores que 4px)
+    const faixas = [];
+    let ini = -1, vao = 0;
+    for (let x = 0; x <= c0.width; x++) {
+      const tem = x < c0.width && temConteudo[x];
+      if (tem) { if (ini < 0) ini = x; vao = 0; }
+      else if (ini >= 0 && ++vao > 4) { faixas.push([ini, x - vao]); ini = -1; }
+    }
+    if (ini >= 0) faixas.push([ini, c0.width - 1]);
+    if (faixas.length !== 3) return null;
+    return faixas.map(([x0, x1]) => {
+      const c = document.createElement('canvas');
+      c.width = x1 - x0 + 1; c.height = c0.height;
+      c.getContext('2d').drawImage(c0, x0, 0, c.width, c.height, 0, 0, c.width, c.height);
+      return recortaConteudo(fingeImagem(c));
+    });
+  }
+  function fingeImagem(c){ c.naturalWidth = c.width; c.naturalHeight = c.height; c.complete = true; return c; }
+  $('chSoltaFolha').onclick = () => $('chArqFolha').click();
+  $('chArqFolha').onchange = e => {
+    const f = e.target.files[0]; if (!f) return;
+    const im = new Image();
+    im.onload = () => {
+      const partes = fatiaFolha(im);
+      if (!partes) { $('chMsg').textContent = 'não achei 3 vistas separadas na folha — as células precisam de espaço transparente entre elas'; return; }
+      chapeuIm = partes[0]; chapeuTras = partes[1]; chapeuLado = partes[2];
+      $('chTrasOk').textContent = '✓'; $('chLadoOk').textContent = '✓';
+      $('chMsg').textContent = 'folha fatiada: frente, costas e perfil prontos — ajuste e publique';
+      if (!$('chNome').value) $('chNome').value = f.name.replace(/\.[^.]+$/,'').slice(0,18);
+      desenha();
+    };
+    im.src = URL.createObjectURL(f);
+  };
   $('chSolta').onclick = () => $('chArq').click();
   $('chSoltaTras').onclick = () => $('chArqTras').click();
   $('chSoltaLado').onclick = () => $('chArqLado').click();
