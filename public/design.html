@@ -108,24 +108,21 @@
 <div class="card">
   <table>
     <tr><th>NPC</th><th>Função</th></tr>
-    <tr><td>🧙 <b>Guia</b></td><td>Explica o jogo. Entrega o primeiro orbe.</td></tr>
-    <tr><td>🚪 <b>Masmorra</b></td><td>Entrada das salas. Coração do jogo.</td></tr>
+    <tr><td>🧙 <b>Guia Solis</b></td><td>Explica o jogo. Entrega o primeiro orbe.</td></tr>
     <tr><td>🧔 <b>Vendedor Bartô</b></td><td>Troca fragmentos → orbes e vende chapéus por 🪙 ouro.</td></tr>
-    <tr><td>⚔️ <b>PvP</b></td><td>Arena contra outros treinadores.</td></tr>
+    <tr><td>⚔️ <b>PVP Crias</b></td><td>Arena contra outros treinadores.</td></tr>
+    <tr><td>🛡️ <b>Guarda Kalos</b></td><td>Porteiro da caverna (entrada da masmorra).</td></tr>
   </table>
+  <div class="note">A cidade tem só os NPCs essenciais. Mãe Lyra, Lulu, Rocco, Mestre Yuri,
+    Mestre Augusto e Líder Júpiter foram removidos do mapa.</div>
 
   <div style="font-size:13px;font-weight:800;color:var(--gold);margin:14px 0 4px;">📤 Subir arte de NPC (entra no jogo na hora)</div>
   <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
     <select id="npcSel" style="background:#0a1322;border:1px solid var(--line);border-radius:8px;color:var(--txt);padding:8px;font-size:13px">
       <option value="shop">🧔 Vendedor Bartô</option>
-      <option value="mae">👩‍🦰 Mãe Lyra</option>
       <option value="guia">🧙 Guia Solis</option>
-      <option value="rival1">👧 Lulu</option>
-      <option value="rival2">🧑‍🦱 Rocco</option>
-      <option value="sage">🥋 Mestre Yuri</option>
-      <option value="arena">🎭 Mestre Augusto</option>
-      <option value="mage">🔮 Líder Júpiter</option>
-      <option value="cave_guard">⚔️ Guarda Kalos</option>
+      <option value="pvp_crias">⚔️ PVP Crias</option>
+      <option value="cave_guard">🛡️ Guarda Kalos</option>
     </select>
     <input type="file" id="npcArq" accept="image/png,image/webp" style="display:none">
     <button id="npcSobe">📁 Escolher imagem e publicar</button>
@@ -161,6 +158,51 @@
     diagonal para a ESQUERDA (como quem olha para a praça ao lado da sua banca), sem ser
     perfil completo — e levemente de cima. O personagem ocupa quase TODO o quadro
     (o máximo de detalhe possível). Uma imagem só.
+    Fundo 100% transparente, sem chão, sem sombra projetada, sem texto.
+    <span style="color:var(--dim)">(clique para copiar)</span>
+  </div>
+
+  <div style="font-size:13px;font-weight:800;color:var(--gold);margin:14px 0 4px;">🧙 Prompt — arte do Guia Solis</div>
+  <div style="font-size:12px;color:var(--dim);margin-bottom:6px;">
+    Ele fica à esquerda do Core Orb, então olha para a DIREITA (para o orbe). Sobe em
+    <b>Guia Solis</b> no painel acima.
+  </div>
+  <div class="q" id="npcGuiaPrompt" style="cursor:pointer" title="clique para copiar">
+    Crie um NPC para um jogo de coleta de criaturas, em <b>RENDER 3D ESTILIZADO de jogo
+    moderno</b> — volumétrico de verdade, materiais ricos (tecido pesado com dobras,
+    couro, metal, cristal translúcido brilhante), cores vibrantes e saturadas, iluminação
+    cinematográfica suave vinda da esquerda-cima. <b>NÃO é pixel art.</b> Estética de jogo
+    AAA fofo (estilo Zelda: Link's Awakening remake).
+    Personagem: <b>Guia Solis</b>, o sábio mentor do Nexus — ancião sereno e acolhedor,
+    barba branca bem tratada, olhos gentis, <b>túnica azul-marinho com bordados dourados
+    de constelações</b> e capuz caído nos ombros. Segura um <b>cajado de madeira clara com
+    um cristal AZUL flutuante brilhando no topo</b> (mesma luz do Core Orb). Um pequeno
+    <b>orbe azul luminoso</b> paira ao lado da mão livre, como quem vai entregá-lo.
+    Proporção heroica-fofa (cabeça um pouco grande, corpo compacto), compatível com
+    personagem de jogo top-down. Corpo inteiro, EM PÉ, em <b>PERFIL virado para a DIREITA</b>
+    (olhando para o lado direito da imagem), levemente de cima. O personagem ocupa quase
+    TODO o quadro. Uma imagem só. Fundo 100% transparente, sem chão, sem sombra
+    projetada, sem texto. <span style="color:var(--dim)">(clique para copiar)</span>
+  </div>
+
+  <div style="font-size:13px;font-weight:800;color:var(--gold);margin:14px 0 4px;">⚔️ Prompt — arte do PVP Crias</div>
+  <div style="font-size:12px;color:var(--dim);margin-bottom:6px;">
+    Fica acima do Core Orb, de frente para quem chega. Sobe em <b>PVP Crias</b> no painel.
+  </div>
+  <div class="q" id="npcPvpPrompt" style="cursor:pointer" title="clique para copiar">
+    Crie um NPC para um jogo de coleta de criaturas, em <b>RENDER 3D ESTILIZADO de jogo
+    moderno</b> — volumétrico de verdade, materiais ricos (armadura metálica polida,
+    couro, tecido de capa, cristal), cores vibrantes e saturadas, iluminação cinematográfica
+    suave vinda da esquerda-cima. <b>NÃO é pixel art.</b> Estética de jogo AAA fofo
+    (estilo Zelda: Link's Awakening remake).
+    Personagem: <b>Árbitro da Arena</b>, mestre de duelos do Nexus — guerreira/guerreiro
+    jovem e imponente, <b>armadura leve prateada com detalhes AZUL-NEON brilhantes</b> e
+    capa curta esvoaçante vermelha. Postura confiante de desafio: braços cruzados ou uma
+    mão erguendo um <b>emblema circular de duelo com duas espadas cruzadas brilhando em
+    azul</b>. Ombreiras marcantes, cinto com fivela dourada.
+    Proporção heroica-fofa (cabeça um pouco grande, corpo compacto), compatível com
+    personagem de jogo top-down. Corpo inteiro, EM PÉ, <b>VISTO DE FRENTE</b>, encarando
+    quem olha, levemente de cima. O personagem ocupa quase TODO o quadro. Uma imagem só.
     Fundo 100% transparente, sem chão, sem sombra projetada, sem texto.
     <span style="color:var(--dim)">(clique para copiar)</span>
   </div>
@@ -913,11 +955,14 @@ cr.lastElementChild.appendChild(mkBtn(P_CHAR, 'Copiar prompt'));
     navigator.clipboard.writeText($('chPrompt').innerText.replace(/\(clique para copiar\)/,'').trim())
       .then(()=> $('chMsg').textContent='prompt copiado');
   };
-  const np = $('npcShopPrompt');
-  if (np) np.onclick = () => {
-    navigator.clipboard.writeText(np.innerText.replace(/\(clique para copiar\)/,'').trim())
-      .then(()=> { np.style.borderLeftColor = 'var(--ok)'; setTimeout(()=> np.style.borderLeftColor='', 900); });
-  };
+  for (const pid of ['npcShopPrompt','npcGuiaPrompt','npcPvpPrompt']) {
+    const np = $(pid);
+    if (!np) continue;
+    np.onclick = () => {
+      navigator.clipboard.writeText(np.innerText.replace(/\(clique para copiar\)/,'').trim())
+        .then(()=> { np.style.borderLeftColor = 'var(--ok)'; setTimeout(()=> np.style.borderLeftColor='', 900); });
+    };
+  }
   async function catalogo(){
     try { const r = await fetch(CHAPEUS_URL + '?t=' + Date.now());
       if (!r.ok) return { chapeus: [] };

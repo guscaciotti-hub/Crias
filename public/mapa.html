@@ -316,25 +316,37 @@ function desenhaMapaBase(){
 // cobertos: falha (onerror), request PENDURADO (nem onload nem onerror — o
 // vigia de 4s força retry com cache-buster) e re-clique com o mesmo src
 // (o browser ignora atribuição idêntica — o buster obriga um request novo).
-let _mapaVigia=null;
-function pedeImagemMapa(){
+let _mapaVigia=null, _mapaTentativas=0;
+function pedeImagemMapa(rearmando){
   const alvo = mapaAtual().img;
   clearTimeout(_mapaVigia);
+  if(!rearmando) _mapaTentativas = 0;
   const jaAlvo = mapa.src && mapa.src.indexOf(alvo)>=0;
   if(jaAlvo && mapa.complete && mapa.naturalWidth){
     desenhaMapaBase(); desenhaMarcas(); agendaSilhueta();
     return;
   }
-  msg('carregando a imagem do mapa…');
   // pinta JÁ o mapa certo (chão neutro + aviso): a tela nunca fica exibindo
   // o mapa anterior enquanto a imagem nova não chega
   desenhaMapaBase(); desenhaMarcas();
-  mapa.src = alvo + (jaAlvo ? '?r='+Date.now() : '');
+  if(!rearmando){
+    msg('carregando a imagem do mapa…');
+    // Um download em andamento NÃO pode ser reiniciado: trocar o src cancela
+    // o que já veio. Numa conexão lenta isso reiniciava a imagem para sempre.
+    mapa.src = alvo + (jaAlvo ? '?r='+Date.now() : '');
+  }
+  // vigia paciente: só desiste e recomeça após 25s parado, e no máximo 3 vezes
   _mapaVigia = setTimeout(()=>{
-    if(!mapa.complete || !mapa.naturalWidth || mapa.src.indexOf(alvo)<0){
-      msg('imagem demorando — tentando de novo…'); pedeImagemMapa();
+    if(mapa.complete && mapa.naturalWidth && mapa.src.indexOf(alvo)>=0) return;
+    if(_mapaTentativas < 3){
+      _mapaTentativas++;
+      msg('a imagem está demorando (tentativa '+_mapaTentativas+' de 3)…');
+      mapa.src = alvo + '?r=' + Date.now();
+      pedeImagemMapa(true);
+    } else {
+      msg('não consegui baixar a imagem deste mapa — dá para editar assim mesmo, ou recarregue a página');
     }
-  }, 4000);
+  }, 25000);
 }
 mapa.onload=()=>{ clearTimeout(_mapaVigia); desenhaMapaBase(); desenhaMarcas(); agendaSilhueta(); };
 mapa.onerror=()=>{ clearTimeout(_mapaVigia);
@@ -619,10 +631,8 @@ function desenhaMarcas(curX,curY){
   // o mapa em volta deles sem chutar. Posições espelham o NPCS_TEMPLATE do jogo.
   if($('verNpcs') && $('verNpcs').checked && mapaAtual().id==='principal'){
     const NPCS_JOGO=[
-      ['👩‍🦰','Mãe Lyra',8,20], ['🧙','Guia Solis',16,22], ['🧔','Bartô',36,20],
-      ['👧','Lulu',12,22], ['🧑‍🦱','Rocco',32,22], ['🥋','Yuri',10,34],
-      ['🎭','Augusto',22,10], ['🔮','Júpiter',36,26], ['⚔️','Kalos',36,6],
-      ['🕳️','Caverna',36,2], ['⚔️','PVP',23,17]
+      ['🧙','Guia Solis',16,22], ['🧔','Bartô',36,20], ['⚔️','PVP',23,17],
+      ['⚔️','Kalos',36,6], ['🕳️','Caverna',36,2]
     ];
     gK.globalAlpha=1;
     for(const [emo,nome,x,y] of NPCS_JOGO){

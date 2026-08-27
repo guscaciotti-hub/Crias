@@ -3081,8 +3081,6 @@ const COLLISION = [
   [1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,0,0,0,0,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1]
 ];
 const NPCS_TEMPLATE = [
-  { id: 'mae', x: 8, y: 20, emoji: '👩‍🦰', name: 'Mãe Lyra', type: 'home', healing: true,
-    dialog: ['Bem-vindo de volta. Sua Cria precisa descansar?','Pronto, fortalecida pela energia do Nexus.'] },
   { id: 'guia', x: 16, y: 22, emoji: '🧙', name: 'Guia Solis', type: 'ludi',
     dialog: [
       'Salve, jovem domador! Bem-vindo ao Nexus — o coração do mundo das Crias.',
@@ -3107,24 +3105,6 @@ const NPCS_TEMPLATE = [
       { key: 'orbFragments', qty: 1, price: 60,  icon: '🔷', name: 'Fragmento de Orbe',  desc: 'Acelera a coleta para chocar uma nova Cria no Core Orb.' },
     ],
     gift: { qty: 0, given: true } },
-  { id: 'rival1', x: 12, y: 22, emoji: '👧', name: 'Lulu', type: 'trainer',
-    dialog: ['Tua Cria já nasceu? Bora ver no que ela é boa!'],
-    trainer: { level: 2, defeated: false, reward: 35 } },
-  { id: 'rival2', x: 32, y: 22, emoji: '🧑‍🦱', name: 'Rocco', type: 'trainer',
-    dialog: ['Eu sou Rocco e tô na batalha desde criancinha. Vem!'],
-    trainer: { level: 3, defeated: false, reward: 60 } },
-  { id: 'sage', x: 10, y: 34, emoji: '🥋', name: 'Mestre Yuri', type: 'trainer',
-    dialog: ['Provando teu valor antes de partir pra Caverna?', 'Derrote-me e te darei algo especial — um Orbe da Criação.'],
-    trainer: { level: 4, defeated: false, reward: 100 } },
-  { id: 'arena', x: 22, y: 10, emoji: '🎭', name: 'Mestre Augusto', type: 'arena',
-    dialog: [
-      'Este é o Coliseu do Nexus. Aqui rolarão os Torneios oficiais.',
-      'No produto final: 64 vagas, R$10 entrada, prêmio em PIX real.',
-      'Por ora, é só preview. Treine na Caverna.'
-    ]},
-  { id: 'mage', x: 36, y: 26, emoji: '🔮', name: 'Líder Júpiter', type: 'trainer',
-    dialog: ['Eu guardo a Cúpula. Se queres entrar, prova teu vínculo com a Cria.'],
-    trainer: { level: 5, defeated: false, reward: 140 } },
 
   { id: 'cave_guard', x: 36, y: 6, emoji: '⚔️', name: 'Guarda Kalos', type: 'cave_guard',
     dialog: [
@@ -5475,7 +5455,7 @@ function openShop(npc) {
             if ((state.coins || 0) < ch.preco) { showToast('Moedas insuficientes!'); return; }
             state.coins -= ch.preco;
             ganhaChapeu(ch.n);
-            showToast('🎩 ' + ch.n + ' é seu! Vista em Perfil → ⚙️ → Mudar visual');
+            showToast('🎩 ' + ch.n + ' é seu! Equipe no Menu → Itens → Equipamentos');
             saveGame();
             refresh();
           });
@@ -7895,6 +7875,7 @@ const INV_CATEGORIES = {
       { key:'potions', icon:'💊', name:'Poção', desc:'Restaura HP', fromState: true },
     ]
   },
+  equipamentos: { label: '🎩 Equipamentos', items: [], equip: true },
   recursos: { label: '💎 Recursos', items: [] },
   quest: { label: '📜 Quest', items: [] },
 };
@@ -7905,6 +7886,26 @@ function populateInvTab() {
     `<button class="inv-cat-btn ${k===_invCat?'active':''}" onclick="setInvCat('${k}')">${INV_CATEGORIES[k].label}</button>`
   ).join('');
   const cat = INV_CATEGORIES[_invCat];
+  // Equipamentos: chapéus conquistados/comprados, com equipar e tirar
+  if (cat.equip) {
+    const meus = CHAPEUS_CHAR1.filter(c => c.img && temChapeu(c.n));
+    const usado = (state.custom && state.custom.chapeu) || null;
+    const cards = meus.map(c => {
+      const posto = usado === c.n;
+      const arg = posto ? 'null' : "'" + c.n.replace(/'/g, "\\'") + "'";
+      return `<div class="inv-item-card" style="${posto ? 'border-color:#4dc3ff;box-shadow:0 0 10px rgba(77,195,255,.4)' : ''}">
+        <div class="inv-item-icon"><img src="${c.img}" style="height:40px;max-width:52px;object-fit:contain"></div>
+        <div class="inv-item-name">${c.n}</div>
+        <button class="inv-item-qty" style="cursor:pointer;border:0;background:${posto ? '#4dc3ff' : 'rgba(77,195,255,.18)'};color:${posto ? '#04121f' : '#cfe6ff'};border-radius:12px;padding:3px 10px;font-weight:800"
+          onclick="vesteChapeu(${arg})">${posto ? 'tirar' : 'equipar'}</button>
+      </div>`;
+    }).join('');
+    panel.innerHTML = `
+      <div class="inv-cat-tabs">${catTabsHtml}</div>
+      <div class="inv-grid">${cards || '<div class="inv-empty" style="grid-column:1/-1">Nenhum chapéu ainda — compre na loja do Vendedor Bartô ou conquiste jogando</div>'}</div>
+    `;
+    return;
+  }
   const itemsHtml = cat.items.map(it => {
     const qty = it.fromState ? (state[it.key] || 0) : (state.items ? (state.items[it.key] || 0) : 0);
     if (qty === 0 && !it.always) return '';
@@ -7921,6 +7922,16 @@ function populateInvTab() {
 }
 function setInvCat(cat) { _invCat = cat; populateInvTab(); }
 window.setInvCat = setInvCat;
+// Equipar/tirar chapéu direto do inventário — repinta o personagem na hora
+window.vesteChapeu = function vesteChapeu(nome) {
+  if (!state) return;
+  if (!state.custom) state.custom = { cabelo:0, roupa:0, detalhe:0, pele:0, corte:0, chapeu:null };
+  state.custom.chapeu = nome;
+  saveGame();
+  aplicaVisualChar1(state.custom);
+  populateInvTab();
+  showToast(nome ? '🎩 ' + nome + ' equipado!' : 'Chapéu guardado');
+};
 
 // Shop close (inline onclick can't access IIFE-scoped vars)
 window.closeShop = function closeShop() {
