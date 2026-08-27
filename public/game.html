@@ -8262,6 +8262,42 @@ function defineCorteChar1(c) {
   return preloadComboSprites('char1');
 }
 
+// Chapéus (estilo Ragnarok): overlay desenhado sobre a cabeça, sem tocar na
+// arte do personagem. Um chapéu simétrico usa UMA imagem para todas as
+// direções; a âncora por frame diz onde a cabeça está naquele quadro.
+const CHAPEUS_CHAR1 = [
+  { n: 'Nenhum' },
+  { n: 'Palha', img: '/chapeu-palha.png', esc: 1.9, dy: 0.40 }
+];
+// centro/topo/largura da cabeça em cada frame, medidos das máscaras (px crus)
+const ANCORA_CABECA = {
+  'down-0': { cx: 404, topo: 34, larg: 185 },
+  'down-1': { cx: 402, topo: 29, larg: 183 },
+  'down-2': { cx: 386, topo: 29, larg: 212 },
+  'up-0':   { cx: 396, topo: 35, larg: 177 },
+  'up-1':   { cx: 389, topo: 32, larg: 170 },
+  'up-2':   { cx: 383, topo: 32, larg: 182 },
+  'left-0': { cx: 394, topo: 34, larg: 223 },
+  'left-1': { cx: 398, topo: 32, larg: 221 },
+  'right-0':{ cx: 396, topo: 34, larg: 211 },
+  'sit-0':  { cx: 292, topo: 227, larg: 199 }
+};
+const _chapeuImgs = {};
+function _chapeuAtivo() {
+  const i = (_visualEscolha && _visualEscolha.chapeu) || 0;
+  const d = CHAPEUS_CHAR1[i];
+  if (!d || !d.img) return null;
+  let im = _chapeuImgs[i];
+  if (!im) {
+    im = new Image();
+    im.onload = () => { if (_fabricaCombo.char1) _montaFramesCombo('char1'); };
+    im.src = d.img;
+    _chapeuImgs[i] = im;
+  }
+  if (!im.complete || !im.naturalWidth) return null;
+  return { img: im, esc: d.esc || 1.3, dy: d.dy == null ? 0.45 : d.dy };
+}
+
 const _fabricaCombo = {};   // material bruto de cada combo, para poder repintar
 let _visualEscolha = null;  // {cabelo, roupa, detalhe, pele} — índices nas paletas
 
@@ -8465,24 +8501,57 @@ function _montaFramesCombo(comboId) {
   if (!fb) return;
   const { loaded, procCanvases, px, box, mascaras } = fb;
   const vis = comboId === 'char1' ? coresDoVisual(_visualEscolha) : null;
-  const pintadas = procCanvases.map((pc, idx) => {
+  let pintadas = procCanvases.map((pc, idx) => {
     const fr = loaded[idx];
     const mk = vis && mascaras[fr.dir + '-' + fr.i];
     return mk ? _repintaRegioes(pc, mk, vis) : pc;
   });
+  // Chapéu: desenhado por cima da cabeça em coordenadas cruas, antes do
+  // recorte. A caixa de recorte cresce para caber a copa e a aba.
+  let boxUso = box;
+  const chapeu = comboId === 'char1' ? _chapeuAtivo() : null;
+  if (chapeu && box) {
+    let minX = box.minX, minY = box.minY, maxX = box.minX + box.w - 1, maxY = box.minY + box.h - 1;
+    loaded.forEach((fr) => {
+      const anc = ANCORA_CABECA[fr.dir + '-' + fr.i];
+      if (!anc) return;
+      const wCh = anc.larg * chapeu.esc;
+      const hCh = wCh * chapeu.img.naturalHeight / chapeu.img.naturalWidth;
+      minX = Math.min(minX, Math.floor(anc.cx - wCh / 2));
+      maxX = Math.max(maxX, Math.ceil(anc.cx + wCh / 2));
+      minY = Math.min(minY, Math.floor(anc.topo - hCh * (1 - chapeu.dy)));
+    });
+    boxUso = { minX, minY, w: maxX - minX + 1, h: maxY - minY + 1 };
+    pintadas = pintadas.map((pc, idx) => {
+      const fr = loaded[idx];
+      const anc = ANCORA_CABECA[fr.dir + '-' + fr.i];
+      if (!anc) return pc;
+      const cv = document.createElement('canvas');
+      cv.width = pc.width; cv.height = pc.height;
+      const g = cv.getContext('2d');
+      g.drawImage(pc, 0, 0);
+      const wCh = anc.larg * chapeu.esc;
+      const hCh = wCh * chapeu.img.naturalHeight / chapeu.img.naturalWidth;
+      g.imageSmoothingEnabled = true;
+      g.drawImage(chapeu.img, anc.cx - wCh / 2, anc.topo - hCh * (1 - chapeu.dy), wCh, hCh);
+      return cv;
+    });
+  }
+  if (boxUso) comboAspect[comboId] = boxUso.w / boxUso.h;
   for (const dir in spriteImageCache[comboId]) spriteImageCache[comboId][dir] = [];
   loaded.forEach((fr, idx) => {
-    const out = (box && px[idx]) ? _trimToBox(pintadas[idx], box, false) : fr.img;
+    const out = (boxUso && px[idx]) ? _trimToBox(pintadas[idx], boxUso, false) : fr.img;
     spriteImageCache[comboId][fr.dir][fr.i] = out;
   });
   // Fallback: se 'right' não veio em arquivo, espelha horizontalmente o 'left'.
+  // (chapéu simétrico espelha junto sem problema)
   const rightArr = spriteImageCache[comboId]['right'];
   const leftArr = spriteImageCache[comboId]['left'];
   if (rightArr && leftArr && leftArr.length) {
     for (let i = 0; i < leftArr.length; i++) {
       if (!rightArr[i]) {
         const liIdx = loaded.findIndex(f => f.dir === 'left' && f.i === i);
-        rightArr[i] = (box && liIdx >= 0) ? _trimToBox(pintadas[liIdx], box, true) : (leftArr[i] || leftArr[0]);
+        rightArr[i] = (boxUso && liIdx >= 0) ? _trimToBox(pintadas[liIdx], boxUso, true) : (leftArr[i] || leftArr[0]);
       }
     }
   }
@@ -8668,7 +8737,7 @@ document.getElementById('obBack').addEventListener('click', () => {
   document.getElementById('createAcc').classList.add('active');
 });
 // === Tela de personalização ===
-let _czEscolha = { cabelo: 0, roupa: 0, detalhe: 0, pele: 0, corte: 0 };
+let _czEscolha = { cabelo: 0, roupa: 0, detalhe: 0, pele: 0, corte: 0, chapeu: 0 };
 let _czAnim = null;
 
 const CZ_ROTULOS = { cabelo: 'Cabelo', roupa: 'Roupa', detalhe: 'Detalhes', pele: 'Pele' };
@@ -8695,6 +8764,32 @@ function _czMontaOpcoes() {
         _czEscolha.corte = i;
         ops.querySelectorAll('.cz-opt').forEach((el, k) => el.classList.toggle('sel', k === i));
         defineCorteChar1(i).then(() => aplicaVisualChar1(_czEscolha));
+        if (typeof FX !== 'undefined' && FX.sfx) FX.sfx.ui();
+      });
+      ops.appendChild(b);
+    });
+    row.appendChild(ops);
+    rows.appendChild(row);
+  }
+  // Chapéu — overlay sobre a cabeça, estilo Ragnarok
+  if (CHAPEUS_CHAR1.length > 1) {
+    const row = document.createElement('div');
+    row.className = 'cz-row';
+    const lab = document.createElement('label');
+    lab.textContent = 'Chapéu';
+    row.appendChild(lab);
+    const ops = document.createElement('div');
+    ops.className = 'cz-ops';
+    CHAPEUS_CHAR1.forEach((op, i) => {
+      const b = document.createElement('button');
+      b.className = 'cz-opt' + (i === 0 ? ' sel' : '');
+      b.type = 'button';
+      b.textContent = op.n;
+      b.addEventListener('click', () => {
+        if (_czEscolha.chapeu === i) return;
+        _czEscolha.chapeu = i;
+        ops.querySelectorAll('.cz-opt').forEach((el, k) => el.classList.toggle('sel', k === i));
+        aplicaVisualChar1(_czEscolha);
         if (typeof FX !== 'undefined' && FX.sfx) FX.sfx.ui();
       });
       ops.appendChild(b);
@@ -10236,8 +10331,9 @@ function _migrateProfile(s){
   if(!s.playerId) s.playerId = 'CR-' + Math.random().toString(36).slice(2,7).toUpperCase();
   if(!Array.isArray(s.friends)) s.friends = [];
   if(s.photo === undefined) s.photo = null;
-  if(!s.custom) s.custom = { cabelo: 0, roupa: 0, detalhe: 0, pele: 0, corte: 0 };
+  if(!s.custom) s.custom = { cabelo: 0, roupa: 0, detalhe: 0, pele: 0, corte: 0, chapeu: 0 };
   if(s.custom.corte == null) s.custom.corte = 0;
+  if(s.custom.chapeu == null) s.custom.chapeu = 0;
   if(!s.items) s.items = {};
   if(s.items.orbeCriacao === undefined) s.items.orbeCriacao = 0;
   if(s.items.orbeComum === undefined) s.items.orbeComum = 3;
