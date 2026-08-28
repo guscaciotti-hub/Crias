@@ -969,6 +969,7 @@ cr.lastElementChild.appendChild(mkBtn(P_CHAR, 'Copiar prompt'));
   const VISTAS = ['down-0', 'left-0', 'right-0', 'up-0', 'sit-0'];
   const $ = id => document.getElementById(id);
   let chapeuIm = null, chapeuTras = null, chapeuLado = null, chapeuLadoDir = null, sb = null;
+  let editandoNome = null;   // nome do chapéu aberto no 'editar' (para renomear)
   const frames = {};
   for (const fr of Object.keys(ANC)) {
     const im = new Image();
@@ -1140,7 +1141,11 @@ cr.lastElementChild.appendChild(mkBtn(P_CHAR, 'Copiar prompt'));
       chapeuIm = partes[0]; chapeuTras = partes[1]; chapeuLado = partes[2];
       chapeuLadoDir = partes[3] || null;
       $('chMsg').textContent = 'folha fatiada: ' + (chapeuLadoDir ? '4 vistas prontas' : '3 vistas prontas (perfil direito = espelho)') + ' — ajuste e publique';
-      if (!$('chNome').value) $('chNome').value = f.name.replace(/\.[^.]+$/,'').slice(0,18);
+      // NÃO herda o nome do arquivo: "ChatGPT Image 27 de ago..." vira o mesmo
+      // nome para tudo que foi gerado no mesmo dia, e um chapéu sobrescrevia o
+      // outro sem avisar. O nome é do jogo, não do arquivo.
+      editandoNome = null;
+      if (!$('chNome').value) $('chNome').focus();
       desenha();
     };
     im.src = URL.createObjectURL(f);
@@ -1188,6 +1193,7 @@ cr.lastElementChild.appendChild(mkBtn(P_CHAR, 'Copiar prompt'));
       const ed = document.createElement('button');
       ed.className = 'ghost'; ed.textContent = 'editar';
       ed.onclick = () => {
+        editandoNome = c.n;            // renomear substitui este, não cria outro
         $('chNome').value = c.n;
         $('chComo').value = /em breve|à venda na loja/i.test(c.como || '') ? '' : (c.como || '');
         $('chPreco').value = c.preco || 0;
@@ -1259,7 +1265,25 @@ cr.lastElementChild.appendChild(mkBtn(P_CHAR, 'Copiar prompt'));
       if (chapeuLadoDir) novo.imgLadoDir = await sobe(chapeuLadoDir, '-ladodir');
       const cat = await catalogo();
       const i = cat.chapeus.findIndex(x => x.n === nome);
-      if (i >= 0) cat.chapeus[i] = novo; else cat.chapeus.push(novo);
+      const iEdit = editandoNome ? cat.chapeus.findIndex(x => x.n === editandoNome) : -1;
+      if (iEdit >= 0 && editandoNome !== nome) {
+        // renomeando o que está aberto: troca no lugar, sem criar um segundo
+        if (i >= 0 && i !== iEdit) {
+          if (!confirm('Já existe outro chapéu chamado "' + nome + '".\n\nEle será substituído. Continuar?')) {
+            $('chMsg').textContent = 'cancelado — escolha outro nome'; return;
+          }
+          cat.chapeus.splice(i, 1);
+        }
+        const j = cat.chapeus.findIndex(x => x.n === editandoNome);
+        cat.chapeus[j] = novo;
+      } else if (i >= 0) {
+        if (!editandoNome && !confirm('Já existe um chapéu chamado "' + nome + '".\n\nPublicar vai SUBSTITUIR o antigo. Continuar?')) {
+          $('chMsg').textContent = 'cancelado — troque o nome e publique de novo';
+          return;
+        }
+        cat.chapeus[i] = novo;
+      } else cat.chapeus.push(novo);
+      editandoNome = nome;
       await gravaCatalogo(cat);
       $('chMsg').textContent = '✅ "'+nome+'" publicado — recarregue o jogo e veja na personalização';
       lista();

@@ -685,6 +685,56 @@
   .quest-card:hover { background: rgba(77,195,255,0.10); }
   .quest-card:active { background: rgba(77,195,255,0.18); }
 
+
+  /* ── ARENA AO VIVO (batalha em tempo real da caverna) ── */
+  #arena { position: fixed; inset: 0; z-index: 60; display: none; touch-action: none; }
+  #arena.on { display: block; }
+  #arenaCv { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
+  #arenaJoy {
+    position: absolute; left: 0; bottom: 0; width: 45%; height: 55%;
+    display: flex; align-items: center; justify-content: center;
+  }
+  #arenaJoy .ajBase {
+    position: absolute; width: 118px; height: 118px; border-radius: 50%;
+    border: 2px solid rgba(77,195,255,.35); background: rgba(10,20,40,.35);
+    opacity: .55; transition: opacity .15s;
+  }
+  #arenaJoy.on .ajBase { opacity: 1; }
+  #arenaJoy .ajNub {
+    position: absolute; width: 54px; height: 54px; border-radius: 50%;
+    background: radial-gradient(circle at 35% 30%, #7fd6ff, #2b7fb8);
+    box-shadow: 0 0 16px rgba(77,195,255,.6); pointer-events: none;
+  }
+  #arenaBtns {
+    position: absolute; right: 18px; bottom: 26px;
+    display: grid; grid-template-columns: repeat(2, auto); gap: 12px;
+    align-items: end; justify-items: center;
+  }
+  #arena .abtn {
+    position: relative; overflow: hidden; border: 0; cursor: pointer;
+    border-radius: 50%; color: #eaf6ff; font-size: 24px;
+    display: flex; align-items: center; justify-content: center;
+    background: rgba(14,26,48,.85); box-shadow: 0 0 0 2px rgba(255,255,255,.14);
+  }
+  #arena .abtn.atk { width: 92px; height: 92px; font-size: 34px; grid-column: 2; grid-row: 2; }
+  #arena .abtn.hab { width: 66px; height: 66px; grid-column: 1; grid-row: 2; }
+  #arena .abtn.ape { width: 66px; height: 66px; grid-column: 2; grid-row: 1; }
+  #arena .abtn span { position: relative; z-index: 2; }
+  #arena .abtn i {
+    position: absolute; left: 0; right: 0; bottom: 0; height: 0%;
+    background: rgba(0,0,0,.62); z-index: 1; transition: height .08s linear;
+  }
+  #arena .abtn.pronto { box-shadow: 0 0 0 2px #4dc3ff, 0 0 18px rgba(77,195,255,.65); }
+  #arena .abtn.ape.pronto { box-shadow: 0 0 0 2px #ffd700, 0 0 22px rgba(255,215,0,.7); }
+  #arenaFim {
+    position: absolute; inset: 0; display: none;
+    flex-direction: column; align-items: center; justify-content: center;
+    background: rgba(4,8,18,.72); color: #fff; text-align: center;
+  }
+  #arenaFim.on { display: flex; }
+  #arenaFim b { font-size: 34px; letter-spacing: .06em; color: #4dc3ff; }
+  #arenaFim span { font-size: 14px; color: #8ab0dd; margin-top: 6px; }
+
   /* ── Dialog Portrait ─── */
   #dialogPortrait {
     display: none;
@@ -5202,8 +5252,31 @@ function getCaveBattleZone(x, y) {
 
 function startCaveEncounter(zone) {
   if (inBattle || inDialog || inMenu) return;
-  // Cragmite aparece em todas as zonas da caverna
-  const enemy = generateMonster('cragmite', randInt(zone.minLv, zone.maxLv));
+  const nivel = randInt(zone.minLv, zone.maxLv);
+  // A caverna é o campo de testes da batalha AO VIVO. Cidade, treinadores e
+  // PvP seguem no sistema de turnos, sem nenhuma mudança.
+  if (window.ARENA && state.cria) {
+    inBattle = true;
+    ARENA.comecar('cragmite', nivel, venceu => {
+      inBattle = false;
+      if (venceu) {
+        state.encountersDefeated = (state.encountersDefeated || 0) + 1;
+        state.caveWins = (state.caveWins || 0) + 1;
+        const frag = 4 + Math.floor(nivel / 2);
+        state.orbFragments = (state.orbFragments || 0) + frag;
+        const ouro = 20 + nivel * 4;
+        state.coins = (state.coins || 0) + ouro;
+        state.cria.xp = (state.cria.xp || 0) + 18 + nivel * 5;
+        if (typeof checkLevelUp === 'function') checkLevelUp(state.cria);
+        saveGame();
+        showToast('🏆 Vitória! +' + frag + ' 🔷  +' + ouro + ' 💰');
+      } else {
+        showToast('💀 Sua Cria recuou. Tente de novo.');
+      }
+    });
+    return;
+  }
+  const enemy = generateMonster('cragmite', nivel);
   enemy.capturable = true;
   startBattle(enemy, { wild: true });
 }
@@ -8385,6 +8458,15 @@ const ANCORA_CABECA = {
   'right-0':{ cx: 396, topo: 34, larg: 211 },
   'sit-0':  { cx: 292, topo: 227, larg: 199 }
 };
+// A largura da cabeça medida oscila entre os quadros (frente: 185 -> 212),
+// e isso fazia o chapéu crescer e encolher a cada passo. O TAMANHO passa a
+// vir sempre do quadro parado da direção; a posição continua por quadro.
+function _ancoraDe(dir, i) {
+  const anc = ANCORA_CABECA[dir + '-' + i];
+  if (!anc) return null;
+  const ref = ANCORA_CABECA[dir + '-0'] || anc;
+  return { cx: anc.cx, topo: anc.topo, larg: ref.larg };
+}
 const _chapeuImgs = {};
 // Chapéu é CONQUISTA, não banalidade: todos aparecem na personalização (para
 // dar vontade), mas só os ganhos podem ser vestidos. state.chapeus guarda os
@@ -8677,7 +8759,7 @@ function _montaFramesCombo(comboId) {
     // margem horizontal também: aba larga + deslocamento ↔ não podem cortar
     let minX = box.minX, minY = box.minY, maxX = box.minX + box.w - 1, maxY = box.minY + box.h - 1;
     loaded.forEach((fr) => {
-      const anc = ANCORA_CABECA[fr.dir + '-' + fr.i];
+      const anc = _ancoraDe(fr.dir, fr.i);
       if (!anc) return;
       const imCh = _imgChapeuPara(chapeu, fr.dir);
       const cfg = _cfgChapeu(chapeu, fr.dir);
@@ -8691,7 +8773,7 @@ function _montaFramesCombo(comboId) {
     boxUso = { minX, minY: minY + DESL, w: maxX - minX + 1, h: maxY - minY + 1 };
     pintadas = pintadas.map((pc, idx) => {
       const fr = loaded[idx];
-      const anc = ANCORA_CABECA[fr.dir + '-' + fr.i];
+      const anc = _ancoraDe(fr.dir, fr.i);
       const cv = document.createElement('canvas');
       cv.width = pc.width; cv.height = pc.height + DESL;
       const g = cv.getContext('2d');
@@ -8736,7 +8818,9 @@ function _montaFramesCombo(comboId) {
       const liIdx = loaded.findIndex(f => f.dir === 'left' && f.i === i);
       if (!boxUso || liIdx < 0) { rightArr[i] = leftArr[i] || leftArr[0]; continue; }
       let base = pintadas[liIdx];
-      const ancE = ANCORA_CABECA['left-' + i];
+      const ancL = _ancoraDe('left', i);
+      const ancR = ANCORA_CABECA['right-0'];
+      const ancE = ancL && ancR ? { cx: ancL.cx, topo: ancL.topo, larg: ancR.larg } : ancL;
       if (chapeu && ancE) {
         // recomeça do corpo (sem o chapéu do lado esquerdo) e veste o direito
         const semCh = procCanvases[liIdx];
@@ -11364,6 +11448,375 @@ function startGame() {
     setTimeout(() => showToast(`Bem-vindo ao Nexus, ${state.playerName}! Setas pra andar, A pra interagir.`), 600);
   }
 }
+
+
+// ============================================================================
+// ARENA AO VIVO — batalha em tempo real (só encontros da caverna, por ora)
+// Sem turnos: a Cria anda nas 4 direções, atira e desvia. O PvP e as
+// batalhas de treinador seguem no sistema antigo, intocados.
+// ============================================================================
+const ARENA = (function () {
+  const R = 250;               // raio da arena, em unidades de mundo
+  const VEL = 118;             // velocidade da Cria (unid/s)
+  const VEL_TIRO = 300;
+  const RECARGA = { atk: 420, hab: 4200, ape: 0 };
+  const DUR_RESP = 2600;       // tempo de respawn
+  const ABATES_VIT = 3;        // primeiro a 3 abates vence
+
+  let ativo = false, cv, ctx, raf = 0, ultimo = 0;
+  let heroi, vilao, tiros, faiscas, fim, aoFechar;
+  let joy = { ativo: false, dx: 0, dy: 0, id: null };
+  const teclas = {};
+  let botoes = {};
+
+  function lutador(dono, cor, species, x, y) {
+    return {
+      dono, cor, species, x, y, dir: 'down',
+      hp: 100, hpMax: 100, vivo: true, respawn: 0,
+      dano: dono === 'heroi' ? 9 : 7,
+      recarga: { atk: 0, hab: 0 },
+      ape: 0, apeMax: 100,
+      piscar: 0, andando: false, passo: 0
+    };
+  }
+
+  function comecar(inimigoSpecies, nivel, aoTerminar) {
+    if (ativo) return;
+    ativo = true; aoFechar = aoTerminar || null;
+    const meu = (state && state.cria && state.cria.species) || 'ignivar';
+    heroi = lutador('heroi', '#4dc3ff', meu, -R * 0.5, 0);
+    vilao = lutador('vilao', '#ff6b6b', inimigoSpecies || 'cragmite', R * 0.5, 0);
+    vilao.hpMax = vilao.hp = 90 + (nivel || 3) * 6;
+    vilao.dano = 6 + Math.floor((nivel || 3) * 0.8);
+    tiros = []; faiscas = []; fim = null;
+    montaTela();
+    ultimo = performance.now();
+    raf = requestAnimationFrame(passo);
+    if (FX && FX.sfx && FX.sfx.encounter) FX.sfx.encounter();
+  }
+
+  function montaTela() {
+    let el = document.getElementById('arena');
+    if (!el) {
+      el = document.createElement('div');
+      el.id = 'arena';
+      el.innerHTML =
+        '<canvas id="arenaCv"></canvas>' +
+        '<div id="arenaJoy"><div class="ajBase"></div><div class="ajNub"></div></div>' +
+        '<div id="arenaBtns">' +
+          '<button class="abtn ape" data-b="ape"><span>⚡</span><i></i></button>' +
+          '<button class="abtn hab" data-b="hab"><span>💠</span><i></i></button>' +
+          '<button class="abtn atk" data-b="atk"><span>⚔️</span><i></i></button>' +
+        '</div>' +
+        '<div id="arenaFim"></div>';
+      document.body.appendChild(el);
+      cv = document.getElementById('arenaCv');
+      ctx = cv.getContext('2d');
+      ligaControles(el);
+    }
+    el.classList.add('on');
+    cv = document.getElementById('arenaCv');
+    ctx = cv.getContext('2d');
+    document.getElementById('arenaFim').textContent = '';
+    document.getElementById('arenaFim').classList.remove('on');
+    ajustaTela();
+    botoes = {};
+    el.querySelectorAll('.abtn').forEach(b => { botoes[b.dataset.b] = b; });
+  }
+
+  function ajustaTela() {
+    if (!cv) return;
+    const dpr = Math.min(2, window.devicePixelRatio || 1);
+    cv.width = Math.round(window.innerWidth * dpr);
+    cv.height = Math.round(window.innerHeight * dpr);
+    cv.style.width = window.innerWidth + 'px';
+    cv.style.height = window.innerHeight + 'px';
+  }
+
+  function ligaControles(el) {
+    const joyEl = el.querySelector('#arenaJoy');
+    const nub = el.querySelector('.ajNub');
+    const RAIO = 52;
+    const pega = e => (e.touches ? e.touches[0] : e);
+    const inicia = e => {
+      const p = pega(e);
+      joy.ativo = true; joy.ox = p.clientX; joy.oy = p.clientY;
+      joyEl.classList.add('on');
+      e.preventDefault();
+    };
+    const move = e => {
+      if (!joy.ativo) return;
+      const p = pega(e);
+      let dx = p.clientX - joy.ox, dy = p.clientY - joy.oy;
+      const d = Math.hypot(dx, dy) || 1;
+      const k = Math.min(1, d / RAIO);
+      joy.dx = (dx / d) * k; joy.dy = (dy / d) * k;
+      nub.style.transform = 'translate(' + (joy.dx * RAIO) + 'px,' + (joy.dy * RAIO) + 'px)';
+      e.preventDefault();
+    };
+    const solta = () => {
+      joy.ativo = false; joy.dx = joy.dy = 0;
+      nub.style.transform = 'translate(0,0)';
+      joyEl.classList.remove('on');
+    };
+    joyEl.addEventListener('touchstart', inicia, { passive: false });
+    joyEl.addEventListener('touchmove', move, { passive: false });
+    joyEl.addEventListener('touchend', solta);
+    joyEl.addEventListener('mousedown', inicia);
+    window.addEventListener('mousemove', e => { if (joy.ativo) move(e); });
+    window.addEventListener('mouseup', () => { if (joy.ativo) solta(); });
+    el.querySelectorAll('.abtn').forEach(b => {
+      const usa = e => { e.preventDefault(); acao(b.dataset.b); };
+      b.addEventListener('touchstart', usa, { passive: false });
+      b.addEventListener('click', usa);
+    });
+    window.addEventListener('keydown', e => {
+      if (!ativo) return;
+      teclas[e.key.toLowerCase()] = true;
+      if (e.key === ' ') { acao('atk'); e.preventDefault(); }
+      if (e.key.toLowerCase() === 'q') acao('hab');
+      if (e.key.toLowerCase() === 'w') acao('ape');
+    });
+    window.addEventListener('keyup', e => { teclas[e.key.toLowerCase()] = false; });
+    window.addEventListener('resize', () => { if (ativo) ajustaTela(); });
+  }
+
+  function acao(tipo) {
+    if (!ativo || !heroi.vivo || fim) return;
+    if (tipo === 'ape') {
+      if (heroi.ape < heroi.apeMax) return;
+      heroi.ape = 0;
+      for (let i = 0; i < 12; i++) atira(heroi, (i / 12) * Math.PI * 2, 14, 1.5);
+      if (FX && FX.sfx && FX.sfx.crit) FX.sfx.crit();
+      return;
+    }
+    if (heroi.recarga[tipo] > 0) return;
+    heroi.recarga[tipo] = RECARGA[tipo];
+    const ang = Math.atan2(vilao.y - heroi.y, vilao.x - heroi.x);
+    if (tipo === 'atk') { atira(heroi, ang, heroi.dano, 1); if (FX && FX.sfx && FX.sfx.lunge) FX.sfx.lunge(); }
+    else { for (const d of [-0.25, 0, 0.25]) atira(heroi, ang + d, heroi.dano * 1.3, 1.25); }
+  }
+
+  function atira(de, ang, dano, tam) {
+    tiros.push({
+      dono: de.dono, x: de.x, y: de.y,
+      vx: Math.cos(ang) * VEL_TIRO, vy: Math.sin(ang) * VEL_TIRO,
+      dano, r: 7 * (tam || 1), cor: de.cor, vida: 1600
+    });
+  }
+
+  function passo(t) {
+    if (!ativo) return;
+    const dt = Math.min(0.05, (t - ultimo) / 1000);
+    ultimo = t;
+    atualiza(dt, t);
+    desenha(t);
+    raf = requestAnimationFrame(passo);
+  }
+
+  function moveLutador(l, dx, dy, dt) {
+    if (!dx && !dy) { l.andando = false; return; }
+    const d = Math.hypot(dx, dy) || 1;
+    l.x += (dx / d) * VEL * dt;
+    l.y += (dy / d) * VEL * dt;
+    const dist = Math.hypot(l.x, l.y);
+    if (dist > R - 18) { l.x = (l.x / dist) * (R - 18); l.y = (l.y / dist) * (R - 18); }
+    l.dir = Math.abs(dx) > Math.abs(dy) ? (dx > 0 ? 'right' : 'left') : (dy > 0 ? 'down' : 'up');
+    l.andando = true;
+    l.passo += dt * 9;
+  }
+
+  function atualiza(dt, t) {
+    for (const l of [heroi, vilao]) {
+      for (const k in l.recarga) if (l.recarga[k] > 0) l.recarga[k] -= dt * 1000;
+      if (l.piscar > 0) l.piscar -= dt * 1000;
+      if (!l.vivo && t >= l.respawn) {
+        l.vivo = true; l.hp = l.hpMax;
+        const lado = l.dono === 'heroi' ? -1 : 1;
+        l.x = lado * R * 0.6; l.y = 0;
+        faisca(l.x, l.y, l.cor, 16);
+      }
+    }
+    // herói: joystick ou teclado
+    if (heroi.vivo && !fim) {
+      let dx = joy.dx, dy = joy.dy;
+      if (teclas['arrowleft'] || teclas['a']) dx -= 1;
+      if (teclas['arrowright'] || teclas['d']) dx += 1;
+      if (teclas['arrowup']) dy -= 1;
+      if (teclas['arrowdown'] || teclas['s']) dy += 1;
+      moveLutador(heroi, dx, dy, dt);
+    }
+    // vilão: persegue até a distância de tiro, circula e atira
+    if (vilao.vivo && heroi.vivo && !fim) {
+      const dx = heroi.x - vilao.x, dy = heroi.y - vilao.y;
+      const d = Math.hypot(dx, dy) || 1;
+      const ideal = 150;
+      let mx = 0, my = 0;
+      if (d > ideal + 20) { mx = dx; my = dy; }
+      else if (d < ideal - 40) { mx = -dx; my = -dy; }
+      else { mx = -dy; my = dx; }               // circula em volta
+      moveLutador(vilao, mx * 0.75, my * 0.75, dt);
+      if (vilao.recarga.atk <= 0) {
+        vilao.recarga.atk = 900 + Math.random() * 500;
+        // mira com um erro proporcional à distância: dá pra desviar
+        const err = (Math.random() - 0.5) * 0.28;
+        atira(vilao, Math.atan2(dy, dx) + err, vilao.dano, 1);
+      }
+    }
+    // tiros
+    for (let i = tiros.length - 1; i >= 0; i--) {
+      const p = tiros[i];
+      p.x += p.vx * dt; p.y += p.vy * dt; p.vida -= dt * 1000;
+      const alvo = p.dono === 'heroi' ? vilao : heroi;
+      if (alvo.vivo && Math.hypot(p.x - alvo.x, p.y - alvo.y) < 22 + p.r) {
+        acerta(alvo, p);
+        tiros.splice(i, 1); continue;
+      }
+      if (p.vida <= 0 || Math.hypot(p.x, p.y) > R + 30) tiros.splice(i, 1);
+    }
+    for (let i = faiscas.length - 1; i >= 0; i--) {
+      const f = faiscas[i];
+      f.x += f.vx * dt; f.y += f.vy * dt; f.vida -= dt;
+      if (f.vida <= 0) faiscas.splice(i, 1);
+    }
+    // botões
+    for (const k of ['atk', 'hab']) {
+      const b = botoes[k]; if (!b) continue;
+      const p = Math.max(0, heroi.recarga[k]) / RECARGA[k];
+      b.querySelector('i').style.height = (p * 100) + '%';
+      b.classList.toggle('pronto', p <= 0);
+    }
+    if (botoes.ape) {
+      const p = heroi.ape / heroi.apeMax;
+      botoes.ape.querySelector('i').style.height = ((1 - p) * 100) + '%';
+      botoes.ape.classList.toggle('pronto', p >= 1);
+    }
+  }
+
+  function acerta(alvo, p) {
+    alvo.hp -= p.dano;
+    alvo.piscar = 160;
+    faisca(p.x, p.y, p.cor, 7);
+    if (p.dono === 'heroi') heroi.ape = Math.min(heroi.apeMax, heroi.ape + 7);
+    if (FX && FX.sfx && FX.sfx.hit) FX.sfx.hit();
+    if (alvo.hp <= 0) {
+      alvo.vivo = false;
+      alvo.respawn = performance.now() + DUR_RESP;
+      faisca(alvo.x, alvo.y, alvo.cor, 26);
+      const quem = p.dono === 'heroi' ? 'heroi' : 'vilao';
+      placar[quem]++;
+      if (placar[quem] >= ABATES_VIT) termina(quem === 'heroi');
+    }
+  }
+
+  let placar = { heroi: 0, vilao: 0 };
+
+  function faisca(x, y, cor, n) {
+    for (let i = 0; i < n; i++) {
+      const a = Math.random() * Math.PI * 2, v = 40 + Math.random() * 130;
+      faiscas.push({ x, y, vx: Math.cos(a) * v, vy: Math.sin(a) * v, vida: 0.4 + Math.random() * 0.3, cor });
+    }
+  }
+
+  function termina(venceu) {
+    fim = venceu ? 'vitoria' : 'derrota';
+    const el = document.getElementById('arenaFim');
+    el.innerHTML = venceu
+      ? '<b>VITÓRIA!</b><span>sua Cria dominou a arena</span>'
+      : '<b>DERROTA</b><span>a criatura foi mais rápida</span>';
+    el.classList.add('on');
+    if (FX && FX.sfx) { if (venceu && FX.sfx.fanfare) FX.sfx.fanfare(); else if (FX.sfx.defeat) FX.sfx.defeat(); }
+    setTimeout(() => fecha(venceu), 2200);
+  }
+
+  function fecha(venceu) {
+    ativo = false;
+    cancelAnimationFrame(raf);
+    const el = document.getElementById('arena');
+    if (el) el.classList.remove('on');
+    placar = { heroi: 0, vilao: 0 };
+    if (aoFechar) { const cb = aoFechar; aoFechar = null; cb(venceu); }
+  }
+
+  // ── desenho ──
+  function desenha(t) {
+    const w = cv.width, h = cv.height;
+    const dpr = Math.min(2, window.devicePixelRatio || 1);
+    const esc = Math.min(w / (R * 2.5), h / (R * 2.5));
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
+    ctx.clearRect(0, 0, w, h);
+    const g = ctx.createRadialGradient(w / 2, h / 2, 40, w / 2, h / 2, Math.max(w, h) * 0.7);
+    g.addColorStop(0, '#16233d'); g.addColorStop(1, '#070b16');
+    ctx.fillStyle = g; ctx.fillRect(0, 0, w, h);
+    ctx.save();
+    ctx.translate(w / 2, h / 2);
+    ctx.scale(esc, esc);
+    // piso da arena
+    ctx.beginPath(); ctx.arc(0, 0, R, 0, 6.283);
+    ctx.fillStyle = 'rgba(30,52,86,.65)'; ctx.fill();
+    ctx.lineWidth = 4; ctx.strokeStyle = 'rgba(77,195,255,.55)'; ctx.stroke();
+    ctx.beginPath(); ctx.arc(0, 0, R * 0.55, 0, 6.283);
+    ctx.strokeStyle = 'rgba(77,195,255,.18)'; ctx.lineWidth = 2; ctx.stroke();
+    for (const f of faiscas) {
+      ctx.globalAlpha = Math.max(0, f.vida * 2);
+      ctx.fillStyle = f.cor;
+      ctx.fillRect(f.x - 2, f.y - 2, 4, 4);
+    }
+    ctx.globalAlpha = 1;
+    for (const p of tiros) {
+      ctx.beginPath(); ctx.arc(p.x, p.y, p.r, 0, 6.283);
+      ctx.fillStyle = p.cor; ctx.shadowColor = p.cor; ctx.shadowBlur = 12;
+      ctx.fill(); ctx.shadowBlur = 0;
+    }
+    for (const l of [vilao, heroi]) desenhaLutador(l, t);
+    ctx.restore();
+    // placar
+    ctx.fillStyle = '#cfe6ff';
+    ctx.font = 'bold ' + Math.round(17 * dpr) + 'px sans-serif';
+    ctx.textAlign = 'center';
+    ctx.fillText(placar.heroi + '  –  ' + placar.vilao, w / 2, 34 * dpr);
+    ctx.font = Math.round(11 * dpr) + 'px sans-serif';
+    ctx.fillStyle = '#8ab0dd';
+    ctx.fillText('primeiro a ' + ABATES_VIT, w / 2, 52 * dpr);
+  }
+
+  function desenhaLutador(l, t) {
+    if (!l.vivo) {
+      const falta = Math.max(0, (l.respawn - t) / 1000);
+      ctx.globalAlpha = 0.35;
+      ctx.fillStyle = l.cor;
+      ctx.font = 'bold 16px sans-serif'; ctx.textAlign = 'center';
+      ctx.fillText(falta.toFixed(1) + 's', l.x, l.y);
+      ctx.globalAlpha = 1;
+      return;
+    }
+    const bob = l.andando ? Math.sin(l.passo) * 3 : Math.sin(t / 380) * 1.6;
+    const im = (typeof getMonsterView === 'function') ? getMonsterView(l.species, l.dir) : null;
+    const H = 54, W = 44;
+    if (l.piscar > 0 && Math.floor(t / 60) % 2) ctx.globalAlpha = 0.45;
+    ctx.beginPath();
+    ctx.ellipse(l.x, l.y + H * 0.42, 17, 5, 0, 0, 6.283);
+    ctx.fillStyle = 'rgba(0,0,0,.4)'; ctx.fill();
+    if (im) {
+      ctx.imageSmoothingEnabled = true;
+      ctx.drawImage(im, l.x - W / 2, l.y - H / 2 + bob, W, H);
+    } else {
+      ctx.beginPath(); ctx.arc(l.x, l.y + bob, 19, 0, 6.283);
+      ctx.fillStyle = l.cor; ctx.fill();
+    }
+    ctx.globalAlpha = 1;
+    // barra de vida
+    const bw = 46, bh = 6, by = l.y - H * 0.75 + bob;
+    ctx.fillStyle = 'rgba(0,0,0,.6)'; ctx.fillRect(l.x - bw / 2, by, bw, bh);
+    ctx.fillStyle = l.dono === 'heroi' ? '#3ddc84' : '#ff6b6b';
+    ctx.fillRect(l.x - bw / 2, by, bw * Math.max(0, l.hp / l.hpMax), bh);
+    ctx.strokeStyle = 'rgba(255,255,255,.35)'; ctx.lineWidth = 1;
+    ctx.strokeRect(l.x - bw / 2, by, bw, bh);
+  }
+
+  return { comecar, get ativo() { return ativo; } };
+})();
+window.ARENA = ARENA;
 
 // ============================================================================
 // BOOT
