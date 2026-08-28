@@ -11708,10 +11708,9 @@ const ARENA = (function () {
     vilao.dano = 6 + Math.floor((nivel || 3) * 0.8);
     heroi.hab = habilidadeDe(heroi.species);
     vilao.hab = habilidadeDe(vilao.species);
-    // as outras Crias da equipe esperam a vez no pedestal da esquerda
-    reservas = ((state && state.party) || []).slice(0, 3).map((c, i) => ({
-      species: c.species, x: -R * 0.92, y: -30 + i * 46
-    }));
+    // equipe: até 5 reservas, mostradas nos slots do canto — nunca no chão
+    // da arena, para não atrapalhar a leitura do combate
+    reservas = ((state && state.party) || []).slice(0, 5).map(c => ({ species: c.species }));
     tiros = []; faiscas = []; efeitos = []; fim = null;
     arte('palco');                          // pede o cenário já na abertura
     temGlb(heroi.species); temGlb(vilao.species);
@@ -12066,7 +12065,6 @@ const ARENA = (function () {
       ctx.fillStyle = p.cor; ctx.shadowColor = p.cor; ctx.shadowBlur = 12;
       ctx.fill(); ctx.shadowBlur = 0;
     }
-    desenhaReservas(t);
     desenhaTreinador(t);
     for (const l of [vilao, heroi]) desenhaLutador(l, t, !!(camada3D && camada3D[l.dono]));
     posiciona3D(esc);
@@ -12079,6 +12077,7 @@ const ARENA = (function () {
       ctx.globalAlpha = 1;
     }
     ctx.restore();
+    desenhaEquipe(dpr, w);
     // placar
     ctx.fillStyle = '#cfe6ff';
     ctx.font = 'bold ' + Math.round(17 * dpr) + 'px sans-serif';
@@ -12087,31 +12086,6 @@ const ARENA = (function () {
     ctx.font = Math.round(11 * dpr) + 'px sans-serif';
     ctx.fillStyle = '#8ab0dd';
     ctx.fillText('primeiro a ' + ABATES_VIT, w / 2, 52 * dpr);
-  }
-
-  // Crias da equipe esperando a vez, no pedestal — dá presença de time
-  function desenhaReservas(t) {
-    for (let i = 0; i < reservas.length; i++) {
-      const r = reservas[i];
-      const im = (typeof getMonsterView === 'function') ? getMonsterView(r.species, 'right') : null;
-      const bob = Math.sin(t / 520 + i * 1.7) * 2;
-      ctx.globalAlpha = 0.9;
-      ctx.beginPath();
-      ctx.ellipse(r.x, r.y + 16, 12, 4, 0, 0, 6.283);
-      ctx.fillStyle = 'rgba(0,0,0,.35)'; ctx.fill();
-      if (im) {
-        const H = 40, W = H * (im.naturalWidth / im.naturalHeight);
-        ctx.imageSmoothingEnabled = true;
-        ctx.drawImage(im, r.x - W / 2, r.y - H / 2 + bob, W, H);
-      } else {
-        ctx.beginPath(); ctx.arc(r.x, r.y + bob, 13, 0, 6.283);
-        ctx.fillStyle = 'rgba(120,180,255,.75)'; ctx.fill();
-      }
-      ctx.globalAlpha = 1;
-      ctx.font = 'bold 9px sans-serif'; ctx.textAlign = 'center';
-      ctx.fillStyle = 'rgba(190,220,255,.85)';
-      ctx.fillText('na espera', r.x, r.y + 30);
-    }
   }
 
   // O treinador acompanha da plataforma de baixo, com o sprite do jogador
@@ -12134,6 +12108,38 @@ const ARENA = (function () {
     ctx.fillRect(x - tw / 2 - 4, y + 24, tw + 8, 13);
     ctx.fillStyle = '#cfe6ff';
     ctx.fillText(nome, x, y + 31);
+  }
+
+  // Faixa da equipe: 5 slots no canto de cima à esquerda. O treinador anda
+  // com 6 Crias no total — a que está lutando mais cinco na espera.
+  function desenhaEquipe(dpr, w) {
+    const S = 40 * dpr, G = 6 * dpr, x0 = 14 * dpr, y0 = 14 * dpr;
+    ctx.font = 'bold ' + Math.round(9 * dpr) + 'px sans-serif';
+    ctx.textAlign = 'left'; ctx.textBaseline = 'alphabetic';
+    ctx.fillStyle = 'rgba(190,220,255,.75)';
+    ctx.fillText('NA ESPERA', x0, y0 - 4 * dpr);
+    for (let i = 0; i < 5; i++) {
+      const x = x0 + i * (S + G), y = y0;
+      const r = reservas[i];
+      ctx.fillStyle = r ? 'rgba(14,26,48,.8)' : 'rgba(14,26,48,.4)';
+      ctx.beginPath();
+      if (ctx.roundRect) { ctx.roundRect(x, y, S, S, 7 * dpr); ctx.fill(); }
+      else ctx.fillRect(x, y, S, S);
+      ctx.strokeStyle = r ? 'rgba(77,195,255,.55)' : 'rgba(255,255,255,.10)';
+      ctx.lineWidth = 1.5 * dpr;
+      if (ctx.roundRect) ctx.stroke(); else ctx.strokeRect(x, y, S, S);
+      if (!r) continue;
+      const im = (typeof getMonsterView === 'function') ? getMonsterView(r.species, 'down') : null;
+      if (im && im.complete && im.naturalWidth) {
+        const e = Math.min((S - 8 * dpr) / im.naturalWidth, (S - 8 * dpr) / im.naturalHeight);
+        const iw = im.naturalWidth * e, ih = im.naturalHeight * e;
+        ctx.imageSmoothingEnabled = true;
+        ctx.drawImage(im, x + (S - iw) / 2, y + (S - ih) / 2, iw, ih);
+      } else {
+        ctx.fillStyle = 'rgba(120,180,255,.8)';
+        ctx.beginPath(); ctx.arc(x + S / 2, y + S / 2, S * 0.24, 0, 6.283); ctx.fill();
+      }
+    }
   }
 
   function desenhaLutador(l, t, em3D) {
