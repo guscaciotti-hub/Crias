@@ -244,8 +244,9 @@ window.LimpaFundo = function (img) {
     </div>
     <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:8px">
       <label style="font-size:12px;color:var(--dim)">Nome do golpe
-        <input type="text" id="habNome" maxlength="22" placeholder="ex.: Explosão Ígnea"
-          style="width:100%;background:#0a1322;border:1px solid var(--line);border-radius:8px;color:var(--txt);padding:8px;font-size:13px;margin-top:3px"></label>
+        <input type="text" id="habNome" maxlength="22" list="habSug" placeholder="ex.: Explosão Ígnea"
+          style="width:100%;background:#0a1322;border:1px solid var(--line);border-radius:8px;color:var(--txt);padding:8px;font-size:13px;margin-top:3px">
+        <datalist id="habSug"></datalist></label>
       <label style="font-size:12px;color:var(--dim)">Elemento
         <select id="habEl" style="width:100%;background:#0a1322;border:1px solid var(--line);border-radius:8px;color:var(--txt);padding:8px;font-size:13px;margin-top:3px"></select></label>
       <label style="font-size:12px;color:var(--dim)">Força
@@ -266,6 +267,18 @@ window.LimpaFundo = function (img) {
         <input type="range" id="habDano" min="4" max="40" value="14" style="width:100%;margin-top:8px"></label>
       <label style="font-size:12px;color:var(--dim)">Recarga <b id="habRecV">4.0</b>s
         <input type="range" id="habRec" min="10" max="120" value="40" style="width:100%;margin-top:8px"></label>
+    </div>
+
+    <div style="margin-top:10px;background:rgba(77,195,255,.08);border-left:3px solid var(--acc);border-radius:0 8px 8px 0;padding:9px 11px;font-size:12px">
+      <b style="color:var(--acc)">Quem vai usar este golpe</b>
+      <div id="habQuem" style="margin-top:4px;color:var(--txt)"></div>
+      <div style="margin-top:7px;display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+        <label style="color:var(--dim)"><input type="checkbox" id="habFixa"> só para Crias específicas:</label>
+        <select id="habCrias" multiple size="4" disabled
+          style="min-width:170px;background:#0a1322;border:1px solid var(--line);border-radius:8px;color:var(--txt);padding:5px;font-size:12px"></select>
+      </div>
+      <div class="note" style="margin-top:5px">Sem marcar, o golpe entra no sorteio de todas as
+        Crias do elemento cuja raridade combina com a força.</div>
     </div>
 
     <div class="q" id="golPrompt" style="cursor:pointer;margin-top:10px" title="clique para copiar"></div>
@@ -1525,9 +1538,46 @@ cr.lastElementChild.appendChild(mkBtn(P_CHAR, 'Copiar prompt'));
     raio:  'um raio fino e veloz atravessando a tela',
     onda:  'uma onda larga e lenta avançando'
   };
+  // Como o jogo já sabe o elemento e a raridade de cada Cria, dá para mostrar
+  // na hora quem vai receber o golpe — e, se você quiser, prender a golpes
+  // específicos em vez de deixar no sorteio.
+  const CRIAS_JOGO = [{"id": "aerix", "n": "Aerix", "rar": "common", "skills": ["Air Slash", "Storm Dive"]}, {"id": "voltalon", "n": "Voltalon", "rar": "common", "skills": ["Volt Strike", "Thunder Wing"]}, {"id": "ignivar", "n": "Ignivar", "rar": "common", "skills": ["Flame Bite", "Inferno Rush"]}, {"id": "aquafy", "n": "Aquafy", "rar": "common", "skills": ["Water Pulse", "Aqua Beam"]}, {"id": "terron", "n": "Terron", "rar": "common", "skills": ["Rock Slam", "Earthquake"]}, {"id": "shadowyn", "n": "Shadowyn", "rar": "common", "skills": ["Shadow Claw", "Void Pulse"]}, {"id": "cragmite", "n": "Cragmite", "rar": "common", "skills": ["Rock Crush", "Dark Quake"]}, {"id": "florax", "n": "Florax", "rar": "common", "skills": ["Vine Whip", "Petal Storm"]}, {"id": "glacius", "n": "Glacius", "rar": "common", "skills": ["Ice Shard", "Blizzard"]}, {"id": "ferrus", "n": "Ferrus", "rar": "common", "skills": ["Iron Fist", "Steel Barrage"]}, {"id": "psychon", "n": "Psychon", "rar": "common", "skills": ["Mind Blast", "Psycho Wave"]}, {"id": "luminos", "n": "Luminos", "rar": "uncommon", "skills": ["Solar Ray", "Nova Burst"]}, {"id": "toxyl", "n": "Toxyl", "rar": "common", "skills": ["Toxic Fang", "Acid Spray"]}, {"id": "tempestix", "n": "Tempestix", "rar": "uncommon", "skills": ["Thunder Dash", "Storm Surge"]}, {"id": "drakon", "n": "Drakon", "rar": "rare", "skills": ["Dragon Claw", "Inferno Breath"]}];
+  const ELEM_DE = {
+    ignivar:'fire', drakon:'fire', luminos:'fire',
+    aquafy:'water', glacius:'water',
+    terron:'earth', cragmite:'earth', ferrus:'earth', florax:'earth', toxyl:'earth', shadowyn:'earth',
+    aerix:'air', tempestix:'air', voltalon:'air', psychon:'air'
+  };
+  const TIERS_POR_RARIDADE = { common:[1], uncommon:[1,2], rare:[2,3], legendary:[3], epic:[3] };
   function elOpts(){
     $('habEl').innerHTML = ELS.map((e,i) => '<option value="'+i+'">'+e[1]+'</option>').join('');
   }
+  function criasDoElemento(el){
+    return CRIAS_JOGO.filter(c => (ELEM_DE[c.id] || 'fire') === el);
+  }
+  function atualizaQuem(){
+    const d = dados();
+    const doEl = criasDoElemento(d.el);
+    // sugestões de nome: os golpes que essas Crias já têm na ficha
+    const sug = [];
+    for (const c of doEl) for (const sk of (c.skills || [])) if (sug.indexOf(sk) < 0) sug.push(sk);
+    $('habSug').innerHTML = sug.map(x => '<option value="'+x+'">').join('');
+    // lista de Crias para prender o golpe
+    if ($('habCrias').options.length !== doEl.length)
+      $('habCrias').innerHTML = doEl.map(c => '<option value="'+c.id+'">'+c.n+' ('+c.rar+')</option>').join('');
+    const fixas = [...$('habCrias').selectedOptions].map(o => o.value);
+    if ($('habFixa').checked && fixas.length) {
+      const nomes = doEl.filter(c => fixas.indexOf(c.id) >= 0).map(c => c.n);
+      $('habQuem').textContent = 'apenas ' + nomes.join(', ');
+      return;
+    }
+    const cabem = doEl.filter(c => (TIERS_POR_RARIDADE[c.rar] || [1]).indexOf(d.tier) >= 0);
+    $('habQuem').textContent = cabem.length
+      ? cabem.map(c => c.n).join(', ')
+      : 'nenhuma Cria deste elemento tem raridade para força ' + d.tier + ' — o golpe fica guardado até existir uma';
+  }
+  $('habFixa').onchange = () => { $('habCrias').disabled = !$('habFixa').checked; atualizaQuem(); };
+  $('habCrias').onchange = atualizaQuem;
   function elAtual(){ return ELS[+$('habEl').value] || ELS[0]; }
   function dados(){
     return {
@@ -1557,7 +1607,7 @@ cr.lastElementChild.appendChild(mkBtn(P_CHAR, 'Copiar prompt'));
   }
   ['habEl','habTier','habForma','habNome'].forEach(id => {
     const el = $(id);
-    el.oninput = el.onchange = montaPrompt;
+    el.oninput = el.onchange = () => { montaPrompt(); atualizaQuem(); };
   });
   $('habDano').oninput = () => { $('habDanoV').textContent = $('habDano').value; montaPrompt(); };
   $('habRec').oninput  = () => { $('habRecV').textContent = (+$('habRec').value/10).toFixed(1); };
@@ -1693,7 +1743,9 @@ cr.lastElementChild.appendChild(mkBtn(P_CHAR, 'Copiar prompt'));
         $('golMsg').textContent = 'publicando os 5 quadros…';
         for (let i=0;i<5;i++) await sobe(quadros[i], 'arena/hab-' + id + '-' + i + '.png');
         const cat = await catalogo();
+        const fixas = $('habFixa').checked ? [...$('habCrias').selectedOptions].map(o => o.value) : [];
         const nova = { id, n: d.n, el: d.el, tier: d.tier, forma: d.forma, dano: d.dano, rec: d.rec,
+                       crias: fixas,
                        arte: SB + '/storage/v1/object/public/mapas/arena/hab-' + id };
         const k = cat.habilidades.findIndex(h => h.id === id);
         if (k >= 0) cat.habilidades[k] = nova; else cat.habilidades.push(nova);
@@ -1722,7 +1774,8 @@ cr.lastElementChild.appendChild(mkBtn(P_CHAR, 'Copiar prompt'));
         linha.innerHTML =
           '<img src="'+h.arte+'-2.png?t='+Date.now()+'" style="width:26px;height:26px;object-fit:contain" onerror="this.style.visibility=\'hidden\'">' +
           '<b style="color:var(--txt)">'+h.n+'</b>' +
-          '<span>força '+h.tier+' · '+h.forma+' · '+h.dano+' de dano · '+(h.rec/1000).toFixed(1)+'s</span>';
+          '<span>força '+h.tier+' · '+h.forma+' · '+h.dano+' de dano · '+(h.rec/1000).toFixed(1)+'s' +
+          (h.crias && h.crias.length ? ' · só ' + h.crias.map(x => (CRIAS_JOGO.find(c=>c.id===x)||{n:x}).n).join(', ') : '') + '</span>';
         const rm = document.createElement('button');
         rm.className='ghost'; rm.textContent='tirar'; rm.style.marginLeft='auto';
         rm.onclick = async () => {
@@ -1737,7 +1790,7 @@ cr.lastElementChild.appendChild(mkBtn(P_CHAR, 'Copiar prompt'));
       el.appendChild(bloco);
     }
   }
-  elOpts(); montaPrompt(); listaG();
+  elOpts(); montaPrompt(); atualizaQuem(); listaG();
   document.querySelector('#colAbas button').click();
 })();
 </script>

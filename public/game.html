@@ -7119,10 +7119,7 @@ async function startFirstCreatureManifestation() {
   state.items.orbeCriacao--;
   saveGame();
 
-  // Primeira Cria: sorteio entre Ignivar (fogo) e Aerix (vento) — dois
-  // elementos diferentes já na largada, para dar o que testar.
-  const species = pick(['ignivar', 'aerix']);
-  const monster = generateMonster(species, 1);
+  const monster = generateMonster('ignivar', 1);
 
   // Full cinematic: orb pulse → cracks → explosion → reveal panel (art+sprite+ficha)
   await playCoreOrbCinematic(monster);
@@ -9269,6 +9266,12 @@ document.getElementById('czStart').addEventListener('click', async () => {
     state.appearance = { comboId: combo };
     state.custom = Object.assign({}, _czEscolha);
     state.chapeus = [];   // chapéus se conquistam jogando
+    // TESTE: a conta já nasce com Ignivar (fogo) e Aerix (vento), para
+    // experimentar dois elementos na arena sem passar pelo Core Orb.
+    state.cria = generateMonster('ignivar', 5);
+    state.party = [generateMonster('aerix', 5)];
+    const _q1 = (state.quests || []).find(q => q.id === 'q1');
+    if (_q1) { _q1.progress = _q1.total; _q1.done = true; }
     aplicaVisualChar1(state.custom);
     // Personagens novos (Errante/char4 e Caçador/char5) já começam com o
     // Ignivar acoplado — companion no mapa desde o primeiro passo, sem o
@@ -11558,8 +11561,13 @@ const ARENA = (function () {
     const el = ELEM_DE[species] || 'fire';
     const def = (typeof MONSTERS !== 'undefined' && MONSTERS[species]) || {};
     const tiers = TIERS_POR_RARIDADE[def.rarity || 'common'] || [1];
-    let opcoes = CATALOGO.filter(h => h.el === el && tiers.indexOf(h.tier) >= 0);
-    if (!opcoes.length) opcoes = CATALOGO.filter(h => h.el === el);
+    // golpe preso a Crias específicas só vale para elas; o resto entra no
+    // sorteio normal por elemento e raridade
+    const presas = CATALOGO.filter(h => h.crias && h.crias.length && h.crias.indexOf(species) >= 0);
+    if (presas.length) return presas[Math.floor(Math.random() * presas.length)];
+    const livres = CATALOGO.filter(h => !h.crias || !h.crias.length);
+    let opcoes = livres.filter(h => h.el === el && tiers.indexOf(h.tier) >= 0);
+    if (!opcoes.length) opcoes = livres.filter(h => h.el === el);
     if (!opcoes.length) return null;
     return opcoes[Math.floor(Math.random() * opcoes.length)];
   }
