@@ -5,6 +5,60 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>CRIAS — Database Oficial</title>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2" defer></script>
+<script>
+// ── Limpeza de fundo ───────────────────────────────────────────────────────
+// O GPT nem sempre entrega fundo transparente: às vezes vem branco, verde
+// chroma, magenta ou cinza. Aqui o fundo é descoberto pelos cantos e apagado
+// por espalhamento a partir das bordas — o que está DENTRO da arte (um branco
+// no olho, por exemplo) não some, porque o espalhamento não alcança.
+window.LimpaFundo = function (img) {
+  const w = img.naturalWidth || img.width, h = img.naturalHeight || img.height;
+  if (!w || !h) return img;
+  const c = document.createElement('canvas');
+  c.width = w; c.height = h;
+  const g = c.getContext('2d', { willReadFrequently: true });
+  g.drawImage(img, 0, 0);
+  let d;
+  try { d = g.getImageData(0, 0, w, h); } catch (e) { return img; }
+  const px = d.data;
+  const cor = (x, y) => { const i = (y * w + x) * 4; return [px[i], px[i+1], px[i+2], px[i+3]]; };
+  // cantos opacos e parecidos entre si = fundo sólido
+  const cantos = [cor(0,0), cor(w-1,0), cor(0,h-1), cor(w-1,h-1)].filter(p => p[3] > 200);
+  if (cantos.length < 3) return img;                    // já tem fundo transparente
+  const base = [0,1,2].map(k => Math.round(cantos.reduce((s,p) => s + p[k], 0) / cantos.length));
+  for (const p of cantos)
+    if (Math.abs(p[0]-base[0]) + Math.abs(p[1]-base[1]) + Math.abs(p[2]-base[2]) > 90) return img;
+  const TOL = 60, SUAVE = 110;
+  const dist = i => Math.abs(px[i]-base[0]) + Math.abs(px[i+1]-base[1]) + Math.abs(px[i+2]-base[2]);
+  const visto = new Uint8Array(w * h);
+  const fila = new Int32Array(w * h);
+  let ini = 0, fim = 0;
+  const põe = p => {
+    if (p < 0 || p >= w*h || visto[p]) return;
+    if (dist(p*4) > TOL) return;
+    visto[p] = 1; fila[fim++] = p;
+  };
+  for (let x = 0; x < w; x++) { põe(x); põe((h-1)*w + x); }
+  for (let y = 0; y < h; y++) { põe(y*w); põe(y*w + w-1); }
+  while (ini < fim) {
+    const p = fila[ini++], x = p % w, y = (p / w) | 0;
+    px[p*4 + 3] = 0;
+    if (x > 0) põe(p-1); if (x < w-1) põe(p+1);
+    if (y > 0) põe(p-w); if (y < h-1) põe(p+w);
+  }
+  // franja: pixel ainda parecido com o fundo e vizinho de buraco perde opacidade
+  for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
+    const p = y*w + x, i = p*4;
+    if (!px[i+3] || dist(i) > SUAVE) continue;
+    const vago = (x > 0 && !px[(p-1)*4+3]) || (x < w-1 && !px[(p+1)*4+3]) ||
+                 (y > 0 && !px[(p-w)*4+3]) || (y < h-1 && !px[(p+w)*4+3]);
+    if (vago) px[i+3] = Math.round(px[i+3] * 0.35);
+  }
+  g.putImageData(d, 0, 0);
+  c.naturalWidth = w; c.naturalHeight = h; c.complete = true;
+  return c;
+};
+</script>
 <style>
   :root { --bg:#0a0e1a; --card:#131a2e; --line:#243250; --txt:#dce6f5; --dim:#8ab0dd; --acc:#4dc3ff;
           --gold:#ffd700; --ok:#3ddc84; --warn:#ffa94d; --cut:#ff6b6b; }
@@ -816,7 +870,7 @@ cr.lastElementChild.appendChild(mkBtn(P_CHAR, 'Copiar prompt'));
     const f = e.target.files[0]; if (!f) return;
     const im = new Image();
     im.onload = async () => {
-      partes = fatia(im);
+      partes = fatia(window.LimpaFundo ? window.LimpaFundo(im) : im);
       if (!partes || partes.filter(Boolean).length < 4) {
         $('criaMsg').textContent = 'não consegui separar as 4 vistas — confira a folha'; return;
       }
@@ -878,7 +932,7 @@ cr.lastElementChild.appendChild(mkBtn(P_CHAR, 'Copiar prompt'));
     const f = e.target.files[0]; if (!f) return;
     const im = new Image();
     im.onload = async () => {
-      const c = recorta(im);
+      const c = recorta(window.LimpaFundo ? window.LimpaFundo(im) : im);
       if (!c) { $('npcMsg').textContent = 'imagem sem conteúdo transparente — gere com fundo transparente'; return; }
       $('npcPrev').src = c.toDataURL('image/png');
       $('npcPrev').style.display = '';
@@ -1080,7 +1134,8 @@ cr.lastElementChild.appendChild(mkBtn(P_CHAR, 'Copiar prompt'));
     const f = e.target.files[0]; if (!f) return;
     const im = new Image();
     im.onload = () => {
-      const partes = fatiaFolha(im);
+      const limpo = window.LimpaFundo ? window.LimpaFundo(im) : im;
+      const partes = fatiaFolha(limpo);
       if (!partes || partes.length < 3) { $('chMsg').textContent = 'não consegui fatiar a folha — confira se as células têm espaço entre elas'; return; }
       chapeuIm = partes[0]; chapeuTras = partes[1]; chapeuLado = partes[2];
       chapeuLadoDir = partes[3] || null;
