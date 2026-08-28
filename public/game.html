@@ -3095,7 +3095,7 @@ const COLLISION = [
   [1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,0,0,0,0,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1]
 ];
 const NPCS_TEMPLATE = [
-  { id: 'guia', x: 15, y: 23, emoji: '🧙', name: 'Guia Solis', type: 'ludi',
+  { id: 'guia', x: 15, y: 26, emoji: '🧙', name: 'Guia Solis', type: 'ludi',
     dialog: [
       'Salve, jovem domador! Bem-vindo ao Nexus — o coração do mundo das Crias.',
       'As Crias são criaturas únicas, manifestadas a partir da energia do Core Orb.',
@@ -8725,15 +8725,48 @@ function _montaFramesCombo(comboId) {
     spriteImageCache[comboId][fr.dir][fr.i] = out;
   });
   // Fallback: se 'right' não veio em arquivo, espelha horizontalmente o 'left'.
-  // (chapéu simétrico espelha junto sem problema)
+  // O chapéu do frame espelhado é REFEITO com a arte e o ajuste da DIREITA —
+  // antes ele vinha colado do quadro esquerdo, e a boina piscava entre duas
+  // versões diferentes a cada passo para a direita.
   const rightArr = spriteImageCache[comboId]['right'];
   const leftArr = spriteImageCache[comboId]['left'];
   if (rightArr && leftArr && leftArr.length) {
     for (let i = 0; i < leftArr.length; i++) {
-      if (!rightArr[i]) {
-        const liIdx = loaded.findIndex(f => f.dir === 'left' && f.i === i);
-        rightArr[i] = (boxUso && liIdx >= 0) ? _trimToBox(pintadas[liIdx], boxUso, true) : (leftArr[i] || leftArr[0]);
+      if (rightArr[i]) continue;
+      const liIdx = loaded.findIndex(f => f.dir === 'left' && f.i === i);
+      if (!boxUso || liIdx < 0) { rightArr[i] = leftArr[i] || leftArr[0]; continue; }
+      let base = pintadas[liIdx];
+      const ancE = ANCORA_CABECA['left-' + i];
+      if (chapeu && ancE) {
+        // recomeça do corpo (sem o chapéu do lado esquerdo) e veste o direito
+        const semCh = procCanvases[liIdx];
+        const mkE = (comboId === 'char1' ? coresDoVisual(_visualEscolha) : null) && mascaras['left-' + i];
+        const corpo = mkE ? _repintaRegioes(semCh, mkE, coresDoVisual(_visualEscolha)) : semCh;
+        const DESL = base.height - corpo.height;
+        const cv = document.createElement('canvas');
+        cv.width = corpo.width; cv.height = corpo.height + DESL;
+        const g = cv.getContext('2d');
+        g.drawImage(corpo, 0, DESL);
+        const imCh = _imgChapeuPara(chapeu, 'right');
+        const cfg = _cfgChapeu(chapeu, 'right');
+        const wCh = ancE.larg * cfg.esc;
+        const hCh = wCh * imCh.naturalHeight / imCh.naturalWidth;
+        // o recorte espelha este canvas: desenhar o deslocamento ↔ invertido
+        const x = ancE.cx - wCh / 2 - ancE.larg * (cfg.dx || 0);
+        const y = ancE.topo - hCh * (1 - cfg.dy) + DESL;
+        g.imageSmoothingEnabled = true;
+        if (chapeu.ladoDir) {
+          // arte própria do perfil direito: pré-espelha para o trim desfazer
+          g.save();
+          g.translate(ancE.cx, 0); g.scale(-1, 1); g.translate(-ancE.cx, 0);
+          g.drawImage(imCh, x, y, wCh, hCh);
+          g.restore();
+        } else {
+          g.drawImage(imCh, x, y, wCh, hCh);
+        }
+        base = cv;
       }
+      rightArr[i] = _trimToBox(base, boxUso, true);
     }
   }
   {
