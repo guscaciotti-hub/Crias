@@ -176,6 +176,69 @@ window.LimpaFundo = function (img) {
   </div>
 </div>
 
+<h2>3.7 · Coliseu — o palco e os golpes</h2>
+<div class="card" style="border-color:var(--acc)">
+  <div style="font-size:13px;margin-bottom:10px;line-height:1.7">
+    Tudo que a batalha ao vivo mostra na tela: o <b>cenário do coliseu</b> (onde a Cria luta,
+    com as outras esperando a vez e o treinador acompanhando) e os <b>golpes especiais</b> —
+    folhas de quadros por elemento, para o ataque virar um efeito de verdade em vez de uma
+    bolinha. Gere no GPT, solte aqui e o jogo passa a usar na hora.
+  </div>
+
+  <div style="display:flex;gap:6px;margin:4px 0 10px" id="colAbas">
+    <button class="ghost" data-c="palco" style="flex:1">🏟️ Cenário</button>
+    <button class="ghost" data-c="golpe" style="flex:1">✨ Golpes por elemento</button>
+  </div>
+
+  <div id="colPalco">
+    <div class="q" id="colPrompt" style="cursor:pointer" title="clique para copiar">
+      Crie o <b>cenário de uma arena de batalha vista DE CIMA (top-down)</b>, imagem quadrada,
+      para um jogo de coleta de criaturas. <b>RENDER 3D ESTILIZADO de jogo moderno</b> —
+      volumétrico, materiais ricos (pedra polida, madeira, metal, cristal azul brilhante),
+      cores vibrantes, iluminação cinematográfica suave. <b>NÃO é pixel art.</b> Estética de
+      jogo AAA fofo (Zelda: Link's Awakening remake / Pokémon Unite).
+      Composição, de dentro para fora: 1) no <b>centro, uma plataforma circular de combate</b>
+      em pedra clara com runas azuis brilhantes gravadas no chão e uma borda elevada —
+      o círculo precisa ficar <b>limpo e liso</b>, sem nada em cima, é onde as criaturas lutam;
+      2) em volta do círculo, um <b>anel de piso escuro</b> com detalhes geométricos;
+      3) nas laterais esquerda e direita, <b>pedestais de espera</b> — pequenas plataformas
+      elevadas com cristais, onde as outras criaturas aguardam a vez; 4) na parte de baixo e
+      de cima, <b>plataformas dos treinadores</b> com bandeiras e braseiros acesos;
+      5) nas bordas da imagem, <b>arquibancada com público em silhueta</b>, luzes e
+      estandartes — sem rostos definidos, apenas ambiente.
+      Vazio de personagens (nenhuma criatura, nenhuma pessoa em primeiro plano).
+      Sem texto, sem marca d'água, sem interface. Iluminação de noite de torneio.
+      <span style="color:var(--dim)">(clique para copiar)</span>
+    </div>
+    <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:10px">
+      <input type="file" id="colArq" accept="image/png,image/jpeg,image/webp" style="display:none">
+      <button id="colSobe">🏟️ Soltar o cenário e publicar</button>
+      <img id="colPrev" style="height:90px;display:none;border:1px solid var(--line);border-radius:8px">
+      <span id="colMsg" class="note" style="margin:0"></span>
+    </div>
+    <div class="note">O jogo usa a imagem inteira como chão da arena e desenha o combate no
+      círculo central — por isso ele precisa estar limpo.</div>
+  </div>
+
+  <div id="colGolpe" style="display:none">
+    <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:6px">
+      <select id="golEl" style="background:#0a1322;border:1px solid var(--line);border-radius:8px;color:var(--txt);padding:9px;font-size:14px;font-weight:700"></select>
+      <span id="golInfo" class="note" style="margin:0"></span>
+    </div>
+    <div class="q" id="golPrompt" style="cursor:pointer" title="clique para copiar"></div>
+    <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:10px">
+      <input type="file" id="golArq" accept="image/png,image/webp" style="display:none">
+      <button id="golSobe">✨ Soltar a folha do golpe e publicar</button>
+      <span id="golMsg" class="note" style="margin:0"></span>
+    </div>
+    <canvas id="golPrev" width="880" height="150" style="width:100%;margin-top:10px;background:#0a1322;border:1px solid var(--line);border-radius:10px"></canvas>
+    <div class="note">5 quadros do golpe, do começo ao fim — o jogo toca em sequência quando a
+      Cria usa a habilidade. Comece por <b>Fogo</b> para validar a ideia.</div>
+    <div style="margin-top:10px;font-size:12px;font-weight:800;color:var(--gold)">Elementos com golpe pronto</div>
+    <div id="golLista" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(130px,1fr));gap:6px;font-size:12px;margin-top:6px"></div>
+  </div>
+</div>
+
 <h2>4 · Masmorra</h2>
 <div class="card">
   <table>
@@ -1372,6 +1435,178 @@ cr.lastElementChild.appendChild(mkBtn(P_CHAR, 'Copiar prompt'));
     } catch(e){ $('chMsg').textContent = 'erro: '+(e.message||e); }
   };
   lista();
+})();
+</script>
+
+<script>
+// ── Coliseu: cenário da arena e folhas de golpe por elemento ──────────────
+(function(){
+  const SB='https://gmycqvvvglexbtbqkjzi.supabase.co', KEY='sb_publishable_N4DdqinjzjnMBWsik5qj2A_ksPBX9Av';
+  const $ = id => document.getElementById(id);
+  if (!$('colSobe')) return;
+  let sb = null, quadros = null;
+  const ELS = [
+    ['fire','Fogo','labaredas e brasas laranja-avermelhadas, com fagulhas subindo'],
+    ['water','Água','jato e respingos azul-turquesa, com gotas e espuma'],
+    ['air','Ar','lâminas de vento e espirais brancas quase transparentes'],
+    ['earth','Terra','rochas e terra levantando do chão, poeira marrom'],
+    ['electric','Elétrico','raios e faíscas amarelo-elétrico ramificados'],
+    ['ice','Gelo','estilhaços de cristal e sopro gelado azul-claro'],
+    ['nature','Natureza','folhas, cipós e pétalas verdes girando'],
+    ['poison','Veneno','névoa e bolhas roxas corrosivas'],
+    ['metal','Metal','lâminas e estilhaços metálicos prateados'],
+    ['psychic','Psíquico','ondas e símbolos rosa-arroxeados distorcendo o ar'],
+    ['light','Luz','feixe e halos dourados brilhantes'],
+    ['shadow','Sombra','fumaça e garras roxo-escuras com brilho violeta']
+  ];
+  function elOpts(){
+    $('golEl').innerHTML = ELS.map((e,i) => '<option value="'+i+'">'+e[1]+'</option>').join('');
+  }
+  function elAtual(){ return ELS[+$('golEl').value] || ELS[0]; }
+  function montaPrompt(){
+    const e = elAtual();
+    $('golInfo').textContent = 'arquivo: golpe-' + e[0];
+    $('golPrompt').innerHTML =
+      'Crie uma <b>folha de animação de um golpe mágico</b> para um jogo de coleta de criaturas, ' +
+      'em <b>RENDER 3D ESTILIZADO de jogo moderno</b> — volumétrico, cores vibrantes e saturadas, ' +
+      'brilho intenso, acabamento de efeito especial de jogo AAA. <b>NÃO é pixel art.</b> ' +
+      'Elemento: <b>' + e[1] + '</b> — ' + e[2] + '. ' +
+      'Entregue <b>5 quadros EM UMA LINHA, todos do mesmo tamanho e com espaço vazio entre eles</b>, ' +
+      'mostrando o golpe do começo ao fim: 1) o efeito nascendo pequeno · 2) crescendo · ' +
+      '3) o auge, bem grande e intenso · 4) começando a se desfazer · 5) quase apagando. ' +
+      'Cada quadro centralizado, visto de cima em ângulo de jogo top-down, sem criatura, ' +
+      'sem chão, sem cenário. Fundo 100% transparente, sem sombra, sem texto. ' +
+      '<span style="color:var(--dim)">(clique para copiar)</span>';
+  }
+  $('golEl').onchange = () => { montaPrompt(); quadros = null; desenhaG(); $('golMsg').textContent=''; };
+  document.querySelectorAll('#colAbas button').forEach(b => b.onclick = () => {
+    const c = b.dataset.c;
+    $('colPalco').style.display = c === 'palco' ? '' : 'none';
+    $('colGolpe').style.display = c === 'golpe' ? '' : 'none';
+    document.querySelectorAll('#colAbas button').forEach(x => {
+      const on = x === b;
+      x.style.borderColor = on ? 'var(--acc)' : '';
+      x.style.color = on ? 'var(--acc)' : '';
+    });
+  });
+  for (const pid of ['colPrompt','golPrompt']) {
+    const el = $(pid);
+    el.onclick = () => navigator.clipboard.writeText(el.innerText.replace(/\(clique para copiar\)/,'').trim())
+      .then(()=> { el.style.borderLeftColor='var(--ok)'; setTimeout(()=>el.style.borderLeftColor='',900); });
+  }
+  function fingir(c){ c.naturalWidth=c.width; c.naturalHeight=c.height; c.complete=true; return c; }
+  function recorta(im){
+    const c0 = document.createElement('canvas');
+    c0.width = im.naturalWidth || im.width; c0.height = im.naturalHeight || im.height;
+    const g0 = c0.getContext('2d', { willReadFrequently: true });
+    g0.drawImage(im, 0, 0);
+    let d; try { d = g0.getImageData(0,0,c0.width,c0.height).data; } catch(e){ return null; }
+    let x0=c0.width, y0=c0.height, x1=-1, y1=-1;
+    for (let y=0;y<c0.height;y++) for (let x=0;x<c0.width;x++)
+      if (d[(y*c0.width+x)*4+3] > 8) { if(x<x0)x0=x; if(x>x1)x1=x; if(y<y0)y0=y; if(y>y1)y1=y; }
+    if (x1<x0) return null;
+    const c = document.createElement('canvas');
+    c.width=x1-x0+1; c.height=y1-y0+1;
+    c.getContext('2d').drawImage(c0, x0,y0,c.width,c.height, 0,0,c.width,c.height);
+    return fingir(c);
+  }
+  function fatiaN(im, n){
+    const c0 = document.createElement('canvas');
+    c0.width = im.naturalWidth; c0.height = im.naturalHeight;
+    const g0 = c0.getContext('2d', { willReadFrequently: true });
+    g0.drawImage(im, 0, 0);
+    let d; try { d = g0.getImageData(0,0,c0.width,c0.height).data; } catch(e){ return null; }
+    const tem = new Array(c0.width).fill(false);
+    for (let x=0;x<c0.width;x++) for (let y=0;y<c0.height;y++)
+      if (d[(y*c0.width+x)*4+3] > 8) { tem[x]=true; break; }
+    const faixas=[]; let ini=-1, vao=0;
+    for (let x=0;x<=c0.width;x++){
+      const t = x<c0.width && tem[x];
+      if (t) { if(ini<0) ini=x; vao=0; }
+      else if (ini>=0 && ++vao>4) { faixas.push([ini, x-vao]); ini=-1; }
+    }
+    if (ini>=0) faixas.push([ini, c0.width-1]);
+    const corta = (a,b) => {
+      const c = document.createElement('canvas');
+      c.width=b-a+1; c.height=c0.height;
+      c.getContext('2d').drawImage(c0, a,0,c.width,c.height, 0,0,c.width,c.height);
+      return recorta(fingir(c));
+    };
+    if (faixas.length === n) return faixas.map(([a,b]) => corta(a,b));
+    const q = Math.floor(c0.width/n);
+    const out = [];
+    for (let i=0;i<n;i++) out.push(corta(i*q, i===n-1 ? c0.width-1 : (i+1)*q-1));
+    return out;
+  }
+  function desenhaG(){
+    const cv = $('golPrev'); if (!cv) return;
+    const g = cv.getContext('2d');
+    g.clearRect(0,0,cv.width,cv.height);
+    if (!quadros) return;
+    g.imageSmoothingEnabled = true;
+    quadros.forEach((p,i) => {
+      if (!p) return;
+      const cx = 90 + i*175, base = 120;
+      const e = Math.min(140/p.width, 100/p.height);
+      g.drawImage(p, cx-p.width*e/2, base-p.height*e, p.width*e, p.height*e);
+      g.fillStyle='#8ab0dd'; g.font='bold 11px sans-serif'; g.textAlign='center';
+      g.fillText('quadro '+(i+1), cx, base+18);
+    });
+  }
+  async function sobe(cv, caminho, tipo){
+    if (!window.supabase) throw new Error('biblioteca carregando — tente de novo');
+    sb = sb || window.supabase.createClient(SB, KEY);
+    const blob = cv instanceof Blob ? cv : await new Promise(r => cv.toBlob(r, tipo || 'image/png'));
+    const up = await sb.storage.from('mapas').upload(caminho, blob, { upsert:true, cacheControl:'0' });
+    if (up.error) throw up.error;
+  }
+  $('colSobe').onclick = () => $('colArq').click();
+  $('colArq').onchange = e => {
+    const f = e.target.files[0]; if (!f) return;
+    const im = new Image();
+    im.onload = async () => {
+      const c = document.createElement('canvas');
+      const L = Math.min(1024, Math.max(im.naturalWidth, im.naturalHeight));
+      c.width = c.height = L;
+      c.getContext('2d').drawImage(im, 0, 0, L, L);
+      $('colPrev').src = c.toDataURL('image/png'); $('colPrev').style.display = '';
+      try {
+        $('colMsg').textContent = 'publicando…';
+        await sobe(c, 'arena/palco.png');
+        $('colMsg').textContent = '✅ cenário publicado — recarregue o jogo';
+      } catch(err){ $('colMsg').textContent = 'erro: ' + (err.message || err); }
+    };
+    im.src = URL.createObjectURL(f);
+  };
+  $('golSobe').onclick = () => $('golArq').click();
+  $('golArq').onchange = e => {
+    const f = e.target.files[0]; if (!f) return;
+    const im = new Image();
+    im.onload = async () => {
+      quadros = fatiaN(window.LimpaFundo ? window.LimpaFundo(im) : im, 5);
+      if (!quadros || quadros.filter(Boolean).length < 5) {
+        $('golMsg').textContent = 'não consegui separar os 5 quadros — confira a folha'; return;
+      }
+      desenhaG();
+      const el = elAtual();
+      try {
+        $('golMsg').textContent = 'publicando os 5 quadros…';
+        for (let i=0;i<5;i++) await sobe(quadros[i], 'arena/golpe-' + el[0] + '-' + i + '.png');
+        $('golMsg').textContent = '✅ golpe de ' + el[1] + ' publicado';
+        listaG();
+      } catch(err){ $('golMsg').textContent = 'erro: ' + (err.message || err); }
+    };
+    im.src = URL.createObjectURL(f);
+  };
+  function listaG(){
+    const base = SB + '/storage/v1/object/public/mapas/arena/';
+    $('golLista').innerHTML = ELS.map(e =>
+      '<div style="display:flex;align-items:center;gap:6px;padding:4px 6px;background:rgba(255,255,255,.03);border-radius:6px">' +
+      '<img src="'+base+'golpe-'+e[0]+'-2.png?t='+Date.now()+'" style="width:24px;height:24px;object-fit:contain" ' +
+      'onerror="this.style.visibility=\'hidden\'"><span style="color:var(--txt)">'+e[1]+'</span></div>').join('');
+  }
+  elOpts(); montaPrompt(); listaG();
+  document.querySelector('#colAbas button').click();
 })();
 </script>
 </body>
