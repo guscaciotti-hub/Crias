@@ -237,21 +237,48 @@ window.LimpaFundo = function (img) {
   </div>
 
   <div id="colGolpe" style="display:none">
-    <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:6px">
-      <select id="golEl" style="background:#0a1322;border:1px solid var(--line);border-radius:8px;color:var(--txt);padding:9px;font-size:14px;font-weight:700"></select>
-      <span id="golInfo" class="note" style="margin:0"></span>
+    <div style="font-size:13px;margin-bottom:8px;line-height:1.7">
+      Cada elemento tem <b>várias habilidades</b>, de força diferente. A Cria recebe as dela
+      conforme a <b>raridade</b>: comum pega as fracas, lendária pega as fortes. Cadastre aqui —
+      o jogo lê o catálogo e monta o kit sozinho.
     </div>
-    <div class="q" id="golPrompt" style="cursor:pointer" title="clique para copiar"></div>
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:8px">
+      <label style="font-size:12px;color:var(--dim)">Nome do golpe
+        <input type="text" id="habNome" maxlength="22" placeholder="ex.: Explosão Ígnea"
+          style="width:100%;background:#0a1322;border:1px solid var(--line);border-radius:8px;color:var(--txt);padding:8px;font-size:13px;margin-top:3px"></label>
+      <label style="font-size:12px;color:var(--dim)">Elemento
+        <select id="habEl" style="width:100%;background:#0a1322;border:1px solid var(--line);border-radius:8px;color:var(--txt);padding:8px;font-size:13px;margin-top:3px"></select></label>
+      <label style="font-size:12px;color:var(--dim)">Força
+        <select id="habTier" style="width:100%;background:#0a1322;border:1px solid var(--line);border-radius:8px;color:var(--txt);padding:8px;font-size:13px;margin-top:3px">
+          <option value="1">1 — fraca (comuns)</option>
+          <option value="2">2 — média (raras)</option>
+          <option value="3">3 — forte (lendárias)</option>
+        </select></label>
+      <label style="font-size:12px;color:var(--dim)">Formato
+        <select id="habForma" style="width:100%;background:#0a1322;border:1px solid var(--line);border-radius:8px;color:var(--txt);padding:8px;font-size:13px;margin-top:3px">
+          <option value="unico">tiro único</option>
+          <option value="leque">leque de 3</option>
+          <option value="anel">anel ao redor</option>
+          <option value="raio">raio rápido</option>
+          <option value="onda">onda lenta e grande</option>
+        </select></label>
+      <label style="font-size:12px;color:var(--dim)">Dano <b id="habDanoV">14</b>
+        <input type="range" id="habDano" min="4" max="40" value="14" style="width:100%;margin-top:8px"></label>
+      <label style="font-size:12px;color:var(--dim)">Recarga <b id="habRecV">4.0</b>s
+        <input type="range" id="habRec" min="10" max="120" value="40" style="width:100%;margin-top:8px"></label>
+    </div>
+
+    <div class="q" id="golPrompt" style="cursor:pointer;margin-top:10px" title="clique para copiar"></div>
+
     <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:10px">
       <input type="file" id="golArq" accept="image/png,image/webp" style="display:none">
-      <button id="golSobe">✨ Soltar a folha do golpe e publicar</button>
+      <button id="golSobe">✨ Soltar a folha e cadastrar a habilidade</button>
       <span id="golMsg" class="note" style="margin:0"></span>
     </div>
     <canvas id="golPrev" width="880" height="150" style="width:100%;margin-top:10px;background:#0a1322;border:1px solid var(--line);border-radius:10px"></canvas>
-    <div class="note">5 quadros do golpe, do começo ao fim — o jogo toca em sequência quando a
-      Cria usa a habilidade. Comece por <b>Fogo</b> para validar a ideia.</div>
-    <div style="margin-top:10px;font-size:12px;font-weight:800;color:var(--gold)">Elementos com golpe pronto</div>
-    <div id="golLista" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(130px,1fr));gap:6px;font-size:12px;margin-top:6px"></div>
+
+    <div style="margin-top:12px;font-size:12px;font-weight:800;color:var(--gold)">Habilidades cadastradas</div>
+    <div id="golLista" style="margin-top:6px;font-size:13px;color:var(--dim)">nenhuma ainda</div>
   </div>
 </div>
 
@@ -1477,46 +1504,63 @@ cr.lastElementChild.appendChild(mkBtn(P_CHAR, 'Copiar prompt'));
 </script>
 
 <script>
-// ── Coliseu: cenário da arena e folhas de golpe por elemento ──────────────
+// ── Coliseu: cenário da arena e CATÁLOGO de habilidades ──────────────────
 (function(){
   const SB='https://gmycqvvvglexbtbqkjzi.supabase.co', KEY='sb_publishable_N4DdqinjzjnMBWsik5qj2A_ksPBX9Av';
+  const CAT_URL = SB + '/storage/v1/object/public/mapas/arena/habilidades.json';
   const $ = id => document.getElementById(id);
   if (!$('colSobe')) return;
   let sb = null, quadros = null;
+  // O jogo tem QUATRO elementos: fogo, água, terra e vento.
   const ELS = [
     ['fire','Fogo','labaredas e brasas laranja-avermelhadas, com fagulhas subindo'],
     ['water','Água','jato e respingos azul-turquesa, com gotas e espuma'],
-    ['air','Ar','lâminas de vento e espirais brancas quase transparentes'],
-    ['earth','Terra','rochas e terra levantando do chão, poeira marrom'],
-    ['electric','Elétrico','raios e faíscas amarelo-elétrico ramificados'],
-    ['ice','Gelo','estilhaços de cristal e sopro gelado azul-claro'],
-    ['nature','Natureza','folhas, cipós e pétalas verdes girando'],
-    ['poison','Veneno','névoa e bolhas roxas corrosivas'],
-    ['metal','Metal','lâminas e estilhaços metálicos prateados'],
-    ['psychic','Psíquico','ondas e símbolos rosa-arroxeados distorcendo o ar'],
-    ['light','Luz','feixe e halos dourados brilhantes'],
-    ['shadow','Sombra','fumaça e garras roxo-escuras com brilho violeta']
+    ['earth','Terra','rochas e terra levantando do chão, poeira marrom e pedras'],
+    ['air','Vento','lâminas de vento e espirais brancas quase transparentes']
   ];
+  const FORMAS = {
+    unico: 'um único projétil concentrado',
+    leque: 'três projéteis abrindo em leque',
+    anel:  'um anel de projéteis saindo em todas as direções',
+    raio:  'um raio fino e veloz atravessando a tela',
+    onda:  'uma onda larga e lenta avançando'
+  };
   function elOpts(){
-    $('golEl').innerHTML = ELS.map((e,i) => '<option value="'+i+'">'+e[1]+'</option>').join('');
+    $('habEl').innerHTML = ELS.map((e,i) => '<option value="'+i+'">'+e[1]+'</option>').join('');
   }
-  function elAtual(){ return ELS[+$('golEl').value] || ELS[0]; }
+  function elAtual(){ return ELS[+$('habEl').value] || ELS[0]; }
+  function dados(){
+    return {
+      n: ($('habNome').value || '').trim(),
+      el: elAtual()[0],
+      tier: +$('habTier').value,
+      forma: $('habForma').value,
+      dano: +$('habDano').value,
+      rec: Math.round(+$('habRec').value) * 100
+    };
+  }
   function montaPrompt(){
-    const e = elAtual();
-    $('golInfo').textContent = 'arquivo: golpe-' + e[0];
+    const e = elAtual(), d = dados();
+    const forca = ['', 'discreto e rápido', 'de bom porte', 'devastador, ocupando bastante espaço'][d.tier];
     $('golPrompt').innerHTML =
       'Crie uma <b>folha de animação de um golpe mágico</b> para um jogo de coleta de criaturas, ' +
       'em <b>RENDER 3D ESTILIZADO de jogo moderno</b> — volumétrico, cores vibrantes e saturadas, ' +
       'brilho intenso, acabamento de efeito especial de jogo AAA. <b>NÃO é pixel art.</b> ' +
       'Elemento: <b>' + e[1] + '</b> — ' + e[2] + '. ' +
+      'Formato do golpe: <b>' + FORMAS[d.forma] + '</b>. Porte: <b>' + forca + '</b>. ' +
+      (d.n ? 'Nome do golpe: <b>' + d.n + '</b>. ' : '') +
       'Entregue <b>5 quadros EM UMA LINHA, todos do mesmo tamanho e com espaço vazio entre eles</b>, ' +
-      'mostrando o golpe do começo ao fim: 1) o efeito nascendo pequeno · 2) crescendo · ' +
-      '3) o auge, bem grande e intenso · 4) começando a se desfazer · 5) quase apagando. ' +
-      'Cada quadro centralizado, visto de cima em ângulo de jogo top-down, sem criatura, ' +
-      'sem chão, sem cenário. Fundo 100% transparente, sem sombra, sem texto. ' +
-      '<span style="color:var(--dim)">(clique para copiar)</span>';
+      'mostrando o golpe do começo ao fim: 1) nascendo pequeno · 2) crescendo · 3) o auge · ' +
+      '4) se desfazendo · 5) quase apagando. Cada quadro centralizado, visto de cima em ângulo ' +
+      'de jogo top-down, sem criatura, sem chão, sem cenário. Fundo 100% transparente, ' +
+      'sem sombra, sem texto. <span style="color:var(--dim)">(clique para copiar)</span>';
   }
-  $('golEl').onchange = () => { montaPrompt(); quadros = null; desenhaG(); $('golMsg').textContent=''; };
+  ['habEl','habTier','habForma','habNome'].forEach(id => {
+    const el = $(id);
+    el.oninput = el.onchange = montaPrompt;
+  });
+  $('habDano').oninput = () => { $('habDanoV').textContent = $('habDano').value; montaPrompt(); };
+  $('habRec').oninput  = () => { $('habRecV').textContent = (+$('habRec').value/10).toFixed(1); };
   document.querySelectorAll('#colAbas button').forEach(b => b.onclick = () => {
     const c = b.dataset.c;
     $('colPalco').style.display = c === 'palco' ? '' : 'none';
@@ -1598,6 +1642,20 @@ cr.lastElementChild.appendChild(mkBtn(P_CHAR, 'Copiar prompt'));
     const up = await sb.storage.from('mapas').upload(caminho, blob, { upsert:true, cacheControl:'0' });
     if (up.error) throw up.error;
   }
+  async function catalogo(){
+    try { const r = await fetch(CAT_URL + '?t=' + Date.now());
+      if (!r.ok) return { habilidades: [] };
+      const j = await r.json();
+      return Array.isArray(j.habilidades) ? j : { habilidades: [] };
+    } catch(e){ return { habilidades: [] }; }
+  }
+  async function gravaCatalogo(cat){
+    sb = sb || window.supabase.createClient(SB, KEY);
+    const r = await sb.storage.from('mapas').upload('arena/habilidades.json',
+      new Blob([JSON.stringify(cat)], {type:'application/json'}),
+      { upsert:true, contentType:'application/json', cacheControl:'0' });
+    if (r.error) throw r.error;
+  }
   $('colSobe').onclick = () => $('colArq').click();
   $('colArq').onchange = e => {
     const f = e.target.files[0]; if (!f) return;
@@ -1616,7 +1674,10 @@ cr.lastElementChild.appendChild(mkBtn(P_CHAR, 'Copiar prompt'));
     };
     im.src = URL.createObjectURL(f);
   };
-  $('golSobe').onclick = () => $('golArq').click();
+  $('golSobe').onclick = () => {
+    if (!($('habNome').value || '').trim()) { $('golMsg').textContent = 'dê um nome ao golpe primeiro'; $('habNome').focus(); return; }
+    $('golArq').click();
+  };
   $('golArq').onchange = e => {
     const f = e.target.files[0]; if (!f) return;
     const im = new Image();
@@ -1626,22 +1687,55 @@ cr.lastElementChild.appendChild(mkBtn(P_CHAR, 'Copiar prompt'));
         $('golMsg').textContent = 'não consegui separar os 5 quadros — confira a folha'; return;
       }
       desenhaG();
-      const el = elAtual();
+      const d = dados();
+      const id = d.el + '-' + d.n.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/[^\w]+/g,'-');
       try {
         $('golMsg').textContent = 'publicando os 5 quadros…';
-        for (let i=0;i<5;i++) await sobe(quadros[i], 'arena/golpe-' + el[0] + '-' + i + '.png');
-        $('golMsg').textContent = '✅ golpe de ' + el[1] + ' publicado';
+        for (let i=0;i<5;i++) await sobe(quadros[i], 'arena/hab-' + id + '-' + i + '.png');
+        const cat = await catalogo();
+        const nova = { id, n: d.n, el: d.el, tier: d.tier, forma: d.forma, dano: d.dano, rec: d.rec,
+                       arte: SB + '/storage/v1/object/public/mapas/arena/hab-' + id };
+        const k = cat.habilidades.findIndex(h => h.id === id);
+        if (k >= 0) cat.habilidades[k] = nova; else cat.habilidades.push(nova);
+        await gravaCatalogo(cat);
+        $('golMsg').textContent = '✅ "' + d.n + '" cadastrada';
         listaG();
       } catch(err){ $('golMsg').textContent = 'erro: ' + (err.message || err); }
     };
     im.src = URL.createObjectURL(f);
   };
-  function listaG(){
-    const base = SB + '/storage/v1/object/public/mapas/arena/';
-    $('golLista').innerHTML = ELS.map(e =>
-      '<div style="display:flex;align-items:center;gap:6px;padding:4px 6px;background:rgba(255,255,255,.03);border-radius:6px">' +
-      '<img src="'+base+'golpe-'+e[0]+'-2.png?t='+Date.now()+'" style="width:24px;height:24px;object-fit:contain" ' +
-      'onerror="this.style.visibility=\'hidden\'"><span style="color:var(--txt)">'+e[1]+'</span></div>').join('');
+  const NOME_EL = { fire:'Fogo', water:'Água', earth:'Terra', air:'Vento' };
+  async function listaG(){
+    const cat = await catalogo();
+    const el = $('golLista');
+    if (!cat.habilidades.length) { el.textContent = 'nenhuma ainda'; return; }
+    el.innerHTML = '';
+    for (const e of ELS) {
+      const doEl = cat.habilidades.filter(h => h.el === e[0]).sort((a,b) => a.tier - b.tier);
+      if (!doEl.length) continue;
+      const bloco = document.createElement('div');
+      bloco.style.cssText = 'margin-bottom:8px';
+      bloco.innerHTML = '<div style="color:var(--acc);font-weight:800;font-size:12px">' + e[1] + '</div>';
+      for (const h of doEl) {
+        const linha = document.createElement('div');
+        linha.style.cssText = 'display:flex;align-items:center;gap:8px;padding:4px 0;border-bottom:1px solid rgba(255,255,255,.05)';
+        linha.innerHTML =
+          '<img src="'+h.arte+'-2.png?t='+Date.now()+'" style="width:26px;height:26px;object-fit:contain" onerror="this.style.visibility=\'hidden\'">' +
+          '<b style="color:var(--txt)">'+h.n+'</b>' +
+          '<span>força '+h.tier+' · '+h.forma+' · '+h.dano+' de dano · '+(h.rec/1000).toFixed(1)+'s</span>';
+        const rm = document.createElement('button');
+        rm.className='ghost'; rm.textContent='tirar'; rm.style.marginLeft='auto';
+        rm.onclick = async () => {
+          if (!confirm('Tirar "'+h.n+'" do jogo?')) return;
+          const c2 = await catalogo();
+          c2.habilidades = c2.habilidades.filter(x => x.id !== h.id);
+          await gravaCatalogo(c2); listaG();
+        };
+        linha.appendChild(rm);
+        bloco.appendChild(linha);
+      }
+      el.appendChild(bloco);
+    }
   }
   elOpts(); montaPrompt(); listaG();
   document.querySelector('#colAbas button').click();

@@ -4188,10 +4188,21 @@ const MONSTER_3D = {
 // Vistas direcionais pré-renderizadas do modelo 3D (tools/render_views.js) —
 // usadas no mapa (canvas 2D), onde não dá pra embutir um <model-viewer>.
 // O companion passa a virar para o lado em que anda.
+const NUVEM_CRIAS = 'https://gmycqvvvglexbtbqkjzi.supabase.co/storage/v1/object/public/mapas/crias/';
 const MONSTER_VIEWS = {
   ignivar: { down: '/ignivar-down.png', up: '/ignivar-up.png',
              left: '/ignivar-left.png', right: '/ignivar-right.png' },
 };
+// Qualquer Cria com as 4 vistas publicadas no database entra aqui sozinha —
+// não precisa de arquivo no repositório nem de deploy.
+for (const esp of ['aerix','aquafy','terron','drakon','glacius','florax','toxyl',
+                   'ferrus','psychon','luminos','shadowyn','voltalon','tempestix','cragmite']) {
+  if (MONSTER_VIEWS[esp]) continue;
+  MONSTER_VIEWS[esp] = {
+    down: NUVEM_CRIAS + esp + '-down.png', up: NUVEM_CRIAS + esp + '-up.png',
+    left: NUVEM_CRIAS + esp + '-left.png', right: NUVEM_CRIAS + esp + '-right.png'
+  };
+}
 const _viewImgCache = {};
 function getMonsterView(species, dir) {
   const set = MONSTER_VIEWS[species];
@@ -7108,7 +7119,9 @@ async function startFirstCreatureManifestation() {
   state.items.orbeCriacao--;
   saveGame();
 
-  const species = pick(['ignivar']);
+  // Primeira Cria: sorteio entre Ignivar (fogo) e Aerix (vento) — dois
+  // elementos diferentes já na largada, para dar o que testar.
+  const species = pick(['ignivar', 'aerix']);
   const monster = generateMonster(species, 1);
 
   // Full cinematic: orb pulse → cracks → explosion → reveal panel (art+sprite+ficha)
@@ -11517,12 +11530,57 @@ const ARENA = (function () {
     for (let i = 0; i < 5; i++) { const q = arte('golpe-' + el + '-' + i); if (q) fs.push(q); }
     return fs.length === 5 ? fs : null;
   }
-  const ELEM_DE = {                          // espécie -> elemento do golpe
-    ignivar: 'fire', drakon: 'fire', aquafy: 'water', aerix: 'air', tempestix: 'electric',
-    voltalon: 'electric', terron: 'earth', cragmite: 'earth', glacius: 'ice',
-    florax: 'nature', toxyl: 'poison', ferrus: 'metal', psychon: 'psychic',
-    luminos: 'light', shadowyn: 'shadow'
+  // O jogo tem quatro elementos: fogo, água, terra e vento. Tudo que não é
+  // um deles cai no mais próximo, para nenhuma Cria ficar sem golpe.
+  const ELEM_DE = {
+    ignivar: 'fire', drakon: 'fire',
+    aquafy: 'water', glacius: 'water',
+    terron: 'earth', cragmite: 'earth', ferrus: 'earth', florax: 'earth', toxyl: 'earth',
+    aerix: 'air', tempestix: 'air', voltalon: 'air', psychon: 'air',
+    luminos: 'fire', shadowyn: 'earth'
   };
+
+  // ── Catálogo de habilidades (publicado no database) ───────────────────
+  // Cada elemento tem VÁRIAS habilidades, de forças diferentes. A Cria
+  // recebe as dela conforme a raridade: comum pega as fracas, lendária as
+  // fortes. Sem catálogo, o combate usa a habilidade padrão de sempre.
+  let CATALOGO = null;
+  fetch('https://gmycqvvvglexbtbqkjzi.supabase.co/storage/v1/object/public/mapas/arena/habilidades.json?t=' + Date.now())
+    .then(r => r.ok ? r.json() : null)
+    .then(j => { if (j && Array.isArray(j.habilidades)) CATALOGO = j.habilidades; })
+    .catch(() => {});
+
+  const TIERS_POR_RARIDADE = {
+    common: [1], uncommon: [1, 2], rare: [2, 3], legendary: [3], epic: [3]
+  };
+  function habilidadeDe(species) {
+    if (!CATALOGO || !CATALOGO.length) return null;
+    const el = ELEM_DE[species] || 'fire';
+    const def = (typeof MONSTERS !== 'undefined' && MONSTERS[species]) || {};
+    const tiers = TIERS_POR_RARIDADE[def.rarity || 'common'] || [1];
+    let opcoes = CATALOGO.filter(h => h.el === el && tiers.indexOf(h.tier) >= 0);
+    if (!opcoes.length) opcoes = CATALOGO.filter(h => h.el === el);
+    if (!opcoes.length) return null;
+    return opcoes[Math.floor(Math.random() * opcoes.length)];
+  }
+  const _artHab = {};
+  function quadrosDe(hab) {
+    if (!hab || !hab.arte) return null;
+    const fs = [];
+    for (let i = 0; i < 5; i++) {
+      const u = hab.arte + '-' + i + '.png';
+      if (!(u in _artHab)) {
+        const im = new Image();
+        im.crossOrigin = 'anonymous';
+        im.onerror = () => { _artHab[u] = null; };
+        im.src = u;
+        _artHab[u] = im;
+      }
+      const im = _artHab[u];
+      if (im && im.complete && im.naturalWidth) fs.push(im);
+    }
+    return fs.length === 5 ? fs : null;
+  }
   let efeitos = [];                          // golpes especiais tocando agora
 
   // ── Camada 3D opcional ────────────────────────────────────────────────
@@ -11610,6 +11668,7 @@ const ARENA = (function () {
       hp: 100, hpMax: 100, vivo: true, respawn: 0,
       dano: dono === 'heroi' ? 9 : 7,
       recarga: { atk: 0, hab: 0 },
+      hab: null,
       ape: 0, apeMax: 100,
       piscar: 0, andando: false, passo: 0
     };
@@ -11623,6 +11682,8 @@ const ARENA = (function () {
     vilao = lutador('vilao', '#ff6b6b', inimigoSpecies || 'cragmite', R * 0.5, 0);
     vilao.hpMax = vilao.hp = 90 + (nivel || 3) * 6;
     vilao.dano = 6 + Math.floor((nivel || 3) * 0.8);
+    heroi.hab = habilidadeDe(heroi.species);
+    vilao.hab = habilidadeDe(vilao.species);
     tiros = []; faiscas = []; efeitos = []; fim = null;
     arte('palco');                          // pede o cenário já na abertura
     temGlb(heroi.species); temGlb(vilao.species);
@@ -11739,20 +11800,35 @@ const ARENA = (function () {
       return;
     }
     if (heroi.recarga[tipo] > 0) return;
-    heroi.recarga[tipo] = RECARGA[tipo];
     const ang = Math.atan2(vilao.y - heroi.y, vilao.x - heroi.x);
-    if (tipo === 'atk') { atira(heroi, ang, heroi.dano, 1); if (FX && FX.sfx && FX.sfx.lunge) FX.sfx.lunge(); }
-    else {
-      for (const d of [-0.25, 0, 0.25]) atira(heroi, ang + d, heroi.dano * 1.3, 1.25);
-      golpeVisual(heroi, ang);
+    if (tipo === 'atk') {
+      heroi.recarga.atk = RECARGA.atk;
+      atira(heroi, ang, heroi.dano, 1);
+      if (FX && FX.sfx && FX.sfx.lunge) FX.sfx.lunge();
+      return;
     }
+    const h = heroi.hab;
+    heroi.recarga.hab = (h && h.rec) || RECARGA.hab;
+    disparaHabilidade(heroi, ang, h);
+  }
+
+  // Cada formato de habilidade dispara de um jeito. O dano e a recarga vêm
+  // do catálogo, então dá para criar golpes fracos e fortes sem tocar aqui.
+  function disparaHabilidade(de, ang, h) {
+    const dano = (h && h.dano) || Math.round(de.dano * 1.3);
+    const forma = (h && h.forma) || 'leque';
+    if (forma === 'unico') atira(de, ang, dano, 1.5);
+    else if (forma === 'anel') { for (let i = 0; i < 10; i++) atira(de, (i / 10) * 6.283, dano, 1.1); }
+    else if (forma === 'raio') { const p = atira(de, ang, dano, 0.9); if (p) { p.vx *= 2.2; p.vy *= 2.2; } }
+    else if (forma === 'onda') { const p = atira(de, ang, dano, 2.6); if (p) { p.vx *= 0.55; p.vy *= 0.55; } }
+    else for (const d of [-0.25, 0, 0.25]) atira(de, ang + d, dano, 1.25);
+    golpeVisual(de, ang, forma === 'onda' || forma === 'anel' ? 1.7 : 1, h);
   }
 
   // Golpe especial: a folha de 5 quadros publicada no database toca à frente
   // da Cria. Sem a arte, o combate segue igual — só não aparece o efeito.
-  function golpeVisual(de, ang, escala) {
-    const el = ELEM_DE[de.species] || 'fire';
-    const fs = quadrosGolpe(el);
+  function golpeVisual(de, ang, escala, h) {
+    const fs = quadrosDe(h || de.hab) || quadrosGolpe(ELEM_DE[de.species] || 'fire');
     if (!fs) return;
     efeitos.push({
       fs, i: 0, t: 0,
@@ -11762,11 +11838,13 @@ const ARENA = (function () {
   }
 
   function atira(de, ang, dano, tam) {
-    tiros.push({
+    const p = {
       dono: de.dono, x: de.x, y: de.y,
       vx: Math.cos(ang) * VEL_TIRO, vy: Math.sin(ang) * VEL_TIRO,
       dano, r: 7 * (tam || 1), cor: de.cor, vida: 1600
-    });
+    };
+    tiros.push(p);
+    return p;
   }
 
   function passo(t) {
@@ -11826,6 +11904,10 @@ const ARENA = (function () {
         const err = (Math.random() - 0.5) * 0.28;
         atira(vilao, Math.atan2(dy, dx) + err, vilao.dano, 1);
       }
+      if (vilao.hab && vilao.recarga.hab <= 0) {
+        vilao.recarga.hab = (vilao.hab.rec || 4200) * 1.4;
+        disparaHabilidade(vilao, Math.atan2(dy, dx), vilao.hab);
+      }
     }
     // tiros
     for (let i = tiros.length - 1; i >= 0; i--) {
@@ -11852,7 +11934,8 @@ const ARENA = (function () {
     // botões
     for (const k of ['atk', 'hab']) {
       const b = botoes[k]; if (!b) continue;
-      const p = Math.max(0, heroi.recarga[k]) / RECARGA[k];
+      const total = k === 'hab' ? ((heroi.hab && heroi.hab.rec) || RECARGA.hab) : RECARGA[k];
+      const p = Math.max(0, heroi.recarga[k]) / total;
       b.querySelector('i').style.height = (p * 100) + '%';
       b.classList.toggle('pronto', p <= 0);
     }
