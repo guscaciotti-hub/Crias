@@ -81,6 +81,42 @@
   <div class="note">6 comuns · 4 raras · 2 lendárias. Cada uma precisa de 1 imagem (botão copia o prompt pronto).</div>
 </div>
 
+<h2>3.5 · Crias — arte de ARENA (4 vistas, 3D)</h2>
+<div class="card" style="border-color:var(--gold)">
+  <div style="font-size:13px;margin-bottom:8px;line-height:1.7">
+    A arte da seção 3 é <b>pixel art de uma pose só</b> — serve para o retrato e a batalha
+    antiga. Para a <b>arena em tempo real</b> (a Cria andando e atacando) é preciso outra
+    coisa: <b>4 vistas em render 3D</b>, no mesmo estilo do mapa. É o padrão que o Ignivar
+    já usa. Uma folha, o painel fatia e publica.
+  </div>
+  <div class="q" id="criaPrompt" style="cursor:pointer" title="clique para copiar">
+    Crie uma criatura original para um jogo de coleta de criaturas, em <b>RENDER 3D
+    ESTILIZADO de jogo moderno</b> — volumétrica de verdade, materiais ricos (pelo, escama,
+    metal, cristal translúcido), cores vibrantes e saturadas, acabamento caprichado e
+    aconchegante, iluminação cinematográfica suave vinda da esquerda-cima. <b>NÃO é pixel
+    art.</b> Estética de jogo AAA fofo (estilo Zelda: Link's Awakening remake / Pokémon
+    Unite). Proporção heroica-fofa (cabeça grande, corpo compacto), legível quando pequena
+    na tela, vista de cima em ângulo de jogo top-down.
+    Criatura: <b>[descreva: elemento, silhueta, cor dominante, detalhe marcante]</b>.
+    Entregue numa folha com <b>4 células EM UMA LINHA, todas na mesma escala e com bastante
+    espaço vazio entre elas</b>: 1) vista de <b>FRENTE</b> (olhando para quem vê) ·
+    2) vista de <b>COSTAS</b> · 3) vista de <b>PERFIL ESQUERDO</b> (virada para a esquerda) ·
+    4) vista de <b>PERFIL DIREITO</b> (virada para a direita). A criatura em pé/parada, a
+    mesma pose nas quatro. Fundo 100% transparente, sem chão, sem sombra projetada, sem texto.
+    <span style="color:var(--dim)">(clique para copiar)</span>
+  </div>
+  <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:12px">
+    <input type="text" id="criaNome" maxlength="18" placeholder="nome da Cria (ex.: Voltalon)"
+      style="background:#0a1322;border:1px solid var(--line);border-radius:8px;color:var(--txt);padding:8px;font-size:13px">
+    <input type="file" id="criaArq" accept="image/png,image/webp" style="display:none">
+    <button id="criaSobe">📄 Soltar a folha com as 4 vistas</button>
+    <span id="criaMsg" class="note" style="margin:0"></span>
+  </div>
+  <canvas id="criaPrev" width="880" height="200" style="width:100%;margin-top:10px;background:#0a1322;border:1px solid var(--line);border-radius:10px"></canvas>
+  <div class="note">Frente · costas · perfil esquerdo · perfil direito, do jeito que vão
+    aparecer no jogo. Publicado, a Cria fica disponível para a arena.</div>
+</div>
+
 <h2>4 · Masmorra</h2>
 <div class="card">
   <table>
@@ -708,6 +744,106 @@ if (mb) mb.appendChild(mkBtn(P_MAPA, '📋 copiar prompt do mapa'));
 
 const cr = document.getElementById('charRow');
 cr.lastElementChild.appendChild(mkBtn(P_CHAR, 'Copiar prompt'));
+</script>
+<script>
+// ── Upload de Cria para a ARENA: fatia a folha em 4 vistas e publica ───────
+(function(){
+  const SB='https://gmycqvvvglexbtbqkjzi.supabase.co', KEY='sb_publishable_N4DdqinjzjnMBWsik5qj2A_ksPBX9Av';
+  const $ = id => document.getElementById(id);
+  if (!$('criaSobe')) return;
+  let sb = null, partes = null;
+  const DIRS = ['down','up','left','right'];
+  function fingir(c){ c.naturalWidth=c.width; c.naturalHeight=c.height; c.complete=true; return c; }
+  function recorta(im){
+    const c0 = document.createElement('canvas');
+    c0.width = im.naturalWidth || im.width; c0.height = im.naturalHeight || im.height;
+    const g0 = c0.getContext('2d', { willReadFrequently: true });
+    g0.drawImage(im, 0, 0);
+    let d; try { d = g0.getImageData(0,0,c0.width,c0.height).data; } catch(e){ return null; }
+    let x0=c0.width, y0=c0.height, x1=-1, y1=-1;
+    for (let y=0;y<c0.height;y++) for (let x=0;x<c0.width;x++)
+      if (d[(y*c0.width+x)*4+3] > 8) { if(x<x0)x0=x; if(x>x1)x1=x; if(y<y0)y0=y; if(y>y1)y1=y; }
+    if (x1<x0) return null;
+    const c = document.createElement('canvas');
+    c.width=x1-x0+1; c.height=y1-y0+1;
+    c.getContext('2d').drawImage(c0, x0,y0,c.width,c.height, 0,0,c.width,c.height);
+    return fingir(c);
+  }
+  function fatia(im){
+    const c0 = document.createElement('canvas');
+    c0.width = im.naturalWidth; c0.height = im.naturalHeight;
+    const g0 = c0.getContext('2d', { willReadFrequently: true });
+    g0.drawImage(im, 0, 0);
+    let d; try { d = g0.getImageData(0,0,c0.width,c0.height).data; } catch(e){ return null; }
+    const tem = new Array(c0.width).fill(false);
+    for (let x=0;x<c0.width;x++) for (let y=0;y<c0.height;y++)
+      if (d[(y*c0.width+x)*4+3] > 8) { tem[x]=true; break; }
+    const faixas=[]; let ini=-1, vao=0;
+    for (let x=0;x<=c0.width;x++){
+      const t = x<c0.width && tem[x];
+      if (t) { if(ini<0) ini=x; vao=0; }
+      else if (ini>=0 && ++vao>4) { faixas.push([ini, x-vao]); ini=-1; }
+    }
+    if (ini>=0) faixas.push([ini, c0.width-1]);
+    const corta = (x0,x1) => {
+      const c = document.createElement('canvas');
+      c.width = x1-x0+1; c.height = c0.height;
+      c.getContext('2d').drawImage(c0, x0,0,c.width,c.height, 0,0,c.width,c.height);
+      return recorta(fingir(c));
+    };
+    if (faixas.length === 4) return faixas.map(([a,b]) => corta(a,b));
+    const q = Math.floor(c0.width/4);   // folha colada: corta em quartos iguais
+    return [corta(0,q-1), corta(q,2*q-1), corta(2*q,3*q-1), corta(3*q,c0.width-1)];
+  }
+  function desenha(){
+    const cv = $('criaPrev'); if (!cv) return;
+    const g = cv.getContext('2d');
+    g.clearRect(0,0,cv.width,cv.height);
+    if (!partes) return;
+    g.imageSmoothingEnabled = true;
+    const NOMES = ['frente','costas','perfil esq','perfil dir'];
+    partes.forEach((p, i) => {
+      if (!p) return;
+      const cx = 110 + i*220, base = 150;
+      const e = Math.min(150/p.width, 120/p.height);
+      g.drawImage(p, cx - p.width*e/2, base - p.height*e, p.width*e, p.height*e);
+      g.fillStyle = '#8ab0dd'; g.font = 'bold 12px sans-serif'; g.textAlign = 'center';
+      g.fillText(NOMES[i], cx, base + 22);
+    });
+  }
+  $('criaSobe').onclick = () => $('criaArq').click();
+  $('criaArq').onchange = e => {
+    const f = e.target.files[0]; if (!f) return;
+    const im = new Image();
+    im.onload = async () => {
+      partes = fatia(im);
+      if (!partes || partes.filter(Boolean).length < 4) {
+        $('criaMsg').textContent = 'não consegui separar as 4 vistas — confira a folha'; return;
+      }
+      desenha();
+      const nome = ($('criaNome').value || '').trim();
+      if (!nome) { $('criaMsg').textContent = 'dê um nome à Cria e escolha o arquivo de novo'; return; }
+      try {
+        if (!window.supabase) { $('criaMsg').textContent = 'biblioteca carregando — tente de novo'; return; }
+        $('criaMsg').textContent = 'publicando as 4 vistas…';
+        sb = sb || window.supabase.createClient(SB, KEY);
+        const slug = nome.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g,'').replace(/[^\w]+/g,'-');
+        for (let i = 0; i < 4; i++) {
+          const blob = await new Promise(r => partes[i].toBlob(r, 'image/png'));
+          const up = await sb.storage.from('mapas').upload('crias/' + slug + '-' + DIRS[i] + '.png', blob,
+            { upsert: true, cacheControl: '0' });
+          if (up.error) throw up.error;
+        }
+        $('criaMsg').textContent = '✅ "' + nome + '" publicada (' + slug + ') — pronta para a arena';
+      } catch(err){ $('criaMsg').textContent = 'erro: ' + (err.message || err); }
+    };
+    im.src = URL.createObjectURL(f);
+  };
+  const cp = $('criaPrompt');
+  if (cp) cp.onclick = () => navigator.clipboard
+    .writeText(cp.innerText.replace(/\(clique para copiar\)/,'').trim())
+    .then(()=> { cp.style.borderLeftColor='var(--ok)'; setTimeout(()=>cp.style.borderLeftColor='',900); });
+})();
 </script>
 <script>
 // ── Upload de NPC: recorta no conteúdo e publica no storage; o jogo procura
