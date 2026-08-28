@@ -8755,8 +8755,11 @@ function _montaFramesCombo(comboId) {
         const x = ancE.cx - wCh / 2 - ancE.larg * (cfg.dx || 0);
         const y = ancE.topo - hCh * (1 - cfg.dy) + DESL;
         g.imageSmoothingEnabled = true;
-        if (chapeu.ladoDir) {
-          // arte própria do perfil direito: pré-espelha para o trim desfazer
+        // O recorte deste quadro espelha tudo. Para o chapéu sair IGUAL ao do
+        // quadro right-0, pré-espelha aqui — menos no único caso em que o
+        // espelho é proposital (só existe a arte do perfil esquerdo).
+        const espelhoProposital = !chapeu.ladoDir && !!chapeu.lado;
+        if (!espelhoProposital) {
           g.save();
           g.translate(ancE.cx, 0); g.scale(-1, 1); g.translate(-ancE.cx, 0);
           g.drawImage(imCh, x, y, wCh, hCh);
