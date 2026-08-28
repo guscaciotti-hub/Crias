@@ -145,6 +145,7 @@ window.LimpaFundo = function (img) {
   <div style="display:flex;gap:6px;margin:12px 0 8px" id="atPassos">
     <button class="ghost" data-p="1" style="flex:1">1 · Retrato</button>
     <button class="ghost" data-p="2" style="flex:1">2 · Sprite da arena</button>
+    <button class="ghost" data-p="3" style="flex:1">3 · Modelo 3D</button>
   </div>
 
   <div id="atPasso1">
@@ -168,6 +169,21 @@ window.LimpaFundo = function (img) {
     <canvas id="atPrev2" width="880" height="190" style="width:100%;margin-top:10px;background:#0a1322;border:1px solid var(--line);border-radius:10px"></canvas>
     <div class="note">Frente · costas · perfil esquerdo · perfil direito — é o que faz a Cria
       andar na arena. O painel fatia a folha sozinho.</div>
+  </div>
+
+  <div id="atPasso3" style="display:none">
+    <div class="q" id="atPrompt3" style="cursor:pointer" title="clique para copiar"></div>
+    <div class="note" style="margin-top:8px">
+      Com a imagem do <b>passo 1</b> em mãos, gere o modelo em
+      <a href="https://huggingface.co/spaces/tencent/Hunyuan3D-2" target="_blank">Hunyuan3D</a> ou
+      <a href="https://www.meshy.ai" target="_blank">Meshy</a> e baixe o <b>.glb</b>.
+      É opcional — a arena funciona com os sprites do passo 2. Serve para testar a batalha em 3D.
+    </div>
+    <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:10px">
+      <input type="file" id="atArq3" accept=".glb,model/gltf-binary" style="display:none">
+      <button id="atSobe3">🧊 Soltar o .glb e publicar</button>
+      <span id="atMsg3" class="note" style="margin:0"></span>
+    </div>
   </div>
 
   <div style="margin-top:14px;border-top:1px solid var(--line);padding-top:10px">
@@ -909,12 +925,19 @@ cr.lastElementChild.appendChild(mkBtn(P_CHAR, 'Copiar prompt'));
       '(virada para a direita). A mesma pose parada nas quatro. ' +
       'Fundo 100% transparente, sem chão, sem sombra projetada, sem texto. ' +
       '<span style="color:var(--dim)">(clique para copiar)</span>';
+    $('atPrompt3').innerHTML =
+      'Modelo 3D de criatura para jogo, a partir da imagem anexada (o retrato do passo 1). ' +
+      'Mantenha a silhueta, as cores e a proporção heroica-fofa. Malha limpa e fechada, ' +
+      'pose neutra em pé, olhando para a frente, base nos pés no nível do chão, ' +
+      'escala coerente (cerca de 1 unidade de altura). Exporte em <b>.glb</b>. ' +
+      'Criatura: <b>' + descricao(atual) + '</b>' +
+      '<span style="color:var(--dim)"> (clique para copiar)</span>';
     $('atPrev1').style.display = 'none';
-    $('atMsg1').textContent = ''; $('atMsg2').textContent = '';
+    $('atMsg1').textContent = ''; $('atMsg2').textContent = ''; $('atMsg3').textContent = '';
     partes = null; desenha2();
   }
   $('atCria').onchange = atualiza;
-  for (const pid of ['atPrompt1','atPrompt2']) {
+  for (const pid of ['atPrompt1','atPrompt2','atPrompt3']) {
     const el = $(pid);
     el.onclick = () => navigator.clipboard.writeText(el.innerText.replace(/\(clique para copiar\)/,'').trim())
       .then(()=> { el.style.borderLeftColor='var(--ok)'; setTimeout(()=>el.style.borderLeftColor='',900); });
@@ -923,6 +946,7 @@ cr.lastElementChild.appendChild(mkBtn(P_CHAR, 'Copiar prompt'));
     const p = b.dataset.p;
     $('atPasso1').style.display = p === '1' ? '' : 'none';
     $('atPasso2').style.display = p === '2' ? '' : 'none';
+    $('atPasso3').style.display = p === '3' ? '' : 'none';
     document.querySelectorAll('#atPassos button').forEach(x => {
       const on = x === b;
       x.style.borderColor = on ? 'var(--acc)' : '';
@@ -1031,6 +1055,20 @@ cr.lastElementChild.appendChild(mkBtn(P_CHAR, 'Copiar prompt'));
     };
     im.src = URL.createObjectURL(f);
   };
+  $('atSobe3').onclick = () => $('atArq3').click();
+  $('atArq3').onchange = async e => {
+    const f = e.target.files[0]; if (!f) return;
+    try {
+      if (!window.supabase) { $('atMsg3').textContent = 'biblioteca carregando — tente de novo'; return; }
+      $('atMsg3').textContent = 'enviando o modelo (' + Math.round(f.size/1024) + ' KB)…';
+      sb = sb || window.supabase.createClient(SB, KEY);
+      const up = await sb.storage.from('mapas').upload('crias/' + atual.id + '.glb', f,
+        { upsert: true, cacheControl: '0', contentType: 'model/gltf-binary' });
+      if (up.error) throw up.error;
+      $('atMsg3').textContent = '✅ modelo de ' + atual.name + ' publicado — a arena usa 3D quando existir';
+    } catch(err){ $('atMsg3').textContent = 'erro: ' + (err.message || err); }
+  };
+
   function lista(){
     const base = SB + '/storage/v1/object/public/mapas/crias/';
     $('atLista').innerHTML = CRIAS.map(c =>

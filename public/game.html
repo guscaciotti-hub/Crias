@@ -689,7 +689,15 @@
   /* ── ARENA AO VIVO (batalha em tempo real da caverna) ── */
   #arena { position: fixed; inset: 0; z-index: 60; display: none; touch-action: none; }
   #arena.on { display: block; }
-  #arenaCv { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
+  #arenaCv { position: absolute; inset: 0; width: 100%; height: 100%; display: block; background: transparent; }
+
+  #arenaBg { position: absolute; inset: 0; width: 100%; height: 100%; display: block; z-index: 0; }
+  #arena3d { position: absolute; inset: 0; z-index: 1; pointer-events: none; }
+  #arena3d model-viewer {
+    position: absolute; pointer-events: none;
+    --poster-color: transparent; background: transparent;
+  }
+  #arenaCv { z-index: 2; }
   #arenaJoy {
     position: absolute; left: 0; bottom: 0; width: 45%; height: 55%;
     display: flex; align-items: center; justify-content: center;
@@ -11517,7 +11525,80 @@ const ARENA = (function () {
   };
   let efeitos = [];                          // golpes especiais tocando agora
 
-  let ativo = false, cv, ctx, raf = 0, ultimo = 0;
+  // ── Camada 3D opcional ────────────────────────────────────────────────
+  // Se a Cria tiver um .glb publicado, ela entra na arena como MODELO 3D em
+  // vez de sprite. A lógica (posição, tiro, colisão) não muda em nada: o 3D
+  // é só a aparência, posicionada onde a lógica 2D manda. Sem .glb, segue
+  // tudo como está hoje.
+  const NUVEM_CRIA = 'https://gmycqvvvglexbtbqkjzi.supabase.co/storage/v1/object/public/mapas/crias/';
+  let camada3D = null, mvCarregado = false;
+  const _glbTem = {};
+  function temGlb(species) {
+    if (!(species in _glbTem)) {
+      _glbTem[species] = 'buscando';
+      fetch(NUVEM_CRIA + species + '.glb', { method: 'HEAD' })
+        .then(r => { _glbTem[species] = r.ok; })
+        .catch(() => { _glbTem[species] = false; });
+    }
+    return _glbTem[species] === true;
+  }
+  function carregaMV() {
+    if (mvCarregado) return;
+    mvCarregado = true;
+    const s = document.createElement('script');
+    s.type = 'module'; s.src = '/model-viewer.min.js';
+    document.head.appendChild(s);
+  }
+  function criaMV(l) {
+    const mv = document.createElement('model-viewer');
+    mv.className = 'arena3d';
+    mv.setAttribute('src', NUVEM_CRIA + l.species + '.glb');
+    mv.setAttribute('camera-orbit', '0deg 68deg 2.6m');
+    mv.setAttribute('field-of-view', '32deg');
+    mv.setAttribute('disable-zoom', '');
+    mv.setAttribute('interaction-prompt', 'none');
+    mv.setAttribute('environment-image', 'neutral');
+    mv.setAttribute('exposure', '1.15');
+    mv.setAttribute('shadow-intensity', '0');
+    return mv;
+  }
+  function prepara3D() {
+    camada3D = null;
+    const usa = temGlb(heroi.species) || temGlb(vilao.species);
+    if (!usa) return;
+    carregaMV();
+    const cx = document.getElementById('arena3d');
+    if (!cx) return;
+    cx.innerHTML = '';
+    camada3D = {};
+    for (const l of [heroi, vilao]) {
+      if (!temGlb(l.species)) continue;
+      const mv = criaMV(l);
+      cx.appendChild(mv);
+      camada3D[l.dono] = mv;
+    }
+    if (!Object.keys(camada3D).length) camada3D = null;
+  }
+  function posiciona3D(esc) {
+    if (!camada3D || !cv) return;
+    const rect = cv.getBoundingClientRect();
+    for (const dono in camada3D) {
+      const l = dono === 'heroi' ? heroi : vilao;
+      const mv = camada3D[dono];
+      const px = rect.width / 2 + l.x * esc, py = rect.height / 2 + l.y * esc;
+      const L = 150 * esc / (Math.min(window.innerWidth, window.innerHeight) / 620);
+      mv.style.width = mv.style.height = Math.round(L * 1.6) + 'px';
+      mv.style.left = Math.round(px - L * 0.8) + 'px';
+      mv.style.top = Math.round(py - L * 1.15) + 'px';
+      mv.style.display = l.vivo ? 'block' : 'none';
+      mv.style.opacity = l.piscar > 0 ? 0.5 : 1;
+      // a criatura vira para onde anda
+      const gr = { down: 0, left: 90, up: 180, right: 270 }[l.dir] || 0;
+      mv.setAttribute('camera-orbit', gr + 'deg 68deg 2.6m');
+    }
+  }
+
+  let ativo = false, cv, ctx, bg, bgx, raf = 0, ultimo = 0;
   let heroi, vilao, tiros, faiscas, fim, aoFechar;
   let joy = { ativo: false, dx: 0, dy: 0, id: null };
   const teclas = {};
@@ -11544,7 +11625,9 @@ const ARENA = (function () {
     vilao.dano = 6 + Math.floor((nivel || 3) * 0.8);
     tiros = []; faiscas = []; efeitos = []; fim = null;
     arte('palco');                          // pede o cenário já na abertura
+    temGlb(heroi.species); temGlb(vilao.species);
     montaTela();
+    setTimeout(prepara3D, 260);            // dá tempo da consulta ao .glb voltar
     ultimo = performance.now();
     raf = requestAnimationFrame(passo);
     if (FX && FX.sfx && FX.sfx.encounter) FX.sfx.encounter();
@@ -11556,6 +11639,8 @@ const ARENA = (function () {
       el = document.createElement('div');
       el.id = 'arena';
       el.innerHTML =
+        '<canvas id="arenaBg"></canvas>' +
+        '<div id="arena3d"></div>' +
         '<canvas id="arenaCv"></canvas>' +
         '<div id="arenaJoy"><div class="ajBase"></div><div class="ajNub"></div></div>' +
         '<div id="arenaBtns">' +
@@ -11567,11 +11652,15 @@ const ARENA = (function () {
       document.body.appendChild(el);
       cv = document.getElementById('arenaCv');
       ctx = cv.getContext('2d');
+      bg = document.getElementById('arenaBg');
+      bgx = bg.getContext('2d');
       ligaControles(el);
     }
     el.classList.add('on');
     cv = document.getElementById('arenaCv');
     ctx = cv.getContext('2d');
+    bg = document.getElementById('arenaBg');
+    bgx = bg.getContext('2d');
     document.getElementById('arenaFim').textContent = '';
     document.getElementById('arenaFim').classList.remove('on');
     ajustaTela();
@@ -11582,10 +11671,13 @@ const ARENA = (function () {
   function ajustaTela() {
     if (!cv) return;
     const dpr = Math.min(2, window.devicePixelRatio || 1);
-    cv.width = Math.round(window.innerWidth * dpr);
-    cv.height = Math.round(window.innerHeight * dpr);
-    cv.style.width = window.innerWidth + 'px';
-    cv.style.height = window.innerHeight + 'px';
+    for (const c of [cv, bg]) {
+      if (!c) continue;
+      c.width = Math.round(window.innerWidth * dpr);
+      c.height = Math.round(window.innerHeight * dpr);
+      c.style.width = window.innerWidth + 'px';
+      c.style.height = window.innerHeight + 'px';
+    }
   }
 
   function ligaControles(el) {
@@ -11812,6 +11904,9 @@ const ARENA = (function () {
     cancelAnimationFrame(raf);
     const el = document.getElementById('arena');
     if (el) el.classList.remove('on');
+    const c3 = document.getElementById('arena3d');
+    if (c3) c3.innerHTML = '';
+    camada3D = null;
     placar = { heroi: 0, vilao: 0 };
     if (aoFechar) { const cb = aoFechar; aoFechar = null; cb(venceu); }
   }
@@ -11821,27 +11916,32 @@ const ARENA = (function () {
     const w = cv.width, h = cv.height;
     const dpr = Math.min(2, window.devicePixelRatio || 1);
     const esc = Math.min(w / (R * 2.5), h / (R * 2.5));
-    ctx.setTransform(1, 0, 0, 1, 0, 0);
-    ctx.clearRect(0, 0, w, h);
-    const g = ctx.createRadialGradient(w / 2, h / 2, 40, w / 2, h / 2, Math.max(w, h) * 0.7);
+    // ── fundo (fica ATRÁS dos modelos 3D) ──
+    bgx.setTransform(1, 0, 0, 1, 0, 0);
+    const g = bgx.createRadialGradient(w / 2, h / 2, 40, w / 2, h / 2, Math.max(w, h) * 0.7);
     g.addColorStop(0, '#16233d'); g.addColorStop(1, '#070b16');
-    ctx.fillStyle = g; ctx.fillRect(0, 0, w, h);
-    ctx.save();
-    ctx.translate(w / 2, h / 2);
-    ctx.scale(esc, esc);
-    // piso da arena: usa o cenário publicado quando existe
+    bgx.fillStyle = g; bgx.fillRect(0, 0, w, h);
+    bgx.save();
+    bgx.translate(w / 2, h / 2); bgx.scale(esc, esc);
     const palco = arte('palco');
     if (palco) {
       const L = R * 2.9;
-      ctx.imageSmoothingEnabled = true;
-      ctx.drawImage(palco, -L / 2, -L / 2, L, L);
+      bgx.imageSmoothingEnabled = true;
+      bgx.drawImage(palco, -L / 2, -L / 2, L, L);
     } else {
-      ctx.beginPath(); ctx.arc(0, 0, R, 0, 6.283);
-      ctx.fillStyle = 'rgba(30,52,86,.65)'; ctx.fill();
-      ctx.lineWidth = 4; ctx.strokeStyle = 'rgba(77,195,255,.55)'; ctx.stroke();
-      ctx.beginPath(); ctx.arc(0, 0, R * 0.55, 0, 6.283);
-      ctx.strokeStyle = 'rgba(77,195,255,.18)'; ctx.lineWidth = 2; ctx.stroke();
+      bgx.beginPath(); bgx.arc(0, 0, R, 0, 6.283);
+      bgx.fillStyle = 'rgba(30,52,86,.65)'; bgx.fill();
+      bgx.lineWidth = 4; bgx.strokeStyle = 'rgba(77,195,255,.55)'; bgx.stroke();
+      bgx.beginPath(); bgx.arc(0, 0, R * 0.55, 0, 6.283);
+      bgx.strokeStyle = 'rgba(77,195,255,.18)'; bgx.lineWidth = 2; bgx.stroke();
     }
+    bgx.restore();
+    // ── frente (tiros, criaturas 2D, efeitos, HUD) ──
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
+    ctx.clearRect(0, 0, w, h);
+    ctx.save();
+    ctx.translate(w / 2, h / 2);
+    ctx.scale(esc, esc);
     for (const f of faiscas) {
       ctx.globalAlpha = Math.max(0, f.vida * 2);
       ctx.fillStyle = f.cor;
@@ -11853,7 +11953,8 @@ const ARENA = (function () {
       ctx.fillStyle = p.cor; ctx.shadowColor = p.cor; ctx.shadowBlur = 12;
       ctx.fill(); ctx.shadowBlur = 0;
     }
-    for (const l of [vilao, heroi]) desenhaLutador(l, t);
+    for (const l of [vilao, heroi]) desenhaLutador(l, t, !!(camada3D && camada3D[l.dono]));
+    posiciona3D(esc);
     for (const ef of efeitos) {
       const q = ef.fs[Math.min(ef.i, ef.fs.length - 1)];
       if (!q) continue;
@@ -11873,7 +11974,7 @@ const ARENA = (function () {
     ctx.fillText('primeiro a ' + ABATES_VIT, w / 2, 52 * dpr);
   }
 
-  function desenhaLutador(l, t) {
+  function desenhaLutador(l, t, em3D) {
     if (!l.vivo) {
       const falta = Math.max(0, (l.respawn - t) / 1000);
       ctx.globalAlpha = 0.35;
@@ -11890,7 +11991,9 @@ const ARENA = (function () {
     ctx.beginPath();
     ctx.ellipse(l.x, l.y + H * 0.42, 17, 5, 0, 0, 6.283);
     ctx.fillStyle = 'rgba(0,0,0,.4)'; ctx.fill();
-    if (im) {
+    if (em3D) {
+      // o modelo 3D é desenhado pela camada de trás; aqui fica só a sombra
+    } else if (im) {
       ctx.imageSmoothingEnabled = true;
       ctx.drawImage(im, l.x - W / 2, l.y - H / 2 + bob, W, H);
     } else {
