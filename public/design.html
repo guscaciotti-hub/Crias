@@ -129,46 +129,51 @@ window.LimpaFundo = function (img) {
   <div class="note">Fragmentos vêm só da masmorra. O NPC troca fragmentos por orbes — não vende mais nada.</div>
 </div>
 
-<h2>3 · Crias do MVP (12)</h2>
-<div class="card">
-  <table id="mons"><tr><th>Cria</th><th>Elemento</th><th>Raridade</th><th>Arte</th><th></th></tr></table>
-  <div class="note">6 comuns · 4 raras · 2 lendárias. Cada uma precisa de 1 imagem (botão copia o prompt pronto).</div>
-</div>
-
-<h2>3.5 · Crias — arte de ARENA (4 vistas, 3D)</h2>
+<h2>3 · Crias — ateliê (do prompt ao jogo)</h2>
 <div class="card" style="border-color:var(--gold)">
-  <div style="font-size:13px;margin-bottom:8px;line-height:1.7">
-    A arte da seção 3 é <b>pixel art de uma pose só</b> — serve para o retrato e a batalha
-    antiga. Para a <b>arena em tempo real</b> (a Cria andando e atacando) é preciso outra
-    coisa: <b>4 vistas em render 3D</b>, no mesmo estilo do mapa. É o padrão que o Ignivar
-    já usa. Uma folha, o painel fatia e publica.
+  <div style="font-size:13px;margin-bottom:10px;line-height:1.7">
+    Tudo de uma Cria acontece aqui: escolhe a Cria, copia o prompt já escrito para ela,
+    gera no GPT, solta o arquivo e publica. <b>São duas artes por Cria</b> — o retrato
+    (ficha e batalha antiga) e a folha de 4 vistas (a Cria andando na arena).
   </div>
-  <div class="q" id="criaPrompt" style="cursor:pointer" title="clique para copiar">
-    Crie uma criatura original para um jogo de coleta de criaturas, em <b>RENDER 3D
-    ESTILIZADO de jogo moderno</b> — volumétrica de verdade, materiais ricos (pelo, escama,
-    metal, cristal translúcido), cores vibrantes e saturadas, acabamento caprichado e
-    aconchegante, iluminação cinematográfica suave vinda da esquerda-cima. <b>NÃO é pixel
-    art.</b> Estética de jogo AAA fofo (estilo Zelda: Link's Awakening remake / Pokémon
-    Unite). Proporção heroica-fofa (cabeça grande, corpo compacto), legível quando pequena
-    na tela, vista de cima em ângulo de jogo top-down.
-    Criatura: <b>[descreva: elemento, silhueta, cor dominante, detalhe marcante]</b>.
-    Entregue numa folha com <b>4 células EM UMA LINHA, todas na mesma escala e com bastante
-    espaço vazio entre elas</b>: 1) vista de <b>FRENTE</b> (olhando para quem vê) ·
-    2) vista de <b>COSTAS</b> · 3) vista de <b>PERFIL ESQUERDO</b> (virada para a esquerda) ·
-    4) vista de <b>PERFIL DIREITO</b> (virada para a direita). A criatura em pé/parada, a
-    mesma pose nas quatro. Fundo 100% transparente, sem chão, sem sombra projetada, sem texto.
-    <span style="color:var(--dim)">(clique para copiar)</span>
+
+  <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:4px">
+    <select id="atCria" style="background:#0a1322;border:1px solid var(--line);border-radius:8px;color:var(--txt);padding:9px;font-size:14px;font-weight:700"></select>
+    <span id="atInfo" class="note" style="margin:0"></span>
   </div>
-  <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:12px">
-    <input type="text" id="criaNome" maxlength="18" placeholder="nome da Cria (ex.: Voltalon)"
-      style="background:#0a1322;border:1px solid var(--line);border-radius:8px;color:var(--txt);padding:8px;font-size:13px">
-    <input type="file" id="criaArq" accept="image/png,image/webp" style="display:none">
-    <button id="criaSobe">📄 Soltar a folha com as 4 vistas</button>
-    <span id="criaMsg" class="note" style="margin:0"></span>
+
+  <div style="display:flex;gap:6px;margin:12px 0 8px" id="atPassos">
+    <button class="ghost" data-p="1" style="flex:1">1 · Retrato</button>
+    <button class="ghost" data-p="2" style="flex:1">2 · Sprite da arena</button>
   </div>
-  <canvas id="criaPrev" width="880" height="200" style="width:100%;margin-top:10px;background:#0a1322;border:1px solid var(--line);border-radius:10px"></canvas>
-  <div class="note">Frente · costas · perfil esquerdo · perfil direito, do jeito que vão
-    aparecer no jogo. Publicado, a Cria fica disponível para a arena.</div>
+
+  <div id="atPasso1">
+    <div class="q" id="atPrompt1" style="cursor:pointer" title="clique para copiar"></div>
+    <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:10px">
+      <input type="file" id="atArq1" accept="image/png,image/webp" style="display:none">
+      <button id="atSobe1">🖼️ Soltar o retrato e publicar</button>
+      <img id="atPrev1" style="height:80px;display:none;border:1px solid var(--line);border-radius:8px">
+      <span id="atMsg1" class="note" style="margin:0"></span>
+    </div>
+    <div class="note">Uma imagem só, a Cria inteira. Fundo transparente ou verde — o painel limpa.</div>
+  </div>
+
+  <div id="atPasso2" style="display:none">
+    <div class="q" id="atPrompt2" style="cursor:pointer" title="clique para copiar"></div>
+    <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:10px">
+      <input type="file" id="atArq2" accept="image/png,image/webp" style="display:none">
+      <button id="atSobe2">📄 Soltar a folha de 4 vistas e publicar</button>
+      <span id="atMsg2" class="note" style="margin:0"></span>
+    </div>
+    <canvas id="atPrev2" width="880" height="190" style="width:100%;margin-top:10px;background:#0a1322;border:1px solid var(--line);border-radius:10px"></canvas>
+    <div class="note">Frente · costas · perfil esquerdo · perfil direito — é o que faz a Cria
+      andar na arena. O painel fatia a folha sozinho.</div>
+  </div>
+
+  <div style="margin-top:14px;border-top:1px solid var(--line);padding-top:10px">
+    <div style="font-size:12px;font-weight:800;color:var(--gold);margin-bottom:6px">Situação das 12 Crias</div>
+    <div id="atLista" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:6px;font-size:12px"></div>
+  </div>
 </div>
 
 <h2>4 · Masmorra</h2>
@@ -725,7 +730,7 @@ function mkBtn(texto, label) {
 }
 
 const tb = document.getElementById('mons');
-CRIAS.forEach(([nome, el, rar, st, desc]) => {
+if (tb) CRIAS.forEach(([nome, el, rar, st, desc]) => {
   const tr = document.createElement('tr');
   const [rl, rc] = RLBL[rar];
   tr.innerHTML = '<td><b>' + nome + '</b></td><td>' + el + '</td>' +
@@ -799,14 +804,69 @@ if (mb) mb.appendChild(mkBtn(P_MAPA, '📋 copiar prompt do mapa'));
 const cr = document.getElementById('charRow');
 cr.lastElementChild.appendChild(mkBtn(P_CHAR, 'Copiar prompt'));
 </script>
+
 <script>
-// ── Upload de Cria para a ARENA: fatia a folha em 4 vistas e publica ───────
+// ── Ateliê de Crias: prompt, upload e publicação num fluxo só ─────────────
 (function(){
   const SB='https://gmycqvvvglexbtbqkjzi.supabase.co', KEY='sb_publishable_N4DdqinjzjnMBWsik5qj2A_ksPBX9Av';
   const $ = id => document.getElementById(id);
-  if (!$('criaSobe')) return;
-  let sb = null, partes = null;
+  if (!$('atCria')) return;
+  const CRIAS = [{"id": "aerix", "name": "Aerix", "species": "Drake Aéreo", "el": "Ar", "cor": "#4dc3ff", "rar": "common", "lore": "Pequeno drake aéreo. Sua velocidade beira o impossível, deslizando como névoa entre as nuvens."}, {"id": "voltalon", "name": "Voltalon", "species": "Falcão Elétrico", "el": "Elétrico", "cor": "#ffd700", "rar": "common", "lore": "Falcão coberto de raios. Atravessa os céus deixando rastros dourados que crepitam por minutos."}, {"id": "ignivar", "name": "Ignivar", "species": "Lobo Vulcânico", "el": "Fogo", "cor": "#ff6b35", "rar": "common", "lore": "Lobo nascido de cinzas vulcânicas. Seu corpo arde mesmo no inverno mais profundo."}, {"id": "aquafy", "name": "Aquafy", "species": "Espírito Aquático", "el": "Água", "cor": "#2a9fd9", "rar": "common", "lore": "Criatura aquática luminosa. Brilha mesmo em profundezas onde nenhum raio de sol alcança."}, {"id": "terron", "name": "Terron", "species": "Golem Ancestral", "el": "Terra", "cor": "#8b6b3a", "rar": "common", "lore": "Golem colossal de pedra viva. Andava nas terras antes dos primeiros humanos despertarem."}, {"id": "shadowyn", "name": "Shadowyn", "species": "Espectro das Sombras", "el": "Sombra", "cor": "#8b5cf6", "rar": "common", "lore": "Criatura etérea nascida nas trevas absolutas da Caverna Sombria. Seus olhos brilham com luz roxa."}, {"id": "cragmite", "name": "Cragmite", "species": "Criatura Subterrânea", "el": "Terra/Sombra", "cor": "#7c5c8a", "rar": "common", "lore": "Criatura territorial das profundezas. Seu corpo de pedra rachada abriga cristais roxos que emanam energia sombria."}, {"id": "florax", "name": "Florax", "species": "Guardião da Floresta", "el": "Natureza", "cor": "#4ade80", "rar": "common", "lore": "Espírito vegetal ancestral. Suas raízes absorvem energia da terra e a transformam em força vital pura."}, {"id": "glacius", "name": "Glacius", "species": "Espírito do Gelo", "el": "Gelo", "cor": "#93c5fd", "rar": "common", "lore": "Criatura formada nas geleiras eternas. Cada toque congela o ar ao redor por metros."}, {"id": "ferrus", "name": "Ferrus", "species": "Golem de Ferro", "el": "Metal", "cor": "#94a3b8", "rar": "common", "lore": "Construto de metal vivo forjado nas profundezas por pressão extrema durante eras."}, {"id": "psychon", "name": "Psychon", "species": "Mente Etérea", "el": "Psíquico", "cor": "#e879f9", "rar": "common", "lore": "Ser de energia psíquica pura. Consegue ler pensamentos e manipular matéria com a mente."}, {"id": "luminos", "name": "Luminos", "species": "Guardião da Luz", "el": "Luz", "cor": "#fef08a", "rar": "uncommon", "lore": "Ser feito de luz pura. Seu brilho pode cegar inimigos e seu calor cura aliados."}, {"id": "toxyl", "name": "Toxyl", "species": "Besta Venenosa", "el": "Veneno", "cor": "#a3e635", "rar": "common", "lore": "Serpente venenosa das regiões pantanosas. Seu veneno dissolve pedra em segundos."}, {"id": "tempestix", "name": "Tempestix", "species": "Raptor da Tormenta", "el": "Elétrico", "cor": "#818cf8", "rar": "uncommon", "lore": "Ave que habita o olho do furacão. Velocidade inigualável e relâmpagos que partem do bico."}, {"id": "drakon", "name": "Drakon", "species": "Dragão Primordial", "el": "Fogo", "cor": "#f97316", "rar": "rare", "lore": "Dragão ancião das Ruínas. Seu rugido estilhaça rochas e seu fogo derrete qualquer armadura."}];
   const DIRS = ['down','up','left','right'];
+  const ESTILO_3D = 'RENDER 3D ESTILIZADO de jogo moderno — volumétrica de verdade, ' +
+    'materiais ricos (pelo, escama, metal, cristal translúcido), cores vibrantes e saturadas, ' +
+    'acabamento caprichado, iluminação cinematográfica suave vinda da esquerda-cima. NÃO é pixel art. ' +
+    'Estética de jogo AAA fofo (Zelda: Link\'s Awakening remake / Pokémon Unite). ' +
+    'Proporção heroica-fofa (cabeça grande, corpo compacto), legível quando pequena na tela.';
+  let sb = null, atual = CRIAS[0], partes = null;
+
+  function opcoes(){
+    $('atCria').innerHTML = CRIAS.map((c,i) =>
+      '<option value="'+i+'">'+c.name+' — '+c.el+'</option>').join('');
+  }
+  function descricao(c){
+    return c.name + ', ' + c.species.toLowerCase() + ' do elemento ' + c.el +
+      ', cor dominante ' + c.cor + '. ' + c.lore;
+  }
+  function atualiza(){
+    atual = CRIAS[+$('atCria').value] || CRIAS[0];
+    $('atInfo').textContent = atual.species + ' · ' + atual.el + ' · ' + atual.rar;
+    $('atPrompt1').innerHTML =
+      'Arte de criatura para um jogo de coleta de criaturas, em <b>' + ESTILO_3D + '</b> ' +
+      'Pose de batalha de corpo inteiro, vista 3/4, encarando levemente para a direita, centralizada, ' +
+      'ocupando ~85% do quadro. Criatura: <b>' + descricao(atual) + '</b> ' +
+      'Fundo 100% transparente, sem chão, sem sombra projetada, sem texto. ' +
+      '<span style="color:var(--dim)">(clique para copiar)</span>';
+    $('atPrompt2').innerHTML =
+      'Criatura para um jogo de coleta de criaturas, em <b>' + ESTILO_3D + '</b> ' +
+      'Vista de cima em ângulo de jogo top-down. Criatura: <b>' + descricao(atual) + '</b> ' +
+      'Entregue numa folha com <b>4 células EM UMA LINHA, todas na mesma escala e com bastante ' +
+      'espaço vazio entre elas</b>: 1) de <b>FRENTE</b> (olhando para quem vê) · 2) de <b>COSTAS</b> · ' +
+      '3) de <b>PERFIL ESQUERDO</b> (virada para a esquerda) · 4) de <b>PERFIL DIREITO</b> ' +
+      '(virada para a direita). A mesma pose parada nas quatro. ' +
+      'Fundo 100% transparente, sem chão, sem sombra projetada, sem texto. ' +
+      '<span style="color:var(--dim)">(clique para copiar)</span>';
+    $('atPrev1').style.display = 'none';
+    $('atMsg1').textContent = ''; $('atMsg2').textContent = '';
+    partes = null; desenha2();
+  }
+  $('atCria').onchange = atualiza;
+  for (const pid of ['atPrompt1','atPrompt2']) {
+    const el = $(pid);
+    el.onclick = () => navigator.clipboard.writeText(el.innerText.replace(/\(clique para copiar\)/,'').trim())
+      .then(()=> { el.style.borderLeftColor='var(--ok)'; setTimeout(()=>el.style.borderLeftColor='',900); });
+  }
+  document.querySelectorAll('#atPassos button').forEach(b => b.onclick = () => {
+    const p = b.dataset.p;
+    $('atPasso1').style.display = p === '1' ? '' : 'none';
+    $('atPasso2').style.display = p === '2' ? '' : 'none';
+    document.querySelectorAll('#atPassos button').forEach(x => {
+      const on = x === b;
+      x.style.borderColor = on ? 'var(--acc)' : '';
+      x.style.color = on ? 'var(--acc)' : '';
+    });
+  });
+
   function fingir(c){ c.naturalWidth=c.width; c.naturalHeight=c.height; c.complete=true; return c; }
   function recorta(im){
     const c0 = document.createElement('canvas');
@@ -839,66 +899,88 @@ cr.lastElementChild.appendChild(mkBtn(P_CHAR, 'Copiar prompt'));
       else if (ini>=0 && ++vao>4) { faixas.push([ini, x-vao]); ini=-1; }
     }
     if (ini>=0) faixas.push([ini, c0.width-1]);
-    const corta = (x0,x1) => {
+    const corta = (a,b) => {
       const c = document.createElement('canvas');
-      c.width = x1-x0+1; c.height = c0.height;
-      c.getContext('2d').drawImage(c0, x0,0,c.width,c.height, 0,0,c.width,c.height);
+      c.width=b-a+1; c.height=c0.height;
+      c.getContext('2d').drawImage(c0, a,0,c.width,c.height, 0,0,c.width,c.height);
       return recorta(fingir(c));
     };
     if (faixas.length === 4) return faixas.map(([a,b]) => corta(a,b));
-    const q = Math.floor(c0.width/4);   // folha colada: corta em quartos iguais
+    const q = Math.floor(c0.width/4);
     return [corta(0,q-1), corta(q,2*q-1), corta(2*q,3*q-1), corta(3*q,c0.width-1)];
   }
-  function desenha(){
-    const cv = $('criaPrev'); if (!cv) return;
+  function desenha2(){
+    const cv = $('atPrev2'); if (!cv) return;
     const g = cv.getContext('2d');
     g.clearRect(0,0,cv.width,cv.height);
     if (!partes) return;
     g.imageSmoothingEnabled = true;
     const NOMES = ['frente','costas','perfil esq','perfil dir'];
-    partes.forEach((p, i) => {
+    partes.forEach((p,i) => {
       if (!p) return;
-      const cx = 110 + i*220, base = 150;
-      const e = Math.min(150/p.width, 120/p.height);
+      const cx = 110 + i*220, base = 145;
+      const e = Math.min(150/p.width, 115/p.height);
       g.drawImage(p, cx - p.width*e/2, base - p.height*e, p.width*e, p.height*e);
-      g.fillStyle = '#8ab0dd'; g.font = 'bold 12px sans-serif'; g.textAlign = 'center';
-      g.fillText(NOMES[i], cx, base + 22);
+      g.fillStyle='#8ab0dd'; g.font='bold 12px sans-serif'; g.textAlign='center';
+      g.fillText(NOMES[i], cx, base+20);
     });
   }
-  $('criaSobe').onclick = () => $('criaArq').click();
-  $('criaArq').onchange = e => {
+  async function sobe(cv, caminho){
+    if (!window.supabase) throw new Error('biblioteca carregando — tente de novo');
+    sb = sb || window.supabase.createClient(SB, KEY);
+    const blob = await new Promise(r => cv.toBlob(r, 'image/png'));
+    const up = await sb.storage.from('mapas').upload(caminho, blob, { upsert:true, cacheControl:'0' });
+    if (up.error) throw up.error;
+  }
+  $('atSobe1').onclick = () => $('atArq1').click();
+  $('atArq1').onchange = e => {
+    const f = e.target.files[0]; if (!f) return;
+    const im = new Image();
+    im.onload = async () => {
+      const c = recorta(window.LimpaFundo ? window.LimpaFundo(im) : im);
+      if (!c) { $('atMsg1').textContent = 'imagem vazia'; return; }
+      $('atPrev1').src = c.toDataURL('image/png'); $('atPrev1').style.display = '';
+      try {
+        $('atMsg1').textContent = 'publicando…';
+        await sobe(c, 'crias/' + atual.id + '-retrato.png');
+        $('atMsg1').textContent = '✅ retrato de ' + atual.name + ' publicado';
+        lista();
+      } catch(err){ $('atMsg1').textContent = 'erro: ' + (err.message || err); }
+    };
+    im.src = URL.createObjectURL(f);
+  };
+  $('atSobe2').onclick = () => $('atArq2').click();
+  $('atArq2').onchange = e => {
     const f = e.target.files[0]; if (!f) return;
     const im = new Image();
     im.onload = async () => {
       partes = fatia(window.LimpaFundo ? window.LimpaFundo(im) : im);
       if (!partes || partes.filter(Boolean).length < 4) {
-        $('criaMsg').textContent = 'não consegui separar as 4 vistas — confira a folha'; return;
+        $('atMsg2').textContent = 'não consegui separar as 4 vistas — confira a folha'; return;
       }
-      desenha();
-      const nome = ($('criaNome').value || '').trim();
-      if (!nome) { $('criaMsg').textContent = 'dê um nome à Cria e escolha o arquivo de novo'; return; }
+      desenha2();
       try {
-        if (!window.supabase) { $('criaMsg').textContent = 'biblioteca carregando — tente de novo'; return; }
-        $('criaMsg').textContent = 'publicando as 4 vistas…';
-        sb = sb || window.supabase.createClient(SB, KEY);
-        const slug = nome.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g,'').replace(/[^\w]+/g,'-');
-        for (let i = 0; i < 4; i++) {
-          const blob = await new Promise(r => partes[i].toBlob(r, 'image/png'));
-          const up = await sb.storage.from('mapas').upload('crias/' + slug + '-' + DIRS[i] + '.png', blob,
-            { upsert: true, cacheControl: '0' });
-          if (up.error) throw up.error;
-        }
-        $('criaMsg').textContent = '✅ "' + nome + '" publicada (' + slug + ') — pronta para a arena';
-      } catch(err){ $('criaMsg').textContent = 'erro: ' + (err.message || err); }
+        $('atMsg2').textContent = 'publicando as 4 vistas…';
+        for (let i=0;i<4;i++) await sobe(partes[i], 'crias/' + atual.id + '-' + DIRS[i] + '.png');
+        $('atMsg2').textContent = '✅ ' + atual.name + ' pronta para a arena';
+        lista();
+      } catch(err){ $('atMsg2').textContent = 'erro: ' + (err.message || err); }
     };
     im.src = URL.createObjectURL(f);
   };
-  const cp = $('criaPrompt');
-  if (cp) cp.onclick = () => navigator.clipboard
-    .writeText(cp.innerText.replace(/\(clique para copiar\)/,'').trim())
-    .then(()=> { cp.style.borderLeftColor='var(--ok)'; setTimeout(()=>cp.style.borderLeftColor='',900); });
+  function lista(){
+    const base = SB + '/storage/v1/object/public/mapas/crias/';
+    $('atLista').innerHTML = CRIAS.map(c =>
+      '<div style="display:flex;align-items:center;gap:6px;padding:4px 6px;background:rgba(255,255,255,.03);border-radius:6px">' +
+      '<img src="'+base+c.id+'-down.png?t='+Date.now()+'" style="width:26px;height:26px;object-fit:contain" ' +
+      'onerror="this.style.visibility=\'hidden\'">' +
+      '<span style="color:var(--txt)">'+c.name+'</span></div>').join('');
+  }
+  opcoes(); atualiza(); lista();
+  document.querySelector('#atPassos button').click();
 })();
 </script>
+
 <script>
 // ── Upload de NPC: recorta no conteúdo e publica no storage; o jogo procura
 //    lá quando não há arquivo no repositório ──────────────────────────────

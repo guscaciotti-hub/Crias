@@ -6304,9 +6304,37 @@ function pvpRoar() {
 }
 
 /* ── CINEMÁTICA + BATALHA ─────────────────────────────────────── */
+// A batalha PvP tem DOIS modos. O de turnos (cinemática do coliseu, ataques
+// por menu) é o original e continua inteiro logo abaixo — nada dele foi
+// apagado nem alterado. Trocar esta linha para true joga o PvP na arena ao
+// vivo; hoje a arena está só na caverna, que é o campo de testes.
+const PVP_AO_VIVO = false;
+
 async function pvpStartBattle(match) {
   pvpState = match;
   pvpSkipCine = false;
+
+  if (PVP_AO_VIVO && window.ARENA && state.cria) {
+    const aposta = (match && match.bet) || 0;
+    const nivel = (match && match.enemy && match.enemy.level) || 5;
+    const especie = (match && match.enemy && match.enemy.species) || 'cragmite';
+    inBattle = true;
+    ARENA.comecar(especie, nivel, venceu => {
+      inBattle = false;
+      const premio = Math.round(aposta * 0.8);
+      if (venceu) {
+        state.coins = (state.coins || 0) + premio;
+        state.trainerWins = (state.trainerWins || 0) + 1;
+        showToast('🏆 Vitória no PvP! +' + premio + ' 💰');
+      } else {
+        state.coins = Math.max(0, (state.coins || 0) - aposta);
+        showToast('💀 Derrota no PvP. −' + aposta + ' 💰');
+      }
+      saveGame();
+      if (typeof updateHUDExtras === 'function') updateHUDExtras();
+    });
+    return;
+  }
 
   // mount stage
   document.getElementById('pvpBattle').classList.add('active');
