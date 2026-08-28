@@ -238,60 +238,25 @@ window.LimpaFundo = function (img) {
 
   <div id="colGolpe" style="display:none">
     <div style="font-size:13px;margin-bottom:8px;line-height:1.7">
-      Cada elemento tem <b>várias habilidades</b>, de força diferente. A Cria recebe as dela
-      conforme a <b>raridade</b>: comum pega as fracas, lendária pega as fortes. Cadastre aqui —
-      o jogo lê o catálogo e monta o kit sozinho.
+      O jogo já tem <b>24 golpes prontos e balanceados</b> — 6 por elemento (2 fracos,
+      2 médios, 2 fortes). Cada um só precisa da <b>arte</b>: clique no golpe, copie o prompt
+      dele, gere no GPT e solte a folha de 5 quadros. Quem recebe cada golpe já está definido
+      pela força e pela raridade da Cria.
     </div>
-    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:8px">
-      <label style="font-size:12px;color:var(--dim)">Nome do golpe
-        <input type="text" id="habNome" maxlength="22" list="habSug" placeholder="ex.: Explosão Ígnea"
-          style="width:100%;background:#0a1322;border:1px solid var(--line);border-radius:8px;color:var(--txt);padding:8px;font-size:13px;margin-top:3px">
-        <datalist id="habSug"></datalist></label>
-      <label style="font-size:12px;color:var(--dim)">Elemento
-        <select id="habEl" style="width:100%;background:#0a1322;border:1px solid var(--line);border-radius:8px;color:var(--txt);padding:8px;font-size:13px;margin-top:3px"></select></label>
-      <label style="font-size:12px;color:var(--dim)">Força
-        <select id="habTier" style="width:100%;background:#0a1322;border:1px solid var(--line);border-radius:8px;color:var(--txt);padding:8px;font-size:13px;margin-top:3px">
-          <option value="1">1 — fraca (comuns)</option>
-          <option value="2">2 — média (raras)</option>
-          <option value="3">3 — forte (lendárias)</option>
-        </select></label>
-      <label style="font-size:12px;color:var(--dim)">Formato
-        <select id="habForma" style="width:100%;background:#0a1322;border:1px solid var(--line);border-radius:8px;color:var(--txt);padding:8px;font-size:13px;margin-top:3px">
-          <option value="unico">tiro único</option>
-          <option value="leque">leque de 3</option>
-          <option value="anel">anel ao redor</option>
-          <option value="raio">raio rápido</option>
-          <option value="onda">onda lenta e grande</option>
-        </select></label>
-      <label style="font-size:12px;color:var(--dim)">Dano <b id="habDanoV">14</b>
-        <input type="range" id="habDano" min="4" max="40" value="14" style="width:100%;margin-top:8px"></label>
-      <label style="font-size:12px;color:var(--dim)">Recarga <b id="habRecV">4.0</b>s
-        <input type="range" id="habRec" min="10" max="120" value="40" style="width:100%;margin-top:8px"></label>
-    </div>
+    <div style="display:flex;gap:6px;margin-bottom:10px" id="golEls"></div>
+    <div id="golGrade" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:8px"></div>
 
-    <div style="margin-top:10px;background:rgba(77,195,255,.08);border-left:3px solid var(--acc);border-radius:0 8px 8px 0;padding:9px 11px;font-size:12px">
-      <b style="color:var(--acc)">Quem vai usar este golpe</b>
-      <div id="habQuem" style="margin-top:4px;color:var(--txt)"></div>
-      <div style="margin-top:7px;display:flex;gap:8px;align-items:center;flex-wrap:wrap">
-        <label style="color:var(--dim)"><input type="checkbox" id="habFixa"> só para Crias específicas:</label>
-        <select id="habCrias" multiple size="4" disabled
-          style="min-width:170px;background:#0a1322;border:1px solid var(--line);border-radius:8px;color:var(--txt);padding:5px;font-size:12px"></select>
+    <div id="golDet" style="display:none;margin-top:12px;border-top:1px solid var(--line);padding-top:10px">
+      <div style="font-size:14px;font-weight:800;color:var(--acc)" id="golNome"></div>
+      <div class="note" id="golFicha" style="margin-top:2px"></div>
+      <div class="q" id="golPrompt" style="cursor:pointer;margin-top:8px" title="clique para copiar"></div>
+      <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:10px">
+        <input type="file" id="golArq" accept="image/png,image/webp" style="display:none">
+        <button id="golSobe">✨ Soltar a folha de 5 quadros deste golpe</button>
+        <span id="golMsg" class="note" style="margin:0"></span>
       </div>
-      <div class="note" style="margin-top:5px">Sem marcar, o golpe entra no sorteio de todas as
-        Crias do elemento cuja raridade combina com a força.</div>
+      <canvas id="golPrev" width="880" height="150" style="width:100%;margin-top:10px;background:#0a1322;border:1px solid var(--line);border-radius:10px"></canvas>
     </div>
-
-    <div class="q" id="golPrompt" style="cursor:pointer;margin-top:10px" title="clique para copiar"></div>
-
-    <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:10px">
-      <input type="file" id="golArq" accept="image/png,image/webp" style="display:none">
-      <button id="golSobe">✨ Soltar a folha e cadastrar a habilidade</button>
-      <span id="golMsg" class="note" style="margin:0"></span>
-    </div>
-    <canvas id="golPrev" width="880" height="150" style="width:100%;margin-top:10px;background:#0a1322;border:1px solid var(--line);border-radius:10px"></canvas>
-
-    <div style="margin-top:12px;font-size:12px;font-weight:800;color:var(--gold)">Habilidades cadastradas</div>
-    <div id="golLista" style="margin-top:6px;font-size:13px;color:var(--dim)">nenhuma ainda</div>
   </div>
 </div>
 
@@ -1517,30 +1482,20 @@ cr.lastElementChild.appendChild(mkBtn(P_CHAR, 'Copiar prompt'));
 </script>
 
 <script>
-// ── Coliseu: cenário da arena e CATÁLOGO de habilidades ──────────────────
+// ── Coliseu: cenário da arena e ARTE dos 24 golpes ───────────────────────
 (function(){
   const SB='https://gmycqvvvglexbtbqkjzi.supabase.co', KEY='sb_publishable_N4DdqinjzjnMBWsik5qj2A_ksPBX9Av';
   const CAT_URL = SB + '/storage/v1/object/public/mapas/arena/habilidades.json';
   const $ = id => document.getElementById(id);
   if (!$('colSobe')) return;
-  let sb = null, quadros = null;
-  // O jogo tem QUATRO elementos: fogo, água, terra e vento.
-  const ELS = [
-    ['fire','Fogo','labaredas e brasas laranja-avermelhadas, com fagulhas subindo'],
-    ['water','Água','jato e respingos azul-turquesa, com gotas e espuma'],
-    ['earth','Terra','rochas e terra levantando do chão, poeira marrom e pedras'],
-    ['air','Vento','lâminas de vento e espirais brancas quase transparentes']
-  ];
+  let sb = null, quadros = null, sel = null, temArte = {};
+  const ELS = [['fire','Fogo'],['water','Água'],['earth','Terra'],['air','Vento']];
+  const HABS = [{"id": "fire-fagulha", "n": "Fagulha", "el": "fire", "tier": 1, "forma": "unico", "dano": 12, "rec": 3000, "arte": "uma bola de fogo compacta, laranja viva com miolo amarelo e fagulhas soltas"}, {"id": "fire-lingua", "n": "Língua de Fogo", "el": "fire", "tier": 1, "forma": "leque", "dano": 10, "rec": 3400, "arte": "três línguas de chama abrindo em leque, pontas amarelas e base avermelhada"}, {"id": "fire-magma", "n": "Bola de Magma", "el": "fire", "tier": 2, "forma": "onda", "dano": 20, "rec": 5000, "arte": "uma esfera densa de magma incandescente, crosta escura rachada com veios laranja brilhando"}, {"id": "fire-chicote", "n": "Chicote Flamejante", "el": "fire", "tier": 2, "forma": "raio", "dano": 18, "rec": 4200, "arte": "um risco de fogo alongado e afiado, como um chicote de chamas cortando o ar"}, {"id": "fire-nova", "n": "Nova Incandescente", "el": "fire", "tier": 3, "forma": "anel", "dano": 26, "rec": 6500, "arte": "uma explosão em anel, ondas de fogo se expandindo do centro com brasas voando"}, {"id": "fire-meteoro", "n": "Meteoro", "el": "fire", "tier": 3, "forma": "unico", "dano": 34, "rec": 7000, "arte": "uma rocha em chamas caindo, rastro de fogo comprido e impacto em brasa"}, {"id": "water-jato", "n": "Jato", "el": "water", "tier": 1, "forma": "unico", "dano": 11, "rec": 2800, "arte": "um jato de água concentrado, azul-turquesa com respingos ao redor"}, {"id": "water-borrifo", "n": "Borrifo", "el": "water", "tier": 1, "forma": "leque", "dano": 9, "rec": 3200, "arte": "três esguichos de água abrindo em leque, gotas e espuma branca"}, {"id": "water-onda", "n": "Onda", "el": "water", "tier": 2, "forma": "onda", "dano": 17, "rec": 4500, "arte": "uma onda curva avançando, crista branca de espuma e corpo azul translúcido"}, {"id": "water-lanca", "n": "Lança de Gelo", "el": "water", "tier": 2, "forma": "raio", "dano": 19, "rec": 4000, "arte": "uma lança de gelo afiada e alongada, azul-claro cristalino com brilho gelado"}, {"id": "water-maremoto", "n": "Maremoto", "el": "water", "tier": 3, "forma": "onda", "dano": 28, "rec": 6800, "arte": "uma parede de água enorme desabando, espuma densa e respingos por toda parte"}, {"id": "water-vortice", "n": "Vórtice", "el": "water", "tier": 3, "forma": "anel", "dano": 24, "rec": 6000, "arte": "um redemoinho de água girando em anel, espiral azul profunda com espuma nas bordas"}, {"id": "earth-pedrada", "n": "Pedrada", "el": "earth", "tier": 1, "forma": "unico", "dano": 14, "rec": 3400, "arte": "uma pedra bruta arremessada, poeira marrom e lascas se soltando"}, {"id": "earth-estilhaco", "n": "Estilhaços", "el": "earth", "tier": 1, "forma": "leque", "dano": 11, "rec": 3800, "arte": "três lascas de rocha pontiagudas abrindo em leque, poeira acompanhando"}, {"id": "earth-tremor", "n": "Tremor", "el": "earth", "tier": 2, "forma": "anel", "dano": 20, "rec": 5500, "arte": "o chão rachando em anel, pedras saltando e nuvem de poeira subindo do centro"}, {"id": "earth-lancarocha", "n": "Lança de Rocha", "el": "earth", "tier": 2, "forma": "raio", "dano": 22, "rec": 4800, "arte": "um espeto de pedra comprido irrompendo, superfície rachada e ponta afiada"}, {"id": "earth-colapso", "n": "Colapso", "el": "earth", "tier": 3, "forma": "onda", "dano": 32, "rec": 7500, "arte": "uma avalanche de rochas enormes avançando, poeira densa e fragmentos voando"}, {"id": "earth-muralha", "n": "Muralha de Pedras", "el": "earth", "tier": 3, "forma": "anel", "dano": 29, "rec": 7000, "arte": "blocos de pedra erguendo-se em círculo, terra explodindo para cima em volta"}, {"id": "air-lamina", "n": "Lâmina de Ar", "el": "air", "tier": 1, "forma": "unico", "dano": 10, "rec": 2400, "arte": "uma lâmina curva de vento, quase transparente com contorno branco brilhante"}, {"id": "air-rajada", "n": "Rajada", "el": "air", "tier": 1, "forma": "leque", "dano": 8, "rec": 2800, "arte": "três rajadas de vento abrindo em leque, espirais brancas finas"}, {"id": "air-corte", "n": "Corte Cortante", "el": "air", "tier": 2, "forma": "raio", "dano": 16, "rec": 3500, "arte": "um corte de vento longo e afiado atravessando, com fio branco luminoso"}, {"id": "air-redemoinho", "n": "Redemoinho", "el": "air", "tier": 2, "forma": "anel", "dano": 15, "rec": 4500, "arte": "um redemoinho girando em anel, espirais de ar visíveis e folhas levantadas"}, {"id": "air-tempestade", "n": "Tempestade", "el": "air", "tier": 3, "forma": "anel", "dano": 22, "rec": 5500, "arte": "uma tempestade circular violenta, várias espirais brancas girando com raios de vento"}, {"id": "air-furacao", "n": "Furacão", "el": "air", "tier": 3, "forma": "onda", "dano": 26, "rec": 6200, "arte": "um funil de furacão avançando, colunas de ar torcidas e detritos girando"}];
   const FORMAS = {
-    unico: 'um único projétil concentrado',
-    leque: 'três projéteis abrindo em leque',
-    anel:  'um anel de projéteis saindo em todas as direções',
-    raio:  'um raio fino e veloz atravessando a tela',
-    onda:  'uma onda larga e lenta avançando'
+    unico: 'um único projétil concentrado', leque: 'três projéteis abrindo em leque',
+    anel: 'um anel de projéteis saindo em todas as direções',
+    raio: 'um raio fino e veloz atravessando', onda: 'uma onda larga e lenta avançando'
   };
-  // Como o jogo já sabe o elemento e a raridade de cada Cria, dá para mostrar
-  // na hora quem vai receber o golpe — e, se você quiser, prender a golpes
-  // específicos em vez de deixar no sorteio.
   const CRIAS_JOGO = [{"id": "aerix", "n": "Aerix", "rar": "common", "skills": ["Air Slash", "Storm Dive"]}, {"id": "voltalon", "n": "Voltalon", "rar": "common", "skills": ["Volt Strike", "Thunder Wing"]}, {"id": "ignivar", "n": "Ignivar", "rar": "common", "skills": ["Flame Bite", "Inferno Rush"]}, {"id": "aquafy", "n": "Aquafy", "rar": "common", "skills": ["Water Pulse", "Aqua Beam"]}, {"id": "terron", "n": "Terron", "rar": "common", "skills": ["Rock Slam", "Earthquake"]}, {"id": "shadowyn", "n": "Shadowyn", "rar": "common", "skills": ["Shadow Claw", "Void Pulse"]}, {"id": "cragmite", "n": "Cragmite", "rar": "common", "skills": ["Rock Crush", "Dark Quake"]}, {"id": "florax", "n": "Florax", "rar": "common", "skills": ["Vine Whip", "Petal Storm"]}, {"id": "glacius", "n": "Glacius", "rar": "common", "skills": ["Ice Shard", "Blizzard"]}, {"id": "ferrus", "n": "Ferrus", "rar": "common", "skills": ["Iron Fist", "Steel Barrage"]}, {"id": "psychon", "n": "Psychon", "rar": "common", "skills": ["Mind Blast", "Psycho Wave"]}, {"id": "luminos", "n": "Luminos", "rar": "uncommon", "skills": ["Solar Ray", "Nova Burst"]}, {"id": "toxyl", "n": "Toxyl", "rar": "common", "skills": ["Toxic Fang", "Acid Spray"]}, {"id": "tempestix", "n": "Tempestix", "rar": "uncommon", "skills": ["Thunder Dash", "Storm Surge"]}, {"id": "drakon", "n": "Drakon", "rar": "rare", "skills": ["Dragon Claw", "Inferno Breath"]}];
   const ELEM_DE = {
     ignivar:'fire', drakon:'fire', luminos:'fire',
@@ -1548,69 +1503,63 @@ cr.lastElementChild.appendChild(mkBtn(P_CHAR, 'Copiar prompt'));
     terron:'earth', cragmite:'earth', ferrus:'earth', florax:'earth', toxyl:'earth', shadowyn:'earth',
     aerix:'air', tempestix:'air', voltalon:'air', psychon:'air'
   };
-  const TIERS_POR_RARIDADE = { common:[1], uncommon:[1,2], rare:[2,3], legendary:[3], epic:[3] };
-  function elOpts(){
-    $('habEl').innerHTML = ELS.map((e,i) => '<option value="'+i+'">'+e[1]+'</option>').join('');
+  const TIERS = { common:[1], uncommon:[1,2], rare:[2,3], legendary:[3], epic:[3] };
+  let elSel = 'fire';
+
+  function quemUsa(h){
+    return CRIAS_JOGO
+      .filter(c => (ELEM_DE[c.id]||'fire') === h.el && (TIERS[c.rar]||[1]).indexOf(h.tier) >= 0)
+      .map(c => c.n);
   }
-  function criasDoElemento(el){
-    return CRIAS_JOGO.filter(c => (ELEM_DE[c.id] || 'fire') === el);
+  function abas(){
+    $('golEls').innerHTML = ELS.map(e =>
+      '<button class="ghost" data-e="'+e[0]+'" style="flex:1">'+e[1]+'</button>').join('');
+    $('golEls').querySelectorAll('button').forEach(b => b.onclick = () => { elSel = b.dataset.e; grade(); });
   }
-  function atualizaQuem(){
-    const d = dados();
-    const doEl = criasDoElemento(d.el);
-    // sugestões de nome: os golpes que essas Crias já têm na ficha
-    const sug = [];
-    for (const c of doEl) for (const sk of (c.skills || [])) if (sug.indexOf(sk) < 0) sug.push(sk);
-    $('habSug').innerHTML = sug.map(x => '<option value="'+x+'">').join('');
-    // lista de Crias para prender o golpe
-    if ($('habCrias').options.length !== doEl.length)
-      $('habCrias').innerHTML = doEl.map(c => '<option value="'+c.id+'">'+c.n+' ('+c.rar+')</option>').join('');
-    const fixas = [...$('habCrias').selectedOptions].map(o => o.value);
-    if ($('habFixa').checked && fixas.length) {
-      const nomes = doEl.filter(c => fixas.indexOf(c.id) >= 0).map(c => c.n);
-      $('habQuem').textContent = 'apenas ' + nomes.join(', ');
-      return;
-    }
-    const cabem = doEl.filter(c => (TIERS_POR_RARIDADE[c.rar] || [1]).indexOf(d.tier) >= 0);
-    $('habQuem').textContent = cabem.length
-      ? cabem.map(c => c.n).join(', ')
-      : 'nenhuma Cria deste elemento tem raridade para força ' + d.tier + ' — o golpe fica guardado até existir uma';
+  function grade(){
+    $('golEls').querySelectorAll('button').forEach(b => {
+      const on = b.dataset.e === elSel;
+      b.style.borderColor = on ? 'var(--acc)' : '';
+      b.style.color = on ? 'var(--acc)' : '';
+    });
+    const base = SB + '/storage/v1/object/public/mapas/arena/hab-';
+    $('golGrade').innerHTML = HABS.filter(h => h.el === elSel).map(h =>
+      '<div class="golCard" data-id="'+h.id+'" style="cursor:pointer;padding:8px;border-radius:8px;' +
+      'border:1px solid '+(sel && sel.id===h.id ? 'var(--acc)' : 'var(--line)')+';background:rgba(255,255,255,.03)">' +
+        '<div style="display:flex;align-items:center;gap:8px">' +
+          '<img src="'+base+h.id+'-2.png?t='+Date.now()+'" style="width:34px;height:34px;object-fit:contain" ' +
+          'onload="this.nextElementSibling.querySelector(\'i\').textContent=\'✅ com arte\'" ' +
+          'onerror="this.style.visibility=\'hidden\'">' +
+          '<div><b style="color:var(--txt);font-size:13px">'+h.n+'</b>' +
+          '<div style="font-size:11px;color:var(--dim)">força '+h.tier+' · '+h.dano+' de dano <i style="color:var(--ok);font-style:normal"></i></div></div>' +
+        '</div></div>').join('');
+    $('golGrade').querySelectorAll('.golCard').forEach(c => c.onclick = () => escolhe(c.dataset.id));
   }
-  $('habFixa').onchange = () => { $('habCrias').disabled = !$('habFixa').checked; atualizaQuem(); };
-  $('habCrias').onchange = atualizaQuem;
-  function elAtual(){ return ELS[+$('habEl').value] || ELS[0]; }
-  function dados(){
-    return {
-      n: ($('habNome').value || '').trim(),
-      el: elAtual()[0],
-      tier: +$('habTier').value,
-      forma: $('habForma').value,
-      dano: +$('habDano').value,
-      rec: Math.round(+$('habRec').value) * 100
-    };
-  }
-  function montaPrompt(){
-    const e = elAtual(), d = dados();
-    const forca = ['', 'discreto e rápido', 'de bom porte', 'devastador, ocupando bastante espaço'][d.tier];
+  function escolhe(id){
+    sel = HABS.find(h => h.id === id);
+    if (!sel) return;
+    quadros = null; desenhaG();
+    $('golDet').style.display = '';
+    $('golNome').textContent = sel.n;
+    const usam = quemUsa(sel);
+    $('golFicha').textContent =
+      'força ' + sel.tier + ' · ' + sel.forma + ' · ' + sel.dano + ' de dano · ' +
+      (sel.rec/1000).toFixed(1) + 's de recarga · vai para: ' + (usam.length ? usam.join(', ') : 'nenhuma Cria ainda');
     $('golPrompt').innerHTML =
       'Crie uma <b>folha de animação de um golpe mágico</b> para um jogo de coleta de criaturas, ' +
       'em <b>RENDER 3D ESTILIZADO de jogo moderno</b> — volumétrico, cores vibrantes e saturadas, ' +
       'brilho intenso, acabamento de efeito especial de jogo AAA. <b>NÃO é pixel art.</b> ' +
-      'Elemento: <b>' + e[1] + '</b> — ' + e[2] + '. ' +
-      'Formato do golpe: <b>' + FORMAS[d.forma] + '</b>. Porte: <b>' + forca + '</b>. ' +
-      (d.n ? 'Nome do golpe: <b>' + d.n + '</b>. ' : '') +
+      'Golpe: <b>' + sel.n + '</b> — ' + sel.arte + '. ' +
+      'Comportamento: <b>' + FORMAS[sel.forma] + '</b>. ' +
       'Entregue <b>5 quadros EM UMA LINHA, todos do mesmo tamanho e com espaço vazio entre eles</b>, ' +
       'mostrando o golpe do começo ao fim: 1) nascendo pequeno · 2) crescendo · 3) o auge · ' +
-      '4) se desfazendo · 5) quase apagando. Cada quadro centralizado, visto de cima em ângulo ' +
-      'de jogo top-down, sem criatura, sem chão, sem cenário. Fundo 100% transparente, ' +
-      'sem sombra, sem texto. <span style="color:var(--dim)">(clique para copiar)</span>';
+      '4) se desfazendo · 5) quase apagando. Cada quadro centralizado, visto de cima em ângulo de ' +
+      'jogo top-down, sem criatura, sem chão, sem cenário. Fundo 100% transparente, sem sombra, ' +
+      'sem texto. <span style="color:var(--dim)">(clique para copiar)</span>';
+    $('golMsg').textContent = '';
+    grade();
+    $('golDet').scrollIntoView({ block:'nearest', behavior:'smooth' });
   }
-  ['habEl','habTier','habForma','habNome'].forEach(id => {
-    const el = $(id);
-    el.oninput = el.onchange = () => { montaPrompt(); atualizaQuem(); };
-  });
-  $('habDano').oninput = () => { $('habDanoV').textContent = $('habDano').value; montaPrompt(); };
-  $('habRec').oninput  = () => { $('habRecV').textContent = (+$('habRec').value/10).toFixed(1); };
   document.querySelectorAll('#colAbas button').forEach(b => b.onclick = () => {
     const c = b.dataset.c;
     $('colPalco').style.display = c === 'palco' ? '' : 'none';
@@ -1623,7 +1572,7 @@ cr.lastElementChild.appendChild(mkBtn(P_CHAR, 'Copiar prompt'));
   });
   for (const pid of ['colPrompt','golPrompt']) {
     const el = $(pid);
-    el.onclick = () => navigator.clipboard.writeText(el.innerText.replace(/\(clique para copiar\)/,'').trim())
+    if (el) el.onclick = () => navigator.clipboard.writeText(el.innerText.replace(/\(clique para copiar\)/,'').trim())
       .then(()=> { el.style.borderLeftColor='var(--ok)'; setTimeout(()=>el.style.borderLeftColor='',900); });
   }
   function fingir(c){ c.naturalWidth=c.width; c.naturalHeight=c.height; c.complete=true; return c; }
@@ -1685,10 +1634,10 @@ cr.lastElementChild.appendChild(mkBtn(P_CHAR, 'Copiar prompt'));
       g.fillText('quadro '+(i+1), cx, base+18);
     });
   }
-  async function sobe(cv, caminho, tipo){
+  async function sobe(cv, caminho){
     if (!window.supabase) throw new Error('biblioteca carregando — tente de novo');
     sb = sb || window.supabase.createClient(SB, KEY);
-    const blob = cv instanceof Blob ? cv : await new Promise(r => cv.toBlob(r, tipo || 'image/png'));
+    const blob = cv instanceof Blob ? cv : await new Promise(r => cv.toBlob(r, 'image/png'));
     const up = await sb.storage.from('mapas').upload(caminho, blob, { upsert:true, cacheControl:'0' });
     if (up.error) throw up.error;
   }
@@ -1698,13 +1647,6 @@ cr.lastElementChild.appendChild(mkBtn(P_CHAR, 'Copiar prompt'));
       const j = await r.json();
       return Array.isArray(j.habilidades) ? j : { habilidades: [] };
     } catch(e){ return { habilidades: [] }; }
-  }
-  async function gravaCatalogo(cat){
-    sb = sb || window.supabase.createClient(SB, KEY);
-    const r = await sb.storage.from('mapas').upload('arena/habilidades.json',
-      new Blob([JSON.stringify(cat)], {type:'application/json'}),
-      { upsert:true, contentType:'application/json', cacheControl:'0' });
-    if (r.error) throw r.error;
   }
   $('colSobe').onclick = () => $('colArq').click();
   $('colArq').onchange = e => {
@@ -1724,12 +1666,9 @@ cr.lastElementChild.appendChild(mkBtn(P_CHAR, 'Copiar prompt'));
     };
     im.src = URL.createObjectURL(f);
   };
-  $('golSobe').onclick = () => {
-    if (!($('habNome').value || '').trim()) { $('golMsg').textContent = 'dê um nome ao golpe primeiro'; $('habNome').focus(); return; }
-    $('golArq').click();
-  };
+  $('golSobe').onclick = () => { if (sel) $('golArq').click(); };
   $('golArq').onchange = e => {
-    const f = e.target.files[0]; if (!f) return;
+    const f = e.target.files[0]; if (!f || !sel) return;
     const im = new Image();
     im.onload = async () => {
       quadros = fatiaN(window.LimpaFundo ? window.LimpaFundo(im) : im, 5);
@@ -1737,60 +1676,26 @@ cr.lastElementChild.appendChild(mkBtn(P_CHAR, 'Copiar prompt'));
         $('golMsg').textContent = 'não consegui separar os 5 quadros — confira a folha'; return;
       }
       desenhaG();
-      const d = dados();
-      const id = d.el + '-' + d.n.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/[^\w]+/g,'-');
       try {
         $('golMsg').textContent = 'publicando os 5 quadros…';
-        for (let i=0;i<5;i++) await sobe(quadros[i], 'arena/hab-' + id + '-' + i + '.png');
+        for (let i=0;i<5;i++) await sobe(quadros[i], 'arena/hab-' + sel.id + '-' + i + '.png');
         const cat = await catalogo();
-        const fixas = $('habFixa').checked ? [...$('habCrias').selectedOptions].map(o => o.value) : [];
-        const nova = { id, n: d.n, el: d.el, tier: d.tier, forma: d.forma, dano: d.dano, rec: d.rec,
-                       crias: fixas,
-                       arte: SB + '/storage/v1/object/public/mapas/arena/hab-' + id };
-        const k = cat.habilidades.findIndex(h => h.id === id);
-        if (k >= 0) cat.habilidades[k] = nova; else cat.habilidades.push(nova);
-        await gravaCatalogo(cat);
-        $('golMsg').textContent = '✅ "' + d.n + '" cadastrada';
-        listaG();
+        const reg = { id: sel.id, arte: SB + '/storage/v1/object/public/mapas/arena/hab-' + sel.id };
+        const k = cat.habilidades.findIndex(h => h.id === sel.id);
+        if (k >= 0) cat.habilidades[k] = Object.assign({}, cat.habilidades[k], reg);
+        else cat.habilidades.push(reg);
+        sb = sb || window.supabase.createClient(SB, KEY);
+        const r = await sb.storage.from('mapas').upload('arena/habilidades.json',
+          new Blob([JSON.stringify(cat)], {type:'application/json'}),
+          { upsert:true, contentType:'application/json', cacheControl:'0' });
+        if (r.error) throw r.error;
+        $('golMsg').textContent = '✅ arte de "' + sel.n + '" ligada ao golpe';
+        grade();
       } catch(err){ $('golMsg').textContent = 'erro: ' + (err.message || err); }
     };
     im.src = URL.createObjectURL(f);
   };
-  const NOME_EL = { fire:'Fogo', water:'Água', earth:'Terra', air:'Vento' };
-  async function listaG(){
-    const cat = await catalogo();
-    const el = $('golLista');
-    if (!cat.habilidades.length) { el.textContent = 'nenhuma ainda'; return; }
-    el.innerHTML = '';
-    for (const e of ELS) {
-      const doEl = cat.habilidades.filter(h => h.el === e[0]).sort((a,b) => a.tier - b.tier);
-      if (!doEl.length) continue;
-      const bloco = document.createElement('div');
-      bloco.style.cssText = 'margin-bottom:8px';
-      bloco.innerHTML = '<div style="color:var(--acc);font-weight:800;font-size:12px">' + e[1] + '</div>';
-      for (const h of doEl) {
-        const linha = document.createElement('div');
-        linha.style.cssText = 'display:flex;align-items:center;gap:8px;padding:4px 0;border-bottom:1px solid rgba(255,255,255,.05)';
-        linha.innerHTML =
-          '<img src="'+h.arte+'-2.png?t='+Date.now()+'" style="width:26px;height:26px;object-fit:contain" onerror="this.style.visibility=\'hidden\'">' +
-          '<b style="color:var(--txt)">'+h.n+'</b>' +
-          '<span>força '+h.tier+' · '+h.forma+' · '+h.dano+' de dano · '+(h.rec/1000).toFixed(1)+'s' +
-          (h.crias && h.crias.length ? ' · só ' + h.crias.map(x => (CRIAS_JOGO.find(c=>c.id===x)||{n:x}).n).join(', ') : '') + '</span>';
-        const rm = document.createElement('button');
-        rm.className='ghost'; rm.textContent='tirar'; rm.style.marginLeft='auto';
-        rm.onclick = async () => {
-          if (!confirm('Tirar "'+h.n+'" do jogo?')) return;
-          const c2 = await catalogo();
-          c2.habilidades = c2.habilidades.filter(x => x.id !== h.id);
-          await gravaCatalogo(c2); listaG();
-        };
-        linha.appendChild(rm);
-        bloco.appendChild(linha);
-      }
-      el.appendChild(bloco);
-    }
-  }
-  elOpts(); montaPrompt(); atualizaQuem(); listaG();
+  abas(); grade();
   document.querySelector('#colAbas button').click();
 })();
 </script>

@@ -11547,10 +11547,25 @@ const ARENA = (function () {
   // Cada elemento tem VÁRIAS habilidades, de forças diferentes. A Cria
   // recebe as dela conforme a raridade: comum pega as fracas, lendária as
   // fortes. Sem catálogo, o combate usa a habilidade padrão de sempre.
-  let CATALOGO = null;
+  // Catálogo padrão — 24 golpes, 6 por elemento (2 fracos, 2 médios, 2 fortes).
+  // Identidade de cada elemento: fogo bate mais forte com recarga média, terra
+  // é o mais pesado e mais lento, água é equilibrada e vento é o mais rápido
+  // com dano menor. O database pode acrescentar ou substituir qualquer um.
+  const HABILIDADES_BASE = [{"id": "fire-fagulha", "n": "Fagulha", "el": "fire", "tier": 1, "forma": "unico", "dano": 12, "rec": 3000}, {"id": "fire-lingua", "n": "Língua de Fogo", "el": "fire", "tier": 1, "forma": "leque", "dano": 10, "rec": 3400}, {"id": "fire-magma", "n": "Bola de Magma", "el": "fire", "tier": 2, "forma": "onda", "dano": 20, "rec": 5000}, {"id": "fire-chicote", "n": "Chicote Flamejante", "el": "fire", "tier": 2, "forma": "raio", "dano": 18, "rec": 4200}, {"id": "fire-nova", "n": "Nova Incandescente", "el": "fire", "tier": 3, "forma": "anel", "dano": 26, "rec": 6500}, {"id": "fire-meteoro", "n": "Meteoro", "el": "fire", "tier": 3, "forma": "unico", "dano": 34, "rec": 7000}, {"id": "water-jato", "n": "Jato", "el": "water", "tier": 1, "forma": "unico", "dano": 11, "rec": 2800}, {"id": "water-borrifo", "n": "Borrifo", "el": "water", "tier": 1, "forma": "leque", "dano": 9, "rec": 3200}, {"id": "water-onda", "n": "Onda", "el": "water", "tier": 2, "forma": "onda", "dano": 17, "rec": 4500}, {"id": "water-lanca", "n": "Lança de Gelo", "el": "water", "tier": 2, "forma": "raio", "dano": 19, "rec": 4000}, {"id": "water-maremoto", "n": "Maremoto", "el": "water", "tier": 3, "forma": "onda", "dano": 28, "rec": 6800}, {"id": "water-vortice", "n": "Vórtice", "el": "water", "tier": 3, "forma": "anel", "dano": 24, "rec": 6000}, {"id": "earth-pedrada", "n": "Pedrada", "el": "earth", "tier": 1, "forma": "unico", "dano": 14, "rec": 3400}, {"id": "earth-estilhaco", "n": "Estilhaços", "el": "earth", "tier": 1, "forma": "leque", "dano": 11, "rec": 3800}, {"id": "earth-tremor", "n": "Tremor", "el": "earth", "tier": 2, "forma": "anel", "dano": 20, "rec": 5500}, {"id": "earth-lancarocha", "n": "Lança de Rocha", "el": "earth", "tier": 2, "forma": "raio", "dano": 22, "rec": 4800}, {"id": "earth-colapso", "n": "Colapso", "el": "earth", "tier": 3, "forma": "onda", "dano": 32, "rec": 7500}, {"id": "earth-muralha", "n": "Muralha de Pedras", "el": "earth", "tier": 3, "forma": "anel", "dano": 29, "rec": 7000}, {"id": "air-lamina", "n": "Lâmina de Ar", "el": "air", "tier": 1, "forma": "unico", "dano": 10, "rec": 2400}, {"id": "air-rajada", "n": "Rajada", "el": "air", "tier": 1, "forma": "leque", "dano": 8, "rec": 2800}, {"id": "air-corte", "n": "Corte Cortante", "el": "air", "tier": 2, "forma": "raio", "dano": 16, "rec": 3500}, {"id": "air-redemoinho", "n": "Redemoinho", "el": "air", "tier": 2, "forma": "anel", "dano": 15, "rec": 4500}, {"id": "air-tempestade", "n": "Tempestade", "el": "air", "tier": 3, "forma": "anel", "dano": 22, "rec": 5500}, {"id": "air-furacao", "n": "Furacão", "el": "air", "tier": 3, "forma": "onda", "dano": 26, "rec": 6200}];
+  let CATALOGO = HABILIDADES_BASE.slice();
   fetch('https://gmycqvvvglexbtbqkjzi.supabase.co/storage/v1/object/public/mapas/arena/habilidades.json?t=' + Date.now())
     .then(r => r.ok ? r.json() : null)
-    .then(j => { if (j && Array.isArray(j.habilidades)) CATALOGO = j.habilidades; })
+    .then(j => {
+      if (!j || !Array.isArray(j.habilidades)) return;
+      // o publicado entra por cima do padrão (mesmo id substitui), e a arte
+      // subida no database liga o golpe ao seu sprite
+      const base = HABILIDADES_BASE.slice();
+      for (const h of j.habilidades) {
+        const i = base.findIndex(x => x.id === h.id);
+        if (i >= 0) base[i] = Object.assign({}, base[i], h); else base.push(h);
+      }
+      CATALOGO = base;
+    })
     .catch(() => {});
 
   const TIERS_POR_RARIDADE = {
@@ -11590,6 +11605,7 @@ const ARENA = (function () {
     return fs.length === 5 ? fs : null;
   }
   let efeitos = [];                          // golpes especiais tocando agora
+  let reservas = [];                         // Crias esperando a vez, nos pedestais
 
   // ── Camada 3D opcional ────────────────────────────────────────────────
   // Se a Cria tiver um .glb publicado, ela entra na arena como MODELO 3D em
@@ -11692,6 +11708,10 @@ const ARENA = (function () {
     vilao.dano = 6 + Math.floor((nivel || 3) * 0.8);
     heroi.hab = habilidadeDe(heroi.species);
     vilao.hab = habilidadeDe(vilao.species);
+    // as outras Crias da equipe esperam a vez no pedestal da esquerda
+    reservas = ((state && state.party) || []).slice(0, 3).map((c, i) => ({
+      species: c.species, x: -R * 0.92, y: -30 + i * 46
+    }));
     tiros = []; faiscas = []; efeitos = []; fim = null;
     arte('palco');                          // pede o cenário já na abertura
     temGlb(heroi.species); temGlb(vilao.species);
@@ -12016,7 +12036,9 @@ const ARENA = (function () {
     bgx.translate(w / 2, h / 2); bgx.scale(esc, esc);
     const palco = arte('palco');
     if (palco) {
-      const L = R * 2.9;
+      // a arte é quadrada e a tela é retangular: cobre o maior lado, para
+      // não sobrar faixa preta — a arena continua no centro
+      const L = Math.max(R * 2.9, (w / esc), (h / esc));
       bgx.imageSmoothingEnabled = true;
       bgx.drawImage(palco, -L / 2, -L / 2, L, L);
     } else {
@@ -12044,6 +12066,8 @@ const ARENA = (function () {
       ctx.fillStyle = p.cor; ctx.shadowColor = p.cor; ctx.shadowBlur = 12;
       ctx.fill(); ctx.shadowBlur = 0;
     }
+    desenhaReservas(t);
+    desenhaTreinador(t);
     for (const l of [vilao, heroi]) desenhaLutador(l, t, !!(camada3D && camada3D[l.dono]));
     posiciona3D(esc);
     for (const ef of efeitos) {
@@ -12063,6 +12087,53 @@ const ARENA = (function () {
     ctx.font = Math.round(11 * dpr) + 'px sans-serif';
     ctx.fillStyle = '#8ab0dd';
     ctx.fillText('primeiro a ' + ABATES_VIT, w / 2, 52 * dpr);
+  }
+
+  // Crias da equipe esperando a vez, no pedestal — dá presença de time
+  function desenhaReservas(t) {
+    for (let i = 0; i < reservas.length; i++) {
+      const r = reservas[i];
+      const im = (typeof getMonsterView === 'function') ? getMonsterView(r.species, 'right') : null;
+      const bob = Math.sin(t / 520 + i * 1.7) * 2;
+      ctx.globalAlpha = 0.9;
+      ctx.beginPath();
+      ctx.ellipse(r.x, r.y + 16, 12, 4, 0, 0, 6.283);
+      ctx.fillStyle = 'rgba(0,0,0,.35)'; ctx.fill();
+      if (im) {
+        const H = 40, W = H * (im.naturalWidth / im.naturalHeight);
+        ctx.imageSmoothingEnabled = true;
+        ctx.drawImage(im, r.x - W / 2, r.y - H / 2 + bob, W, H);
+      } else {
+        ctx.beginPath(); ctx.arc(r.x, r.y + bob, 13, 0, 6.283);
+        ctx.fillStyle = 'rgba(120,180,255,.75)'; ctx.fill();
+      }
+      ctx.globalAlpha = 1;
+      ctx.font = 'bold 9px sans-serif'; ctx.textAlign = 'center';
+      ctx.fillStyle = 'rgba(190,220,255,.85)';
+      ctx.fillText('na espera', r.x, r.y + 30);
+    }
+  }
+
+  // O treinador acompanha da plataforma de baixo, com o sprite do jogador
+  function desenhaTreinador(t) {
+    const im = (typeof getPlayerSprite === 'function') ? getPlayerSprite('up', 0) : null;
+    const x = 0, y = R * 0.93;
+    ctx.beginPath();
+    ctx.ellipse(x, y + 20, 16, 5, 0, 0, 6.283);
+    ctx.fillStyle = 'rgba(0,0,0,.4)'; ctx.fill();
+    const bob = Math.sin(t / 600) * 1.5;
+    if (im && im.complete && im.naturalWidth) {
+      const H = 58, W = H * (im.naturalWidth / im.naturalHeight);
+      ctx.imageSmoothingEnabled = true;
+      ctx.drawImage(im, x - W / 2, y - H + 18 + bob, W, H);
+    }
+    const nome = (state && state.playerName) || 'Treinador';
+    ctx.font = 'bold 10px sans-serif'; ctx.textAlign = 'center';
+    const tw = ctx.measureText(nome).width;
+    ctx.fillStyle = 'rgba(0,0,0,.6)';
+    ctx.fillRect(x - tw / 2 - 4, y + 24, tw + 8, 13);
+    ctx.fillStyle = '#cfe6ff';
+    ctx.fillText(nome, x, y + 31);
   }
 
   function desenhaLutador(l, t, em3D) {
