@@ -11658,6 +11658,19 @@ const ARENA = (function () {
     mv.setAttribute('environment-image', 'neutral');
     mv.setAttribute('exposure', '1.15');
     mv.setAttribute('shadow-intensity', '0');
+    // Se o .glb vier com animação (esqueleto e clipes), ela toca sozinha.
+    // Sem animação, o jogo anima o modelo inteiro por código (abaixo) — em
+    // criatura pequena na tela isso resolve sem precisar de ossos.
+    mv.setAttribute('autoplay', '');
+    mv.addEventListener('load', () => {
+      const nomes = mv.availableAnimations || [];
+      mv._clipes = nomes;
+      const acha = re => nomes.find(n => re.test(n));
+      mv._andar = acha(/walk|run|andar|correr|move/i);
+      mv._atacar = acha(/attack|atac|punch|bite|hit/i);
+      mv._parado = acha(/idle|parad|stand/i);
+      if (mv._parado) mv.setAttribute('animation-name', mv._parado);
+    });
     return mv;
   }
   function prepara3D() {
@@ -11680,6 +11693,7 @@ const ARENA = (function () {
   function posiciona3D(esc) {
     if (!camada3D || !cv) return;
     const rect = cv.getBoundingClientRect();
+    const t = performance.now();
     for (const dono in camada3D) {
       const l = dono === 'heroi' ? heroi : vilao;
       const mv = camada3D[dono];
@@ -11690,9 +11704,45 @@ const ARENA = (function () {
       mv.style.top = Math.round(py - L * 1.15) + 'px';
       mv.style.display = l.vivo ? 'block' : 'none';
       mv.style.opacity = l.piscar > 0 ? 0.5 : 1;
-      // a criatura vira para onde anda
       const gr = { down: 0, left: 90, up: 180, right: 270 }[l.dir] || 0;
       mv.setAttribute('camera-orbit', gr + 'deg 68deg 2.6m');
+
+      // ── vida sem ossos ──────────────────────────────────────────────
+      // Criatura pequena na tela não precisa de esqueleto: balanço,
+      // inclinação, avanço no golpe e tremor ao apanhar já leem como
+      // animação. Se o modelo TIVER clipes, eles é que mandam.
+      if (mv._clipes && mv._clipes.length) {
+        const alvo = l.golpeAte > t ? (mv._atacar || mv._parado)
+                   : l.andando ? (mv._andar || mv._parado) : mv._parado;
+        if (alvo && mv.getAttribute('animation-name') !== alvo) mv.setAttribute('animation-name', alvo);
+        mv.style.transform = '';
+        continue;
+      }
+      let sobe = 0, gira = 0, escY = 1, escX = 1, frente = 0;
+      if (l.andando) {
+        const p = l.passo;
+        sobe = Math.abs(Math.sin(p)) * -5;            // pula a cada passada
+        gira = Math.sin(p) * 5;                       // gingado
+        escY = 1 + Math.sin(p * 2) * 0.035;           // respiro do corpo
+      } else {
+        sobe = Math.sin(t / 620) * 1.8;               // parada respirando
+        escY = 1 + Math.sin(t / 620) * 0.02;
+      }
+      if (l.golpeAte > t) {                           // avança e estica no golpe
+        const k = 1 - (l.golpeAte - t) / 260;
+        const arco = Math.sin(Math.min(1, Math.max(0, k)) * Math.PI);
+        frente = arco * 14;
+        escX = 1 + arco * 0.16; escY = 1 - arco * 0.08;
+        gira += arco * 8;
+      }
+      if (l.piscar > 0) {                             // tremor ao apanhar
+        sobe += Math.sin(t / 24) * 3;
+        gira += Math.sin(t / 18) * 6;
+      }
+      mv.style.transformOrigin = '50% 78%';
+      mv.style.transform = 'translate(0,' + (sobe - frente * 0.4).toFixed(2) + 'px) ' +
+                           'rotate(' + gira.toFixed(2) + 'deg) ' +
+                           'scale(' + escX.toFixed(3) + ',' + escY.toFixed(3) + ')';
     }
   }
 
@@ -11708,7 +11758,7 @@ const ARENA = (function () {
       hp: 100, hpMax: 100, vivo: true, respawn: 0,
       dano: dono === 'heroi' ? 9 : 7,
       recarga: { atk: 0, hab: 0 },
-      hab: null,
+      hab: null, golpeAte: 0,
       ape: 0, apeMax: 100,
       piscar: 0, andando: false, passo: 0
     };
@@ -11902,6 +11952,7 @@ const ARENA = (function () {
   }
 
   function atira(de, ang, dano, tam) {
+    de.golpeAte = performance.now() + 260;   // dá o impulso da animação
     const p = {
       dono: de.dono, x: de.x, y: de.y,
       vx: Math.cos(ang) * VEL_TIRO, vy: Math.sin(ang) * VEL_TIRO,
