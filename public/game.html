@@ -11597,7 +11597,11 @@ const ARENA = (function () {
     let opcoes = livres.filter(h => h.el === el && tiers.indexOf(h.tier) >= 0);
     if (!opcoes.length) opcoes = livres.filter(h => h.el === el);
     if (!opcoes.length) return null;
-    return opcoes[Math.floor(Math.random() * opcoes.length)];
+    // golpe COM arte publicada tem preferência: o que já foi desenhado é o
+    // que aparece bonito em campo, então é ele que a Cria leva
+    const comArte = opcoes.filter(h => h.arte);
+    const fila = comArte.length ? comArte : opcoes;
+    return fila[Math.floor(Math.random() * fila.length)];
   }
   const _artHab = {};
   function quadrosDe(hab) {

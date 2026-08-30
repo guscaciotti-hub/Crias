@@ -178,6 +178,9 @@ window.LimpaFundo = function (img) {
       <a href="https://huggingface.co/spaces/tencent/Hunyuan3D-2" target="_blank">Hunyuan3D</a> ou
       <a href="https://www.meshy.ai" target="_blank">Meshy</a> e baixe o <b>.glb</b>.
       É opcional — a arena funciona com os sprites do passo 2. Serve para testar a batalha em 3D.
+      <br><b style="color:var(--gold)">Sem animação no modelo?</b> Abra o
+      <a href="/rig" target="_blank"><b>Estúdio de Ossos</b></a>: você marca as juntas com
+      cliques, escolhe andar/atacar/parado e ele devolve o .glb já animado — sem Blender.
     </div>
     <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:10px">
       <input type="file" id="atArq3" accept=".glb,model/gltf-binary" style="display:none">
@@ -1065,16 +1068,100 @@ cr.lastElementChild.appendChild(mkBtn(P_CHAR, 'Copiar prompt'));
     im.src = URL.createObjectURL(f);
   };
   $('atSobe3').onclick = () => $('atArq3').click();
+  // O .glb do Meshy costuma passar do limite de upload por causa das texturas
+  // em 2K/4K. Antes de enviar, as imagens embutidas são reduzidas — na escala
+  // da batalha a criatura tem poucas dezenas de pixels, então ninguém vê
+  // diferença, e o modelo passa a caber.
+  const LIMITE = 45 * 1024 * 1024;
+  async function encolheGlb(arquivo, ladoMax) {
+    const buf = await arquivo.arrayBuffer();
+    const dv = new DataView(buf);
+    if (dv.getUint32(0, true) !== 0x46546C67) return arquivo;      // não é glb
+    let pos = 12, jsonTxt = null, jsonIni = 0, bin = null, binIni = 0;
+    while (pos < dv.byteLength) {
+      const tam = dv.getUint32(pos, true), tipo = dv.getUint32(pos + 4, true);
+      const ini = pos + 8;
+      if (tipo === 0x4E4F534A) { jsonTxt = new TextDecoder().decode(new Uint8Array(buf, ini, tam)); jsonIni = ini; }
+      else if (tipo === 0x004E4942) { bin = new Uint8Array(buf, ini, tam); binIni = ini; }
+      pos = ini + tam + ((4 - (tam % 4)) % 4);
+    }
+    if (!jsonTxt || !bin) return arquivo;
+    const j = JSON.parse(jsonTxt);
+    if (!j.images || !j.images.length) return arquivo;
+    const partes = [], novos = [];
+    let desl = 0;
+    for (const img of j.images) {
+      if (img.bufferView == null) { novos.push(img); continue; }
+      const bv = j.bufferViews[img.bufferView];
+      const fatia = bin.subarray(bv.byteOffset || 0, (bv.byteOffset || 0) + bv.byteLength);
+      const bmp = await createImageBitmap(new Blob([fatia], { type: img.mimeType || 'image/png' }));
+      const k = Math.min(1, ladoMax / Math.max(bmp.width, bmp.height));
+      const c = document.createElement('canvas');
+      c.width = Math.max(1, Math.round(bmp.width * k));
+      c.height = Math.max(1, Math.round(bmp.height * k));
+      c.getContext('2d').drawImage(bmp, 0, 0, c.width, c.height);
+      const nb = await new Promise(r => c.toBlob(r, 'image/jpeg', 0.82));
+      const arr = new Uint8Array(await nb.arrayBuffer());
+      partes.push({ bv: img.bufferView, arr });
+      novos.push(Object.assign({}, img, { mimeType: 'image/jpeg' }));
+    }
+    // remonta o bloco binário com as imagens novas
+    const trocas = new Map(partes.map(p => [p.bv, p.arr]));
+    const saida = [];
+    let cursor = 0;
+    j.bufferViews.forEach((bv, i) => {
+      const novo = trocas.get(i);
+      const dados = novo || bin.subarray(bv.byteOffset || 0, (bv.byteOffset || 0) + bv.byteLength);
+      const pad = (4 - (dados.length % 4)) % 4;
+      bv.byteOffset = cursor; bv.byteLength = dados.length;
+      saida.push(dados);
+      if (pad) saida.push(new Uint8Array(pad));
+      cursor += dados.length + pad;
+    });
+    j.images = novos;
+    j.buffers[0].byteLength = cursor;
+    const binNovo = new Uint8Array(cursor);
+    let o = 0;
+    for (const p of saida) { binNovo.set(p, o); o += p.length; }
+    const jsonNovo = new TextEncoder().encode(JSON.stringify(j));
+    const padJ = (4 - (jsonNovo.length % 4)) % 4;
+    const total = 12 + 8 + jsonNovo.length + padJ + 8 + binNovo.length;
+    const out = new ArrayBuffer(total);
+    const ov = new DataView(out), ou = new Uint8Array(out);
+    ov.setUint32(0, 0x46546C67, true); ov.setUint32(4, 2, true); ov.setUint32(8, total, true);
+    ov.setUint32(12, jsonNovo.length + padJ, true); ov.setUint32(16, 0x4E4F534A, true);
+    ou.set(jsonNovo, 20);
+    for (let i = 0; i < padJ; i++) ou[20 + jsonNovo.length + i] = 0x20;
+    const bi = 20 + jsonNovo.length + padJ;
+    ov.setUint32(bi, binNovo.length, true); ov.setUint32(bi + 4, 0x004E4942, true);
+    ou.set(binNovo, bi + 8);
+    return new Blob([out], { type: 'model/gltf-binary' });
+  }
+
   $('atArq3').onchange = async e => {
     const f = e.target.files[0]; if (!f) return;
     try {
       if (!window.supabase) { $('atMsg3').textContent = 'biblioteca carregando — tente de novo'; return; }
-      $('atMsg3').textContent = 'enviando o modelo (' + Math.round(f.size/1024) + ' KB)…';
+      let env = f;
+      if (f.size > LIMITE) {
+        for (const lado of [1024, 512, 256]) {
+          $('atMsg3').textContent = 'modelo grande (' + Math.round(f.size/1048576) + ' MB) — reduzindo as texturas para ' + lado + 'px…';
+          env = await encolheGlb(f, lado);
+          if (env.size <= LIMITE) break;
+        }
+        if (env.size > LIMITE) {
+          $('atMsg3').textContent = 'mesmo reduzido o modelo tem ' + Math.round(env.size/1048576) +
+            ' MB. Gere no Meshy com menos polígonos ou textura menor.';
+          return;
+        }
+      }
+      $('atMsg3').textContent = 'enviando o modelo (' + Math.round(env.size/1024) + ' KB)…';
       sb = sb || window.supabase.createClient(SB, KEY);
-      const up = await sb.storage.from('mapas').upload('crias/' + atual.id + '.glb', f,
+      const up = await sb.storage.from('mapas').upload('crias/' + atual.id + '.glb', env,
         { upsert: true, cacheControl: '0', contentType: 'model/gltf-binary' });
       if (up.error) throw up.error;
-      $('atMsg3').textContent = '✅ modelo de ' + atual.name + ' publicado — a arena usa 3D quando existir';
+      $('atMsg3').textContent = '✅ modelo de ' + atual.name + ' publicado (' +
+        Math.round(env.size/1024) + ' KB) — a arena usa 3D quando existir';
     } catch(err){ $('atMsg3').textContent = 'erro: ' + (err.message || err); }
   };
 

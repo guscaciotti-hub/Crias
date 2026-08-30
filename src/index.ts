@@ -53,6 +53,12 @@ app.get('/game', (req, res) => {
   res.sendFile(path.join(publicDir, 'game.html'))
 })
 
+// /rig → estúdio de ossos (rigging simples e animações prontas)
+app.get('/rig', (req, res) => {
+  res.setHeader('Cache-Control', 'no-cache')
+  res.sendFile(path.join(publicDir, 'rig.html'))
+})
+
 // /studio → estúdio de assets (imagem limpa → 3D → sprites do jogo)
 app.get('/studio', (req, res) => {
   res.setHeader('Cache-Control', 'no-cache')
