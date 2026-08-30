@@ -77,6 +77,22 @@
   <div id="ossos" style="margin-top:8px"></div>
   <button class="gh" id="auto">✨ sugerir juntas automaticamente</button>
 
+  <h2>Ajustar o modelo</h2>
+  <div class="nota">Se a criatura veio deitada, de lado ou muito grande, acerte aqui
+    <b>antes</b> de marcar as juntas.</div>
+  <label>Girar em pé (X) <b id="rxV">0°</b></label>
+  <input type="range" id="rx" min="-180" max="180" value="0" step="15">
+  <label>Girar de frente (Y) <b id="ryV">0°</b></label>
+  <input type="range" id="ry" min="-180" max="180" value="0" step="15">
+  <label>Inclinar (Z) <b id="rzV">0°</b></label>
+  <input type="range" id="rz" min="-180" max="180" value="0" step="15">
+  <label>Tamanho <b id="escV">1.00</b>×</label>
+  <input type="range" id="esc" min="30" max="300" value="100">
+  <div class="row" style="margin-top:6px">
+    <button class="gh" id="deitar">⤾ deitar/levantar</button>
+    <button class="gh" id="zerar">↺ zerar</button>
+  </div>
+
   <h2>3 · Animações</h2>
   <div class="nota">Ative as que quiser. O preview toca a selecionada.</div>
   <div id="anims"></div>

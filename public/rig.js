@@ -68,6 +68,7 @@ $('arq').onchange = e => {
     const caixa = new THREE.Box3().setFromObject(modelo);
     const tam = caixa.getSize(new THREE.Vector3());
     const k = 1 / Math.max(tam.x, tam.y, tam.z);
+    modelo.userData.escBase = k;
     modelo.scale.setScalar(k);
     const c2 = new THREE.Box3().setFromObject(modelo);
     modelo.position.y -= c2.min.y;
@@ -77,11 +78,50 @@ $('arq').onchange = e => {
     malha = null;
     modelo.traverse(o => { if (o.isMesh && !malha) malha = o; });
     limpaJuntas();
+    $('rx').value = $('ry').value = $('rz').value = 0; $('esc').value = 100;
+    aplicaPose();
     const v = malha ? malha.geometry.attributes.position.count : 0;
     $('infoModelo').textContent = f.name + ' · ' + v.toLocaleString('pt-BR') + ' vértices';
     $('dica').textContent = 'clique no modelo para marcar a primeira junta (quadril)';
     montaAnims();
   }, undefined, err => { $('infoModelo').textContent = 'não consegui abrir: ' + err; });
+};
+
+// ── ajustar o modelo (girar, virar de frente, tamanho) ──────────────────
+// O .glb do Meshy às vezes vem deitado, de costas ou fora de escala. Acertar
+// aqui antes de marcar as juntas evita rig torto — e como as juntas seguem o
+// modelo, elas acompanham qualquer mudança.
+function aplicaPose() {
+  if (!modelo) return;
+  const g = Math.PI / 180;
+  modelo.rotation.set(+$('rx').value * g, +$('ry').value * g, +$('rz').value * g);
+  const k = (+$('esc').value / 100) * (modelo.userData.escBase || 1);
+  modelo.scale.setScalar(k);
+  modelo.updateMatrixWorld(true);
+  // reapoia no chão e centraliza depois de girar
+  const cx = new THREE.Box3().setFromObject(modelo);
+  modelo.position.y -= cx.min.y;
+  modelo.position.x -= (cx.max.x + cx.min.x) / 2;
+  modelo.position.z -= (cx.max.z + cx.min.z) / 2;
+  modelo.updateMatrixWorld(true);
+  $('rxV').textContent = $('rx').value + '°';
+  $('ryV').textContent = $('ry').value + '°';
+  $('rzV').textContent = $('rz').value + '°';
+  $('escV').textContent = (+$('esc').value / 100).toFixed(2);
+  if (juntas.length) {
+    limpaJuntas();
+    $('dica').textContent = 'modelo girado — marque as juntas de novo (ou use a sugestão)';
+  }
+}
+['rx','ry','rz','esc'].forEach(id => { $(id).oninput = aplicaPose; });
+$('deitar').onclick = () => {
+  $('rx').value = (+$('rx').value + 90) % 360 > 180 ? -90 : 90;
+  aplicaPose();
+};
+$('zerar').onclick = () => {
+  $('rx').value = $('ry').value = $('rz').value = 0;
+  $('esc').value = 100;
+  aplicaPose();
 };
 
 // ── marcar juntas ───────────────────────────────────────────────────────
@@ -97,6 +137,32 @@ rend.domElement.addEventListener('pointerdown', ev => {
   poeJunta($('tipoJunta').value, hit.point.clone());
 });
 
+// O pai de cada junta vem da anatomia, não da ordem em que você clicou.
+// Antes, cada junta nova se ligava na anterior e a cadeia virava uma fila
+// (cauda → pata → pata → tronco), o que torcia o bicho inteiro ao animar.
+const PAI_DE = {
+  quadril: null, tronco: 'quadril', cabeca: 'tronco', cauda: 'quadril',
+  pata_fe: 'tronco', pata_fd: 'tronco', pata_te: 'quadril', pata_td: 'quadril',
+  asa_e: 'tronco', asa_d: 'tronco'
+};
+function achaPai(tipo) {
+  if (PAI_DE[tipo] === null) return null;      // o quadril é a raiz, sempre
+  let alvo = PAI_DE[tipo];
+  while (alvo) {
+    const j = juntas.find(x => x.tipo === alvo);
+    if (j) return j;
+    alvo = PAI_DE[alvo];            // sem tronco? sobe para o quadril
+  }
+  return juntas.find(x => !x.pai) || null;
+}
+// nenhuma junta pode ser ancestral dela mesma
+function temCiclo(j) {
+  const vistos = new Set();
+  let p = j;
+  while (p) { if (vistos.has(p)) return true; vistos.add(p); p = p.pai; }
+  return false;
+}
+
 function poeJunta(tipo, ponto) {
   const d = TIPOS[tipo] || TIPOS.tronco;
   const g = new THREE.Mesh(
@@ -105,9 +171,17 @@ function poeJunta(tipo, ponto) {
   );
   g.position.copy(ponto);
   bolas.add(g);
-  const j = { tipo, ponto, bola: g, pai: selecionada };
+  const j = { tipo, ponto, bola: g, pai: achaPai(tipo) };
   juntas.push(j);
   selecionada = j;
+  // uma junta criada antes do seu pai natural passa a se ligar nele
+  for (const o of juntas) if (o !== j && PAI_DE[o.tipo] === tipo) o.pai = j;
+  // o quadril chegou depois: quem virou raiz por falta dele volta ao lugar
+  if (PAI_DE[tipo] === null) for (const o of juntas) if (o !== j && !o.pai) o.pai = j;
+  for (const o of juntas) if (temCiclo(o)) o.pai = achaPai(o.tipo);
+  const raizes = juntas.filter(x => !x.pai);
+  if (raizes.length > 1) { const r0 = raizes.find(x => PAI_DE[x.tipo] === null) || raizes[0];
+    for (const o of raizes) if (o !== r0) o.pai = r0; }
   // próxima escolha: depois do quadril vem tronco, depois cabeça
   const seq = { quadril: 'tronco', tronco: 'cabeca', cabeca: 'pata_fe',
                 pata_fe: 'pata_fd', pata_fd: 'pata_te', pata_te: 'pata_td', pata_td: 'cauda' };
@@ -143,6 +217,7 @@ function listaJuntas() {
     x.onclick = ev => { ev.stopPropagation(); removeJunta(i); };
     d.appendChild(x);
     d.onclick = () => { selecionada = j; listaJuntas(); };
+    d.title = 'ligada em ' + (j.pai ? j.pai.tipo : 'nada (raiz)');
     el.appendChild(d);
   });
   $('baixar').disabled = $('publicar').disabled = juntas.length < 2;
@@ -177,15 +252,10 @@ $('auto').onclick = () => {
   poeJunta('quadril', P(meio.x, min.y + alt * 0.55, meio.z + comp * 0.22));
   poeJunta('tronco',  P(meio.x, min.y + alt * 0.62, meio.z - comp * 0.05));
   poeJunta('cabeca',  P(meio.x, min.y + alt * 0.80, meio.z - comp * 0.34));
-  selecionada = juntas[0];
   poeJunta('pata_fe', P(meio.x - larg * 0.26, min.y + alt * 0.12, meio.z - comp * 0.22));
-  selecionada = juntas[0];
   poeJunta('pata_fd', P(meio.x + larg * 0.26, min.y + alt * 0.12, meio.z - comp * 0.22));
-  selecionada = juntas[0];
   poeJunta('pata_te', P(meio.x - larg * 0.26, min.y + alt * 0.12, meio.z + comp * 0.26));
-  selecionada = juntas[0];
   poeJunta('pata_td', P(meio.x + larg * 0.26, min.y + alt * 0.12, meio.z + comp * 0.26));
-  selecionada = juntas[0];
   poeJunta('cauda',   P(meio.x, min.y + alt * 0.58, meio.z + comp * 0.44));
   $('dica').textContent = 'juntas sugeridas — arraste a cena e ajuste o que estiver fora do lugar';
 };
@@ -325,7 +395,12 @@ function montaRig() {
       if (d < da) { db = da; b = a; da = d; a = k; }
       else if (d < db) { db = d; b = k; }
     });
-    const wa = 1 / (Math.sqrt(da) + 1e-4), wb = b >= 0 ? 1 / (Math.sqrt(db) + 1e-4) * 0.55 : 0;
+    // queda acentuada: o vértice fica preso à junta mais perto, e a segunda
+    // só entra na costura entre as duas. Sem isso, mexer numa pata arrastava
+    // o corpo todo e o bicho se desmontava.
+    const ra = Math.sqrt(da), rb = Math.sqrt(db);
+    const wa = 1 / (ra * ra * ra + 1e-6);
+    const wb = (b >= 0 && rb < ra * 2.2) ? 1 / (rb * rb * rb + 1e-6) : 0;
     const s = wa + wb;
     idx.push(a, b >= 0 ? b : a, 0, 0);
     peso.push(wa / s, wb / s, 0, 0);

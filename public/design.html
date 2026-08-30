@@ -1072,7 +1072,9 @@ cr.lastElementChild.appendChild(mkBtn(P_CHAR, 'Copiar prompt'));
   // em 2K/4K. Antes de enviar, as imagens embutidas são reduzidas — na escala
   // da batalha a criatura tem poucas dezenas de pixels, então ninguém vê
   // diferença, e o modelo passa a caber.
-  const LIMITE = 45 * 1024 * 1024;
+  // O limite do servidor não é público e varia: em vez de adivinhar, tenta
+  // enviar e, quando ele recusa por tamanho, reduz e tenta de novo.
+  const eDeTamanho = e => /exceed|maximum allowed size|payload|too large|413/i.test(String((e && e.message) || e));
   async function encolheGlb(arquivo, ladoMax) {
     const buf = await arquivo.arrayBuffer();
     const dv = new DataView(buf);
@@ -1142,26 +1144,28 @@ cr.lastElementChild.appendChild(mkBtn(P_CHAR, 'Copiar prompt'));
     const f = e.target.files[0]; if (!f) return;
     try {
       if (!window.supabase) { $('atMsg3').textContent = 'biblioteca carregando — tente de novo'; return; }
-      let env = f;
-      if (f.size > LIMITE) {
-        for (const lado of [1024, 512, 256]) {
-          $('atMsg3').textContent = 'modelo grande (' + Math.round(f.size/1048576) + ' MB) — reduzindo as texturas para ' + lado + 'px…';
+      sb = sb || window.supabase.createClient(SB, KEY);
+      const tentativas = [null, 1024, 512, 256, 128];   // null = o arquivo como veio
+      let env = f, ultimoErro = null;
+      for (const lado of tentativas) {
+        if (lado) {
+          $('atMsg3').textContent = 'muito grande — reduzindo as texturas para ' + lado + 'px…';
           env = await encolheGlb(f, lado);
-          if (env.size <= LIMITE) break;
         }
-        if (env.size > LIMITE) {
-          $('atMsg3').textContent = 'mesmo reduzido o modelo tem ' + Math.round(env.size/1048576) +
-            ' MB. Gere no Meshy com menos polígonos ou textura menor.';
+        $('atMsg3').textContent = 'enviando (' + (env.size/1048576).toFixed(1) + ' MB)…';
+        const up = await sb.storage.from('mapas').upload('crias/' + atual.id + '.glb', env,
+          { upsert: true, cacheControl: '0', contentType: 'model/gltf-binary' });
+        if (!up.error) {
+          $('atMsg3').textContent = '✅ modelo de ' + atual.name + ' publicado (' +
+            (env.size/1048576).toFixed(1) + ' MB) — a arena usa 3D quando existir';
           return;
         }
+        ultimoErro = up.error;
+        if (!eDeTamanho(up.error)) throw up.error;   // outro erro: não adianta encolher
       }
-      $('atMsg3').textContent = 'enviando o modelo (' + Math.round(env.size/1024) + ' KB)…';
-      sb = sb || window.supabase.createClient(SB, KEY);
-      const up = await sb.storage.from('mapas').upload('crias/' + atual.id + '.glb', env,
-        { upsert: true, cacheControl: '0', contentType: 'model/gltf-binary' });
-      if (up.error) throw up.error;
-      $('atMsg3').textContent = '✅ modelo de ' + atual.name + ' publicado (' +
-        Math.round(env.size/1024) + ' KB) — a arena usa 3D quando existir';
+      $('atMsg3').textContent = 'o servidor recusou mesmo com textura de 128px (' +
+        (env.size/1048576).toFixed(1) + ' MB). A malha é que está pesada: no Meshy, ' +
+        'baixe com menos polígonos (Low poly / Quad ~10k).';
     } catch(err){ $('atMsg3').textContent = 'erro: ' + (err.message || err); }
   };
 
