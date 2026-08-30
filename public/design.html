@@ -243,7 +243,11 @@ window.LimpaFundo = function (img) {
       dele, gere no GPT e solte a folha de 5 quadros. Quem recebe cada golpe já está definido
       pela força e pela raridade da Cria.
     </div>
-    <div style="display:flex;gap:6px;margin-bottom:10px" id="golEls"></div>
+    <div style="display:flex;gap:6px;margin-bottom:8px" id="golEls"></div>
+    <div style="display:flex;gap:8px;align-items:center;margin-bottom:10px;flex-wrap:wrap">
+      <span class="note" style="margin:0">ou veja os golpes de uma Cria:</span>
+      <select id="golCria" style="background:#0a1322;border:1px solid var(--line);border-radius:8px;color:var(--txt);padding:7px;font-size:13px"></select>
+    </div>
     <div id="golGrade" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:8px"></div>
 
     <div id="golDet" style="display:none;margin-top:12px;border-top:1px solid var(--line);padding-top:10px">
@@ -1511,10 +1515,20 @@ cr.lastElementChild.appendChild(mkBtn(P_CHAR, 'Copiar prompt'));
       .filter(c => (ELEM_DE[c.id]||'fire') === h.el && (TIERS[c.rar]||[1]).indexOf(h.tier) >= 0)
       .map(c => c.n);
   }
+  let criaSel = '';
   function abas(){
     $('golEls').innerHTML = ELS.map(e =>
       '<button class="ghost" data-e="'+e[0]+'" style="flex:1">'+e[1]+'</button>').join('');
-    $('golEls').querySelectorAll('button').forEach(b => b.onclick = () => { elSel = b.dataset.e; grade(); });
+    $('golEls').querySelectorAll('button').forEach(b => b.onclick = () => {
+      elSel = b.dataset.e; criaSel = ''; $('golCria').value = ''; grade();
+    });
+    $('golCria').innerHTML = '<option value="">— todas —</option>' + CRIAS_JOGO.map(c =>
+      '<option value="'+c.id+'">'+c.n+' ('+(({fire:'Fogo',water:'Água',earth:'Terra',air:'Vento'})[ELEM_DE[c.id]||'fire'])+')</option>').join('');
+    $('golCria').onchange = () => {
+      criaSel = $('golCria').value;
+      if (criaSel) elSel = ELEM_DE[criaSel] || 'fire';
+      grade();
+    };
   }
   function grade(){
     $('golEls').querySelectorAll('button').forEach(b => {
@@ -1523,15 +1537,21 @@ cr.lastElementChild.appendChild(mkBtn(P_CHAR, 'Copiar prompt'));
       b.style.color = on ? 'var(--acc)' : '';
     });
     const base = SB + '/storage/v1/object/public/mapas/arena/hab-';
-    $('golGrade').innerHTML = HABS.filter(h => h.el === elSel).map(h =>
+    const cria = criaSel ? CRIAS_JOGO.find(c => c.id === criaSel) : null;
+    const lista = cria
+      ? HABS.filter(h => h.el === (ELEM_DE[cria.id]||'fire') && (TIERS[cria.rar]||[1]).indexOf(h.tier) >= 0)
+      : HABS.filter(h => h.el === elSel);
+    $('golGrade').innerHTML = lista.map(h =>
       '<div class="golCard" data-id="'+h.id+'" style="cursor:pointer;padding:8px;border-radius:8px;' +
       'border:1px solid '+(sel && sel.id===h.id ? 'var(--acc)' : 'var(--line)')+';background:rgba(255,255,255,.03)">' +
         '<div style="display:flex;align-items:center;gap:8px">' +
           '<img src="'+base+h.id+'-2.png?t='+Date.now()+'" style="width:34px;height:34px;object-fit:contain" ' +
           'onload="this.nextElementSibling.querySelector(\'i\').textContent=\'✅ com arte\'" ' +
           'onerror="this.style.visibility=\'hidden\'">' +
-          '<div><b style="color:var(--txt);font-size:13px">'+h.n+'</b>' +
-          '<div style="font-size:11px;color:var(--dim)">força '+h.tier+' · '+h.dano+' de dano <i style="color:var(--ok);font-style:normal"></i></div></div>' +
+          '<div style="min-width:0"><b style="color:var(--txt);font-size:13px">'+h.n+'</b>' +
+          '<div style="font-size:11px;color:var(--dim)">força '+h.tier+' · '+h.dano+' de dano <i style="color:var(--ok);font-style:normal"></i></div>' +
+          '<div style="font-size:11px;color:var(--acc);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">' +
+          (quemUsa(h).join(', ') || 'sem dono ainda') + '</div></div>' +
         '</div></div>').join('');
     $('golGrade').querySelectorAll('.golCard').forEach(c => c.onclick = () => escolhe(c.dataset.id));
   }

@@ -714,7 +714,7 @@
     box-shadow: 0 0 16px rgba(77,195,255,.6); pointer-events: none;
   }
   #arenaBtns {
-    position: absolute; right: 18px; bottom: 26px;
+    position: absolute; right: 18px; bottom: 34px;
     display: grid; grid-template-columns: repeat(2, auto); gap: 12px;
     align-items: end; justify-items: center;
   }
@@ -731,6 +731,19 @@
   #arena .abtn i {
     position: absolute; left: 0; right: 0; bottom: 0; height: 0%;
     background: rgba(0,0,0,.62); z-index: 1; transition: height .08s linear;
+  }
+
+  #arena .abtn em {
+    position: absolute; left: 50%; transform: translateX(-50%);
+    bottom: -15px; font-style: normal; font-size: 10px; font-weight: 800;
+    color: #cfe6ff; letter-spacing: .02em; white-space: nowrap;
+    text-shadow: 0 1px 3px rgba(0,0,0,.9); pointer-events: none;
+  }
+  #arena .abtn.atk em { font-size: 11px; bottom: -17px; }
+  #arena .abtn span.comArte {
+    width: 74%; height: 74%;
+    background-size: contain; background-repeat: no-repeat; background-position: center;
+    filter: drop-shadow(0 0 4px rgba(0,0,0,.6));
   }
   #arena .abtn.pronto { box-shadow: 0 0 0 2px #4dc3ff, 0 0 18px rgba(77,195,255,.65); }
   #arena .abtn.ape.pronto { box-shadow: 0 0 0 2px #ffd700, 0 0 22px rgba(255,215,0,.7); }
@@ -11588,10 +11601,13 @@ const ARENA = (function () {
   }
   const _artHab = {};
   function quadrosDe(hab) {
-    if (!hab || !hab.arte) return null;
+    if (!hab) return null;
+    // o caminho da arte é previsível pelo id, então publicar os 5 quadros já
+    // liga o golpe ao sprite mesmo sem registro no catálogo
+    const base = hab.arte || (NUVEM + 'hab-' + hab.id);
     const fs = [];
     for (let i = 0; i < 5; i++) {
-      const u = hab.arte + '-' + i + '.png';
+      const u = base + '-' + i + '.png';
       if (!(u in _artHab)) {
         const im = new Image();
         im.crossOrigin = 'anonymous';
@@ -11732,9 +11748,9 @@ const ARENA = (function () {
         '<canvas id="arenaCv"></canvas>' +
         '<div id="arenaJoy"><div class="ajBase"></div><div class="ajNub"></div></div>' +
         '<div id="arenaBtns">' +
-          '<button class="abtn ape" data-b="ape"><span>⚡</span><i></i></button>' +
-          '<button class="abtn hab" data-b="hab"><span>💠</span><i></i></button>' +
-          '<button class="abtn atk" data-b="atk"><span>⚔️</span><i></i></button>' +
+          '<button class="abtn ape" data-b="ape"><span>⚡</span><i></i><em></em></button>' +
+          '<button class="abtn hab" data-b="hab"><span>💠</span><i></i><em></em></button>' +
+          '<button class="abtn atk" data-b="atk"><span>⚔️</span><i></i><em></em></button>' +
         '</div>' +
         '<div id="arenaFim"></div>';
       document.body.appendChild(el);
@@ -11754,6 +11770,7 @@ const ARENA = (function () {
     ajustaTela();
     botoes = {};
     el.querySelectorAll('.abtn').forEach(b => { botoes[b.dataset.b] = b; });
+    rotulaBotoes();
   }
 
   function ajustaTela() {
@@ -11814,6 +11831,26 @@ const ARENA = (function () {
     });
     window.addEventListener('keyup', e => { teclas[e.key.toLowerCase()] = false; });
     window.addEventListener('resize', () => { if (ativo) ajustaTela(); });
+  }
+
+  // Cada bolinha mostra o NOME do golpe e, quando a arte existe, o auge dele
+  // como ícone — assim o jogador sabe o que cada botão faz sem decorar.
+  function rotulaBotoes() {
+    const nomes = { atk: 'Ataque', hab: (heroi.hab && heroi.hab.n) || 'Habilidade', ape: 'Ápice' };
+    for (const k in botoes) {
+      const b = botoes[k];
+      const em = b.querySelector('em');
+      if (em) em.textContent = nomes[k] || '';
+      const sp = b.querySelector('span');
+      if (k === 'hab' && heroi.hab) {
+        const fs = quadrosDe(heroi.hab);
+        if (fs && fs[2] && sp) {
+          sp.style.backgroundImage = 'url(' + fs[2].src + ')';
+          sp.classList.add('comArte');
+          sp.textContent = '';
+        }
+      }
+    }
   }
 
   function acao(tipo) {
@@ -11966,6 +12003,7 @@ const ARENA = (function () {
       b.querySelector('i').style.height = (p * 100) + '%';
       b.classList.toggle('pronto', p <= 0);
     }
+    if (botoes.hab && heroi.hab && !botoes.hab.querySelector('span').classList.contains('comArte')) rotulaBotoes();
     if (botoes.ape) {
       const p = heroi.ape / heroi.apeMax;
       botoes.ape.querySelector('i').style.height = ((1 - p) * 100) + '%';
