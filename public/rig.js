@@ -417,36 +417,50 @@ function clipes(ossos, mapa) {
       t.push(faixas(p, [0, D / 4, D / 2, 3 * D / 4, D],
         [0, 0.5 * fase, 0, -0.5 * fase, 0], LADO));
     });
-    if (quadril) t.push(new THREE.VectorKeyframeTrack(
-      quadril.name + '.position',
-      [0, D / 4, D / 2, 3 * D / 4, D],
-      [quadril.position.x, quadril.position.y, quadril.position.z,
-       quadril.position.x, quadril.position.y + 0.03, quadril.position.z,
-       quadril.position.x, quadril.position.y, quadril.position.z,
-       quadril.position.x, quadril.position.y + 0.03, quadril.position.z,
-       quadril.position.x, quadril.position.y, quadril.position.z]));
+    if (quadril) {
+      t.push(new THREE.VectorKeyframeTrack(
+        quadril.name + '.position',
+        [0, D / 4, D / 2, 3 * D / 4, D],
+        [quadril.position.x, quadril.position.y, quadril.position.z,
+         quadril.position.x, quadril.position.y + 0.028, quadril.position.z,
+         quadril.position.x, quadril.position.y, quadril.position.z,
+         quadril.position.x, quadril.position.y + 0.028, quadril.position.z,
+         quadril.position.x, quadril.position.y, quadril.position.z]));
+      // requebrado do quadril: o corpo inteiro acompanha a passada
+      t.push(faixas(quadril, [0, D / 4, D / 2, 3 * D / 4, D],
+        [0, 0.07, 0, -0.07, 0], Y));
+    }
+    if (tronco) t.push(faixas(tronco, [0, D / 4, D / 2, 3 * D / 4, D],
+      [0, -0.05, 0, 0.05, 0], Y));
+    if (cabeca) t.push(faixas(cabeca, [0, D / 2, D], [0.04, -0.04, 0.04], LADO));
     if (cauda) t.push(faixas(cauda, [0, D / 2, D], [0.2, -0.2, 0.2], Y));
     if (asas.length) asas.forEach((a, i) =>
       t.push(faixas(a, [0, D / 2, D], [0.5, -0.5, 0.5], i ? Z : Z)));
     saida.push(new THREE.AnimationClip('walk', D, t));
   }
   if (ativas.atacar && (tronco || quadril || cabeca)) {
-    // recua para tomar impulso (0.16), estica no bote (0.30) e assenta (D)
-    const t = [], D = 0.62, alvo = tronco || quadril;
-    t.push(faixas(alvo, [0, 0.16, 0.30, 0.44, D], [0, -0.30, 0.42, 0.10, 0], LADO));
-    if (cabeca) t.push(faixas(cabeca, [0, 0.16, 0.30, 0.44, D], [0, -0.34, 0.52, 0.12, 0], LADO));
-    // as patas da frente acompanham o bote, as de trás firmam o apoio
+    // O corpo INTEIRO entra no golpe, em camadas: o quadril (raiz) dá o
+    // movimento de base, e como tudo pende dele, nada fica parado; o tronco
+    // soma por cima, e a cabeça soma mais ainda — daí a frente ser a parte
+    // mais intensa sem a traseira ficar estática.
+    const t = [], D = 0.62;
+    const T = [0, 0.16, 0.30, 0.44, D];
+    if (quadril) t.push(faixas(quadril, T, [0, -0.16, 0.22, 0.05, 0], LADO));
+    if (tronco)  t.push(faixas(tronco,  T, [0, -0.22, 0.30, 0.07, 0], LADO));
+    if (cabeca)  t.push(faixas(cabeca,  T, [0, -0.34, 0.52, 0.12, 0], LADO));
     const frentes = ['pata_fe', 'pata_fd'].map(acha).filter(Boolean);
     const tras = ['pata_te', 'pata_td'].map(acha).filter(Boolean);
-    frentes.forEach(p => t.push(faixas(p, [0, 0.16, 0.30, 0.44, D], [0, -0.55, 0.75, 0.15, 0], LADO)));
-    tras.forEach(p => t.push(faixas(p, [0, 0.16, 0.30, D], [0, 0.28, -0.12, 0], LADO)));
-    if (cauda) t.push(faixas(cauda, [0, 0.16, 0.30, D], [0, 0.30, -0.25, 0], LADO));
+    // as da frente lançam; as de trás empurram o chão e depois acompanham
+    frentes.forEach(p => t.push(faixas(p, T, [0, -0.50, 0.70, 0.14, 0], LADO)));
+    tras.forEach(p => t.push(faixas(p, T, [0, 0.34, -0.26, -0.06, 0], LADO)));
+    if (cauda) t.push(faixas(cauda, T, [0, 0.34, -0.30, -0.08, 0], LADO));
+    // e o corpo todo se desloca: agacha e recua, depois avança no bote
     if (quadril) t.push(new THREE.VectorKeyframeTrack(
-      quadril.name + '.position',
-      [0, 0.16, 0.30, D],
+      quadril.name + '.position', T,
       [quadril.position.x, quadril.position.y, quadril.position.z,
-       quadril.position.x - frente.x * 0.05, quadril.position.y - 0.02, quadril.position.z - frente.z * 0.05,
-       quadril.position.x + frente.x * 0.09, quadril.position.y + 0.02, quadril.position.z + frente.z * 0.09,
+       quadril.position.x - frente.x * 0.06, quadril.position.y - 0.03, quadril.position.z - frente.z * 0.06,
+       quadril.position.x + frente.x * 0.11, quadril.position.y + 0.02, quadril.position.z + frente.z * 0.11,
+       quadril.position.x + frente.x * 0.03, quadril.position.y, quadril.position.z + frente.z * 0.03,
        quadril.position.x, quadril.position.y, quadril.position.z]));
     saida.push(new THREE.AnimationClip('attack', D, t));
   }
