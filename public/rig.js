@@ -613,6 +613,74 @@ function encolheTexturas(raiz, lado) {
   });
 }
 
+// O exportador grava as texturas em PNG cru: uma imagem 3K vira ~28 MB, e
+// com quatro mapas o arquivo passa de 140 MB. Aqui as imagens embutidas no
+// .glb são reescritas em JPEG no tamanho pedido — é o que derruba o peso.
+async function comprimeGlb(buffer, lado) {
+  const dv = new DataView(buffer);
+  if (dv.getUint32(0, true) !== 0x46546C67) return buffer;
+  let pos = 12, jsonTxt = null, bin = null;
+  while (pos < dv.byteLength) {
+    const tam = dv.getUint32(pos, true), tipo = dv.getUint32(pos + 4, true);
+    const ini = pos + 8;
+    if (tipo === 0x4E4F534A) jsonTxt = new TextDecoder().decode(new Uint8Array(buffer, ini, tam));
+    else if (tipo === 0x004E4942) bin = new Uint8Array(buffer, ini, tam);
+    pos = ini + tam + ((4 - (tam % 4)) % 4);
+  }
+  if (!jsonTxt || !bin) return buffer;
+  const j = JSON.parse(jsonTxt);
+  if (!j.images || !j.images.length) return buffer;
+  const trocas = new Map();
+  const novas = [];
+  for (const img of j.images) {
+    if (img.bufferView == null) { novas.push(img); continue; }
+    const bv = j.bufferViews[img.bufferView];
+    const fatia = bin.subarray(bv.byteOffset || 0, (bv.byteOffset || 0) + bv.byteLength);
+    let bmp;
+    try { bmp = await createImageBitmap(new Blob([fatia], { type: img.mimeType || 'image/png' })); }
+    catch (e) { novas.push(img); continue; }
+    const k = Math.min(1, lado / Math.max(bmp.width, bmp.height));
+    const c = document.createElement('canvas');
+    c.width = Math.max(1, Math.round(bmp.width * k));
+    c.height = Math.max(1, Math.round(bmp.height * k));
+    const g = c.getContext('2d');
+    g.imageSmoothingEnabled = true;
+    g.drawImage(bmp, 0, 0, c.width, c.height);
+    const nb = await new Promise(r => c.toBlob(r, 'image/jpeg', 0.82));
+    trocas.set(img.bufferView, new Uint8Array(await nb.arrayBuffer()));
+    novas.push(Object.assign({}, img, { mimeType: 'image/jpeg' }));
+  }
+  const partes = [];
+  let cursor = 0;
+  j.bufferViews.forEach((bv, i) => {
+    const nova = trocas.get(i);
+    const dados = nova || bin.subarray(bv.byteOffset || 0, (bv.byteOffset || 0) + bv.byteLength);
+    const pad = (4 - (dados.length % 4)) % 4;
+    bv.byteOffset = cursor; bv.byteLength = dados.length;
+    partes.push(dados);
+    if (pad) partes.push(new Uint8Array(pad));
+    cursor += dados.length + pad;
+  });
+  j.images = novas;
+  j.buffers[0].byteLength = cursor;
+  const binNovo = new Uint8Array(cursor);
+  let o = 0;
+  for (const p of partes) { binNovo.set(p, o); o += p.length; }
+  const jsonNovo = new TextEncoder().encode(JSON.stringify(j));
+  const padJ = (4 - (jsonNovo.length % 4)) % 4;
+  const total = 12 + 8 + jsonNovo.length + padJ + 8 + binNovo.length;
+  const out = new ArrayBuffer(total);
+  const ov = new DataView(out), ou = new Uint8Array(out);
+  ov.setUint32(0, 0x46546C67, true); ov.setUint32(4, 2, true); ov.setUint32(8, total, true);
+  ov.setUint32(12, jsonNovo.length + padJ, true); ov.setUint32(16, 0x4E4F534A, true);
+  ou.set(jsonNovo, 20);
+  for (let i = 0; i < padJ; i++) ou[20 + jsonNovo.length + i] = 0x20;
+  const bi = 20 + jsonNovo.length + padJ;
+  ov.setUint32(bi, binNovo.length, true); ov.setUint32(bi + 4, 0x004E4942, true);
+  ou.set(binNovo, bi + 8);
+  return out;
+}
+
 async function geraGlb(ladoTextura) {
   const r = montaRig();
   if (!r) throw new Error('marque pelo menos duas juntas');
@@ -621,8 +689,9 @@ async function geraGlb(ladoTextura) {
   if (ladoTextura) encolheTexturas(grupo, ladoTextura);
   const cs = clipes(r.ossos, r.mapa);
   const exp = new GLTFExporter();
-  return await new Promise((ok, err) => exp.parse(grupo, ok, err,
+  const bruto = await new Promise((ok, err) => exp.parse(grupo, ok, err,
     { binary: true, animations: cs, onlyVisible: false }));
+  return ladoTextura ? await comprimeGlb(bruto, ladoTextura) : bruto;
 }
 $('baixar').onclick = async () => {
   try {
@@ -645,8 +714,8 @@ $('publicar').onclick = async () => {
     const sb = window.supabase.createClient(SB, KEY);
     const id = $('criaId').value;
     // tenta com textura cheia e vai encolhendo até o servidor aceitar
-    for (const lado of [1024, 512, 256, 128, 64]) {
-      $('msg').textContent = 'montando (textura ' + lado + 'px)…';
+    for (const lado of [1024, 512, 256, 128]) {
+      $('msg').textContent = 'montando e comprimindo (textura ' + lado + 'px)…';
       const bin = await geraGlb(lado);
       const mb = bin.byteLength / 1048576;
       $('msg').textContent = 'enviando (' + mb.toFixed(1) + ' MB)…';
