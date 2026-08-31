@@ -2286,17 +2286,7 @@
   <div class="panel">
     <h2>ESCOLHA SEU PERSONAGEM</h2>
     <div class="sub">Cada treinador tem sua própria identidade no Nexus.</div>
-    <div class="char-grid">
-<div class="char-row"><div class="char-card available selected" data-combo="char1" onclick="selectCombo('char1')">
-        <canvas id="char1preview" class="char-preview-img" width="56" height="70"></canvas>
-        <div class="char-card-name">Pioneiro</div>
-        <div class="char-card-label">Treinador Oficial</div>
-      </div><div class="char-card" style="opacity:.45;cursor:not-allowed;">
-        <div class="char-preview-img" style="display:flex;align-items:center;justify-content:center;font-size:36px;">👧</div>
-        <div class="char-card-name">Pioneira</div>
-        <div class="char-card-label">Em breve</div>
-      </div></div>
-    </div>
+    <div class="char-grid" id="charGrid"></div>
     </div>
     <div class="ob-name-row">
       <label>Seu nome:</label>
@@ -8420,7 +8410,10 @@ function closeAllOverlays() {
 // ============================================================================
 const PLAYER_COMBOS = [
   {"id": "char1", "name": "Pioneiro", "label": "Treinador Oficial", "gender": "male", "available": true},
-  {"id": "char2", "name": "Errante",  "label": "Treinador 3D",      "gender": "male", "available": true}
+  // Treinador em 3D: nao tem sprite 2D proprio, o corpo dele e o .glb publicado
+  // no database. Se o modelo ainda nao estiver la, o card avisa em vez de
+  // deixar o jogador escolher um personagem invisivel.
+  {"id": "char2", "name": "Errante",  "label": "Treinador 3D",      "gender": "male", "available": true, "modelo3d": true}
 ];
 let PLAYER_SPRITES_DATA = {};
 try { PLAYER_SPRITES_DATA = JSON.parse((document.getElementById("d-sprites-player")||{textContent:"{}"}).textContent); } catch(e) { console.warn("Player sprites parse error",e); }
@@ -9009,6 +9002,95 @@ function getPlayerSpriteByCombo(comboId, dir, frameIdx) {
   return cached[dir][frameIdx % cached[dir].length] || cached[dir][0];
 }
 
+// A grade da tela "ESCOLHA SEU PERSONAGEM" nasce do PLAYER_COMBOS. Era HTML
+// fixo com dois cards escritos a mao, entao liberar um combo novo no array nao
+// aparecia para ninguem. Agora cada combo vira um card sozinho.
+function montaGradeCombos() {
+  const grade = document.getElementById('charGrid');
+  if (!grade) return;
+  const linha = document.createElement('div');
+  linha.className = 'char-row';
+  for (const c of PLAYER_COMBOS) {
+    const card = document.createElement('div');
+    card.className = 'char-card' + (c.available ? ' available' : ' locked');
+    card.dataset.combo = c.id;
+    if (c.available) {
+      card.onclick = () => selectCombo(c.id);
+    } else {
+      card.style.opacity = '.45';
+      card.style.cursor = 'not-allowed';
+    }
+    let preview;
+    if (!c.available) {
+      preview = document.createElement('div');
+      preview.className = 'char-preview-img';
+      preview.style.cssText = 'display:flex;align-items:center;justify-content:center;font-size:36px';
+      preview.textContent = '\u{1F512}';
+    } else if (c.modelo3d) {
+      // Enquanto o .glb nao carrega (ou se nao existir), o card mostra o cubo.
+      preview = document.createElement('div');
+      preview.className = 'char-preview-img';
+      preview.style.cssText = 'display:flex;align-items:center;justify-content:center;font-size:32px;position:relative';
+      preview.textContent = '\u{1F9CA}';
+      preview.id = c.id + 'preview3d';
+    } else {
+      preview = document.createElement('canvas');
+      preview.className = 'char-preview-img';
+      preview.width = 56; preview.height = 70;
+      preview.id = c.id + 'preview';
+    }
+    const nome = document.createElement('div');
+    nome.className = 'char-card-name';
+    nome.textContent = c.name;
+    const rot = document.createElement('div');
+    rot.className = 'char-card-label';
+    rot.textContent = c.available ? c.label : 'Em breve';
+    card.append(preview, nome, rot);
+    linha.appendChild(card);
+  }
+  grade.innerHTML = '';
+  grade.appendChild(linha);
+  for (const c of PLAYER_COMBOS) if (c.available && c.modelo3d) preview3D(c);
+}
+window.montaGradeCombos = montaGradeCombos;
+
+// Troca o cubo pelo modelo de verdade quando o .glb do treinador esta
+// publicado. Quem decide e o proprio model-viewer: um HEAD no storage podia
+// falhar por CORS mesmo com o arquivo la.
+function preview3D(c) {
+  const alvo = document.getElementById(c.id + 'preview3d');
+  if (!alvo) return;
+  if (!window.__mvCarregado) {
+    window.__mvCarregado = true;
+    const sc = document.createElement('script');
+    sc.type = 'module'; sc.src = '/model-viewer.min.js';
+    document.head.appendChild(sc);
+  }
+  const mv = document.createElement('model-viewer');
+  mv.setAttribute('src', NUVEM_CHARS + c.id + '.glb');
+  mv.setAttribute('camera-orbit', '15deg 75deg auto');
+  mv.setAttribute('field-of-view', '28deg');
+  mv.setAttribute('disable-zoom', '');
+  mv.setAttribute('interaction-prompt', 'none');
+  mv.setAttribute('environment-image', 'neutral');
+  mv.setAttribute('exposure', '1.15');
+  mv.setAttribute('shadow-intensity', '0');
+  mv.setAttribute('autoplay', '');
+  mv.setAttribute('auto-rotate', '');
+  mv.setAttribute('rotation-per-second', '18deg');
+  mv.style.cssText = 'position:absolute;inset:0;width:100%;height:100%;background:transparent;pointer-events:none;opacity:0;transition:opacity .3s';
+  mv.addEventListener('load', () => {
+    mv.style.opacity = '1';
+    alvo.style.fontSize = '0';          // some com o cubo, fica so o modelo
+  });
+  mv.addEventListener('error', () => {
+    mv.remove();
+    const rot = alvo.parentElement && alvo.parentElement.querySelector('.char-card-label');
+    if (rot) { rot.textContent = 'Falta o modelo'; rot.style.color = '#e2a04a'; }
+  });
+  alvo.appendChild(mv);
+}
+
 function selectCombo(comboId) {
   // Verificar se o slot está disponível
   const combo = PLAYER_COMBOS.find(c => c.id === comboId);
@@ -9019,6 +9101,8 @@ function selectCombo(comboId) {
   selectedCombo = comboId;
   document.querySelectorAll('.char-card').forEach(el =>
     el.classList.toggle('selected', el.dataset.combo === comboId && el.classList.contains('available')));
+  const bt = document.getElementById('obConfirm');
+  if (bt) bt.textContent = combo.modelo3d ? 'Começar \u25B6' : 'Personalizar \u25B6';
   if (typeof FX !== 'undefined' && FX.sfx) FX.sfx.ui();
   preloadComboSprites(comboId);
 }
@@ -9266,6 +9350,10 @@ window.abreCustomizacao = abreCustomizacao;
 document.getElementById('obConfirm').addEventListener('click', () => {
   document.getElementById('obName2').value =
     (document.getElementById('obName2').value.trim()) || 'Treinador';
+  // O ateliê de cores repinta as máscaras do char1. Um treinador que é modelo
+  // 3D não tem essas máscaras, então ele pula direto para o jogo.
+  const c = PLAYER_COMBOS.find(x => x.id === selectedCombo);
+  if (c && c.modelo3d) { document.getElementById('czStart').click(); return; }
   abreCustomizacao();
 });
 
@@ -11274,7 +11362,7 @@ document.getElementById('btnEnter').addEventListener('click', () => {
 document.getElementById('btnBack').addEventListener('click', () => {
   document.getElementById('createAcc').classList.remove('active');
   // Pre-carregar sprites de todos os combos
-  Promise.all(PLAYER_COMBOS.filter(c => c.available).map(c => preloadComboSprites(c.id)));
+  Promise.all(PLAYER_COMBOS.filter(c => c.available && !c.modelo3d).map(c => preloadComboSprites(c.id)));
   selectCombo(PLAYER_COMBOS[0].id);
   document.getElementById('login').classList.add('active');
 });
@@ -12503,11 +12591,10 @@ window.ARENA = ARENA;
     }
   }
   // Pre-carregar sprites de todos os combos
-  Promise.all(PLAYER_COMBOS.filter(c => c.available).map(c => preloadComboSprites(c.id)));
+  montaGradeCombos();
+  Promise.all(PLAYER_COMBOS.filter(c => c.available && !c.modelo3d).map(c => preloadComboSprites(c.id)));
   selectCombo(PLAYER_COMBOS[0].id);
   document.getElementById('login').classList.add('active');
-  // Init char cards selection
-  document.querySelector('.char-card.available[data-combo="char1"]')?.classList.add('selected');
   
   requestAnimationFrame(loop);
 })();
