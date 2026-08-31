@@ -9792,13 +9792,14 @@ function updateCamera(playerWorldX, playerWorldY) {
 function render(now) {
   const cw = canvas.width, ch = canvas.height;
   if (!cw || !ch) return; // skip frame if canvas was resized to 0 mid-rotation
+  if (inBattle || (window.ARENA && ARENA.ativo)) escondeCompanheiro3D();
   ctx.fillStyle = '#0a0e1a';
   ctx.fillRect(0, 0, cw, ch);
   if (!state) return;
   if (!assets.map && !assets.mapaSul) return;
 
   // CAVE SCENE
-  if (state.scene === 'cave1') { renderCave1(now); return; }
+  if (state.scene === 'cave1') { escondeCompanheiro3D(); renderCave1(now); return; }
   const CENA = cena();
   if (!CENA.mapa || !CENA.mapa.complete) return;
 
@@ -10592,8 +10593,87 @@ function drawCriaEmbers(cx, baseY, now, fx) {
   ctx.restore();
 }
 
+// ── Companheiro em 3D no mapa ───────────────────────────────────────────
+// Quando a Cria tem .glb publicado, ela anda ao lado do treinador como
+// modelo, com os clipes do esqueleto que você montou no Estúdio de Ossos.
+// Sem .glb, continua o sprite de sempre.
+const _mvMapa = {};
+let _mvMapaAtual = null;
+function companheiro3D(species, px, py, andando, dir) {
+  if (!_glbTemMapa(species)) return false;
+  let mv = _mvMapa[species];
+  if (!mv) {
+    const cx = document.getElementById('mapa3d') || (() => {
+      const d = document.createElement('div');
+      d.id = 'mapa3d';
+      d.style.cssText = 'position:fixed;inset:0;pointer-events:none;z-index:3';
+      document.body.appendChild(d);
+      return d;
+    })();
+    if (!window.__mvCarregado) {
+      window.__mvCarregado = true;
+      const sc = document.createElement('script');
+      sc.type = 'module'; sc.src = '/model-viewer.min.js';
+      document.head.appendChild(sc);
+    }
+    mv = document.createElement('model-viewer');
+    mv.setAttribute('src', 'https://gmycqvvvglexbtbqkjzi.supabase.co/storage/v1/object/public/mapas/crias/' + species + '.glb');
+    mv.setAttribute('camera-orbit', '0deg 70deg auto');
+    mv.setAttribute('field-of-view', '30deg');
+    mv.setAttribute('disable-zoom', '');
+    mv.setAttribute('interaction-prompt', 'none');
+    mv.setAttribute('environment-image', 'neutral');
+    mv.setAttribute('exposure', '1.15');
+    mv.setAttribute('shadow-intensity', '0');
+    mv.setAttribute('autoplay', '');
+    mv.style.cssText = 'position:absolute;pointer-events:none;background:transparent';
+    mv.addEventListener('load', () => {
+      const ns = mv.availableAnimations || [];
+      mv._andar = ns.find(n => /walk|run|andar/i.test(n));
+      mv._parado = ns.find(n => /idle|parad/i.test(n));
+      if (mv._parado) mv.setAttribute('animation-name', mv._parado);
+    });
+    cx.appendChild(mv);
+    _mvMapa[species] = mv;
+  }
+  const cv = canvas.getBoundingClientRect();
+  const kx = cv.width / canvas.width, ky = cv.height / canvas.height;
+  const L = Math.round(48 * 2.2 * ky);
+  mv.style.width = mv.style.height = L + 'px';
+  mv.style.left = Math.round(cv.left + (px + TILE / 2) * kx - L / 2) + 'px';
+  mv.style.top = Math.round(cv.top + (py + TILE) * ky - L * 0.78) + 'px';
+  mv.style.display = 'block';
+  const gr = { down: 0, left: 90, up: 180, right: 270 }[dir || 'down'] || 0;
+  mv.setAttribute('camera-orbit', gr + 'deg 70deg auto');
+  const alvo = andando ? (mv._andar || mv._parado) : mv._parado;
+  if (alvo && mv.getAttribute('animation-name') !== alvo) mv.setAttribute('animation-name', alvo);
+  _mvMapaAtual = mv;
+  return true;
+}
+const _glbMapa = {};
+function _glbTemMapa(species) {
+  if (!(species in _glbMapa)) {
+    _glbMapa[species] = 'buscando';
+    fetch('https://gmycqvvvglexbtbqkjzi.supabase.co/storage/v1/object/public/mapas/crias/' + species + '.glb',
+      { method: 'HEAD' }).then(r => { _glbMapa[species] = r.ok; }).catch(() => { _glbMapa[species] = false; });
+  }
+  return _glbMapa[species] === true;
+}
+function escondeCompanheiro3D() {
+  for (const k in _mvMapa) _mvMapa[k].style.display = 'none';
+}
+
 function drawCriaSprite(px, py, now, dir) {
   const bob = Math.sin(now / 300) * 1.5;
+  // modelo 3D tem prioridade: anda com as animações do esqueleto publicado
+  if (state && state.cria && companheiro3D(state.cria.species, px, py, !!movingTo, dir)) {
+    const cx = px + TILE / 2, baseY = py + TILE;
+    ctx.fillStyle = 'rgba(0,0,0,0.45)';
+    ctx.beginPath();
+    ctx.ellipse(cx, baseY - 6, 15, 4.5, 0, 0, Math.PI * 2);
+    ctx.fill();
+    return;
+  }
   // 1ª opção: vista direcional do modelo 3D — o companion vira para o lado
   // em que anda, com leve balanço ao caminhar (parallax barato no canvas).
   const view = getMonsterView(state.cria.species, dir || 'down');
@@ -11655,8 +11735,11 @@ const ARENA = (function () {
     const mv = document.createElement('model-viewer');
     mv.className = 'arena3d';
     mv.setAttribute('src', NUVEM_CRIA + l.species + '.glb');
-    mv.setAttribute('camera-orbit', '0deg 68deg 2.6m');
-    mv.setAttribute('field-of-view', '32deg');
+    // 'auto' no raio deixa o model-viewer enquadrar sozinho: o .glb do Meshy
+    // vem em qualquer escala, e com raio fixo a criatura saía gigante ou
+    // minúscula dependendo do arquivo
+    mv.setAttribute('camera-orbit', '0deg 68deg auto');
+    mv.setAttribute('field-of-view', '30deg');
     mv.setAttribute('disable-zoom', '');
     mv.setAttribute('interaction-prompt', 'none');
     mv.setAttribute('environment-image', 'neutral');
@@ -11702,14 +11785,18 @@ const ARENA = (function () {
       const l = dono === 'heroi' ? heroi : vilao;
       const mv = camada3D[dono];
       const px = rect.width / 2 + l.x * esc, py = rect.height / 2 + l.y * esc;
-      const L = 150 * esc / (Math.min(window.innerWidth, window.innerHeight) / 620);
-      mv.style.width = mv.style.height = Math.round(L * 1.6) + 'px';
-      mv.style.left = Math.round(px - L * 0.8) + 'px';
-      mv.style.top = Math.round(py - L * 1.15) + 'px';
+      // MESMO tamanho do sprite 2D: ele é desenhado com 54 de altura em
+      // unidades de mundo, então em pixels dá 54 * esc. O elemento é
+      // quadrado (não distorce) e tem folga para o modelo caber inteiro.
+      const ALT = 54 * esc;
+      const L = Math.round(ALT * 2.1);
+      mv.style.width = mv.style.height = L + 'px';
+      mv.style.left = Math.round(px - L / 2) + 'px';
+      mv.style.top = Math.round(py - L * 0.72) + 'px';
       mv.style.display = l.vivo ? 'block' : 'none';
       mv.style.opacity = l.piscar > 0 ? 0.5 : 1;
       const gr = { down: 0, left: 90, up: 180, right: 270 }[l.dir] || 0;
-      mv.setAttribute('camera-orbit', gr + 'deg 68deg 2.6m');
+      mv.setAttribute('camera-orbit', gr + 'deg 68deg auto');
 
       // ── vida sem ossos ──────────────────────────────────────────────
       // Criatura pequena na tela não precisa de esqueleto: balanço,
@@ -11743,7 +11830,7 @@ const ARENA = (function () {
         sobe += Math.sin(t / 24) * 3;
         gira += Math.sin(t / 18) * 6;
       }
-      mv.style.transformOrigin = '50% 78%';
+      mv.style.transformOrigin = '50% 72%';
       mv.style.transform = 'translate(0,' + (sobe - frente * 0.4).toFixed(2) + 'px) ' +
                            'rotate(' + gira.toFixed(2) + 'deg) ' +
                            'scale(' + escX.toFixed(3) + ',' + escY.toFixed(3) + ')';
@@ -11912,7 +11999,8 @@ const ARENA = (function () {
     if (tipo === 'ape') {
       if (heroi.ape < heroi.apeMax) return;
       heroi.ape = 0;
-      for (let i = 0; i < 12; i++) atira(heroi, (i / 12) * Math.PI * 2, 14, 1.5);
+      const fsApice = quadrosDe(heroi.hab);
+      for (let i = 0; i < 12; i++) atira(heroi, (i / 12) * Math.PI * 2, 14, 1.5, fsApice);
       golpeVisual(heroi, 0, 2.1);
       if (FX && FX.sfx && FX.sfx.crit) FX.sfx.crit();
       return;
@@ -11935,12 +12023,16 @@ const ARENA = (function () {
   function disparaHabilidade(de, ang, h) {
     const dano = (h && h.dano) || Math.round(de.dano * 1.3);
     const forma = (h && h.forma) || 'leque';
-    if (forma === 'unico') atira(de, ang, dano, 1.5);
-    else if (forma === 'anel') { for (let i = 0; i < 10; i++) atira(de, (i / 10) * 6.283, dano, 1.1); }
-    else if (forma === 'raio') { const p = atira(de, ang, dano, 0.9); if (p) { p.vx *= 2.2; p.vy *= 2.2; } }
-    else if (forma === 'onda') { const p = atira(de, ang, dano, 2.6); if (p) { p.vx *= 0.55; p.vy *= 0.55; } }
-    else for (const d of [-0.25, 0, 0.25]) atira(de, ang + d, dano, 1.25);
-    golpeVisual(de, ang, forma === 'onda' || forma === 'anel' ? 1.7 : 1, h);
+    // O golpe VOA até o alvo com a arte publicada, em vez da bolinha. Sem
+    // arte, o projétil continua sendo o círculo de sempre.
+    const fs = quadrosDe(h || de.hab);
+    if (forma === 'unico') atira(de, ang, dano, 1.5, fs);
+    else if (forma === 'anel') { for (let i = 0; i < 10; i++) atira(de, (i / 10) * 6.283, dano, 1.1, fs); }
+    else if (forma === 'raio') { const p = atira(de, ang, dano, 0.9, fs); if (p) { p.vx *= 2.2; p.vy *= 2.2; } }
+    else if (forma === 'onda') { const p = atira(de, ang, dano, 2.6, fs); if (p) { p.vx *= 0.55; p.vy *= 0.55; } }
+    else for (const d of [-0.25, 0, 0.25]) atira(de, ang + d, dano, 1.25, fs);
+    // o clarão fica só no anel e na onda, que nascem no corpo da criatura
+    if (forma === 'anel' || forma === 'onda') golpeVisual(de, ang, 1.7, h);
   }
 
   // Golpe especial: a folha de 5 quadros publicada no database toca à frente
@@ -11955,12 +12047,13 @@ const ARENA = (function () {
     });
   }
 
-  function atira(de, ang, dano, tam) {
+  function atira(de, ang, dano, tam, quadros) {
     de.golpeAte = performance.now() + 260;   // dá o impulso da animação
     const p = {
-      dono: de.dono, x: de.x, y: de.y,
+      dono: de.dono, x: de.x, y: de.y, ang,
       vx: Math.cos(ang) * VEL_TIRO, vy: Math.sin(ang) * VEL_TIRO,
-      dano, r: 7 * (tam || 1), cor: de.cor, vida: 1600
+      dano, r: 7 * (tam || 1), cor: de.cor, vida: 1600,
+      fs: quadros || null, t: 0            // sprite do golpe, quando existe
     };
     tiros.push(p);
     return p;
@@ -12032,6 +12125,7 @@ const ARENA = (function () {
     for (let i = tiros.length - 1; i >= 0; i--) {
       const p = tiros[i];
       p.x += p.vx * dt; p.y += p.vy * dt; p.vida -= dt * 1000;
+      p.t += dt;
       const alvo = p.dono === 'heroi' ? vilao : heroi;
       if (alvo.vivo && Math.hypot(p.x - alvo.x, p.y - alvo.y) < 22 + p.r) {
         acerta(alvo, p);
@@ -12154,6 +12248,19 @@ const ARENA = (function () {
     }
     ctx.globalAlpha = 1;
     for (const p of tiros) {
+      if (p.fs && p.fs.length) {
+        // o golpe voa com a arte publicada, girando na direção do tiro e
+        // passando pelos quadros enquanto viaja
+        const q = p.fs[Math.min(p.fs.length - 1, Math.floor(p.t / 0.09) % p.fs.length)];
+        const h = p.r * 7.5, w = h * (q.naturalWidth / q.naturalHeight);
+        ctx.save();
+        ctx.translate(p.x, p.y);
+        ctx.rotate(p.ang + Math.PI / 2);
+        ctx.imageSmoothingEnabled = true;
+        ctx.drawImage(q, -w / 2, -h / 2, w, h);
+        ctx.restore();
+        continue;
+      }
       ctx.beginPath(); ctx.arc(p.x, p.y, p.r, 0, 6.283);
       ctx.fillStyle = p.cor; ctx.shadowColor = p.cor; ctx.shadowBlur = 12;
       ctx.fill(); ctx.shadowBlur = 0;
