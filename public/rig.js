@@ -524,11 +524,49 @@ function tocaPreview(qual) {
 }
 
 // ── exportar ────────────────────────────────────────────────────────────
-async function geraGlb() {
+// O .glb do Meshy carrega texturas em 2K/4K e passa do limite de envio. Como
+// na batalha a criatura tem poucas dezenas de pixels, dá para encolher as
+// texturas sem perda visível — e é isso que faz o arquivo caber.
+function encolheTexturas(raiz, lado) {
+  const feitas = new Map();
+  raiz.traverse(o => {
+    const m = o.material;
+    if (!m) return;
+    for (const mat of (Array.isArray(m) ? m : [m])) {
+      for (const campo of ['map', 'emissiveMap', 'normalMap', 'roughnessMap', 'metalnessMap', 'aoMap']) {
+        const tex = mat[campo];
+        if (!tex || !tex.image) continue;
+        const w = tex.image.width || tex.image.videoWidth;
+        const h = tex.image.height || tex.image.videoHeight;
+        if (!w || !h || Math.max(w, h) <= lado) continue;
+        const chave = tex.uuid + '@' + lado;
+        let nova = feitas.get(chave);
+        if (!nova) {
+          const k = lado / Math.max(w, h);
+          const c = document.createElement('canvas');
+          c.width = Math.max(1, Math.round(w * k));
+          c.height = Math.max(1, Math.round(h * k));
+          const g = c.getContext('2d');
+          g.imageSmoothingEnabled = true;
+          g.drawImage(tex.image, 0, 0, c.width, c.height);
+          nova = tex.clone();
+          nova.image = c;
+          nova.needsUpdate = true;
+          feitas.set(chave, nova);
+        }
+        mat[campo] = nova;
+      }
+      mat.needsUpdate = true;
+    }
+  });
+}
+
+async function geraGlb(ladoTextura) {
   const r = montaRig();
   if (!r) throw new Error('marque pelo menos duas juntas');
   const grupo = new THREE.Group();
   grupo.add(r.skin);
+  if (ladoTextura) encolheTexturas(grupo, ladoTextura);
   const cs = clipes(r.ossos, r.mapa);
   const exp = new GLTFExporter();
   return await new Promise((ok, err) => exp.parse(grupo, ok, err,
@@ -537,7 +575,7 @@ async function geraGlb() {
 $('baixar').onclick = async () => {
   try {
     $('msg').textContent = 'montando o esqueleto…';
-    const bin = await geraGlb();
+    const bin = await geraGlb(1024);
     const a = document.createElement('a');
     a.href = URL.createObjectURL(new Blob([bin], { type: 'model/gltf-binary' }));
     a.download = ($('criaId').value || 'cria') + '-animado.glb';
@@ -548,18 +586,30 @@ $('baixar').onclick = async () => {
 
 const SB = 'https://gmycqvvvglexbtbqkjzi.supabase.co';
 const KEY = 'sb_publishable_N4DdqinjzjnMBWsik5qj2A_ksPBX9Av';
+const eDeTamanho = e => /exceed|maximum allowed size|payload|too large|413/i.test(String((e && e.message) || e));
 $('publicar').onclick = async () => {
   try {
     if (!window.supabase) { $('msg').textContent = 'biblioteca carregando — tente de novo'; return; }
-    $('msg').textContent = 'montando e publicando…';
-    const bin = await geraGlb();
     const sb = window.supabase.createClient(SB, KEY);
     const id = $('criaId').value;
-    const up = await sb.storage.from('mapas').upload('crias/' + id + '.glb',
-      new Blob([bin], { type: 'model/gltf-binary' }),
-      { upsert: true, cacheControl: '0', contentType: 'model/gltf-binary' });
-    if (up.error) throw up.error;
-    $('msg').textContent = '✅ ' + id + ' publicada — entre na caverna para ver';
+    // tenta com textura cheia e vai encolhendo até o servidor aceitar
+    for (const lado of [1024, 512, 256, 128, 64]) {
+      $('msg').textContent = 'montando (textura ' + lado + 'px)…';
+      const bin = await geraGlb(lado);
+      const mb = bin.byteLength / 1048576;
+      $('msg').textContent = 'enviando (' + mb.toFixed(1) + ' MB)…';
+      const up = await sb.storage.from('mapas').upload('crias/' + id + '.glb',
+        new Blob([bin], { type: 'model/gltf-binary' }),
+        { upsert: true, cacheControl: '0', contentType: 'model/gltf-binary' });
+      if (!up.error) {
+        $('msg').textContent = '✅ ' + id + ' publicada (' + mb.toFixed(1) +
+          ' MB, textura ' + lado + 'px) — entre na caverna para ver';
+        return;
+      }
+      if (!eDeTamanho(up.error)) throw up.error;
+    }
+    $('msg').textContent = 'o servidor recusou até com textura de 64px — a malha é que ' +
+      'está pesada. No Meshy, baixe o modelo em Low poly (~10k triângulos).';
   } catch (e) { $('msg').textContent = 'erro: ' + (e.message || e); }
 };
 
