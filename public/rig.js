@@ -332,19 +332,30 @@ const ANIMS = {
   apanhar: { n: 'hit',    dur: 0.4 }
 };
 let ativas = { parado: true, andar: true, atacar: true, apanhar: true };
+// Clicar no nome TOCA a prévia (era o que faltava: antes o clique só ligava
+// e desligava a animação, então a primeira vez que se clicava em 'andar' ela
+// sumia em vez de tocar). O ✓ ao lado é que decide se ela vai no arquivo.
+let previaAtual = null;
 function montaAnims() {
   const el = $('anims'); el.innerHTML = '';
+  const RÓTULO = { parado: '🧍 parado', andar: '🚶 andar',
+                   atacar: '⚔️ atacar', apanhar: '💥 apanhar' };
   for (const k in ANIMS) {
+    const linha = document.createElement('div');
+    linha.style.cssText = 'display:flex;gap:6px;align-items:center;margin-bottom:6px';
     const b = document.createElement('button');
-    b.className = 'gh' + (ativas[k] ? ' on' : '');
-    b.textContent = { parado: '🧍 parado', andar: '🚶 andar',
-                      atacar: '⚔️ atacar', apanhar: '💥 apanhar' }[k];
-    b.onclick = () => {
-      ativas[k] = !ativas[k];
-      b.classList.toggle('on', ativas[k]);
-      if (ativas[k]) tocaPreview(k);
-    };
-    el.appendChild(b);
+    b.className = 'gh' + (previaAtual === k ? ' on' : '');
+    b.textContent = RÓTULO[k];
+    b.style.margin = '0';
+    b.onclick = () => { previaAtual = k; montaAnims(); tocaPreview(k); };
+    const inc = document.createElement('button');
+    inc.className = 'gh' + (ativas[k] ? ' on' : '');
+    inc.textContent = ativas[k] ? '✓' : '✗';
+    inc.title = ativas[k] ? 'vai no arquivo' : 'fora do arquivo';
+    inc.style.cssText = 'width:42px;margin:0';
+    inc.onclick = () => { ativas[k] = !ativas[k]; montaAnims(); };
+    linha.appendChild(b); linha.appendChild(inc);
+    el.appendChild(linha);
   }
 }
 montaAnims();
@@ -413,6 +424,9 @@ function clipes(ossos, mapa) {
 // ── montagem do esqueleto e dos pesos ───────────────────────────────────
 function montaRig() {
   if (!malha || juntas.length < 2) return null;
+  if (!juntas.some(j => j.tipo === 'tronco' || j.tipo === 'quadril')) {
+    $('dica').textContent = '⚠ marque o QUADRIL e o TRONCO — sem eles o corpo se prende às patas e torce ao animar';
+  }
   const ossos = [], mapa = {};
   juntas.forEach((j, i) => {
     const b = new THREE.Bone();
@@ -431,8 +445,20 @@ function montaRig() {
   });
   const raiz = ossos[juntas.findIndex(j => !j.pai)] || ossos[0];
 
-  // pesos por proximidade: cada vértice segue a junta mais perto (e a segunda
-  // com um resto), o que já basta em criatura pequena
+  // Alcance por tipo de junta. Sem isto, uma pata podia ser a junta mais
+  // perto de um vértice do lombo — e girar a pata torcia o corpo inteiro.
+  // Membros só levam o que está por perto; o tronco e o quadril seguram o
+  // resto do corpo, que é o que faz a criatura parecer firme ao andar.
+  const cxAll = new THREE.Box3().setFromObject(modelo);
+  const diag = cxAll.getSize(new THREE.Vector3()).length() || 1;
+  const ALCANCE = {
+    pata_fe: 0.26, pata_fd: 0.26, pata_te: 0.26, pata_td: 0.26,
+    cauda: 0.30, asa_e: 0.34, asa_d: 0.34, cabeca: 0.34,
+    tronco: Infinity, quadril: Infinity
+  };
+  const ehCorpo = t => t === 'tronco' || t === 'quadril';
+  const temCorpo = juntas.some(j => ehCorpo(j.tipo));
+
   const geo = malha.geometry.clone();
   const pos = geo.attributes.position;
   const idx = [], peso = [];
@@ -444,10 +470,22 @@ function montaRig() {
     v.fromBufferAttribute(pos, i).applyMatrix4(mundo);
     let a = -1, b = -1, da = Infinity, db = Infinity;
     juntas.forEach((j, k) => {
+      const alcance = (ALCANCE[j.tipo] != null ? ALCANCE[j.tipo] : 0.3) * diag;
       const d = v.distanceToSquared(j.ponto);
+      // membro fora do alcance nem entra na disputa (quando há corpo para
+      // segurar o vértice); sem corpo marcado, vale a proximidade pura
+      if (temCorpo && !ehCorpo(j.tipo) && d > alcance * alcance) return;
       if (d < da) { db = da; b = a; da = d; a = k; }
       else if (d < db) { db = d; b = k; }
     });
+    if (a < 0) {   // nada alcançou: vai para o corpo mais próximo
+      juntas.forEach((j, k) => {
+        if (!ehCorpo(j.tipo)) return;
+        const d = v.distanceToSquared(j.ponto);
+        if (d < da) { da = d; a = k; }
+      });
+      if (a < 0) a = 0;
+    }
     // queda acentuada: o vértice fica preso à junta mais perto, e a segunda
     // só entra na costura entre as duas. Sem isso, mexer numa pata arrastava
     // o corpo todo e o bicho se desmontava.
@@ -529,6 +567,10 @@ $('publicar').onclick = async () => {
 const CRIAS = ['ignivar','aerix','aquafy','terron','drakon','glacius','florax','toxyl',
                'ferrus','psychon','luminos','shadowyn','voltalon','tempestix','cragmite'];
 $('criaId').innerHTML = CRIAS.map(c => '<option value="' + c + '">' + c + '</option>').join('');
+
+// para depuração e testes automáticos
+window.__rig = { get cena() { return cena; }, get juntas() { return juntas; },
+                 get esqueleto() { return esqueleto; } };
 
 // ── laço ────────────────────────────────────────────────────────────────
 const relogio = new THREE.Clock();
