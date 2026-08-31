@@ -401,6 +401,25 @@ window.LimpaFundo = function (img) {
     <tr id="charRow"><td><b>char1</b> — o oficial</td><td><span class="tag t-todo">falta gerar</span></td><td></td></tr>
   </table>
   <div class="note">char2 · char3 · char4 · char5 → serão apagados quando o char1 entrar.</div>
+
+  <div style="font-size:13px;font-weight:800;color:var(--gold);margin:14px 0 4px;">🧊 Modelo 3D do treinador</div>
+  <div style="font-size:12px;color:var(--dim);margin-bottom:8px;line-height:1.6">
+    Gere no Meshy (com rigging e animação de humanoide, que o Meshy faz bem) e solte aqui.
+    Com o modelo publicado, o treinador aparece em 3D no mapa — tocando as animações do
+    próprio arquivo (walk enquanto anda, idle parado). Sem modelo, seguem os sprites.
+  </div>
+  <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+    <select id="chSelChar" style="background:#0a1322;border:1px solid var(--line);border-radius:8px;color:var(--txt);padding:8px;font-size:13px">
+      <option value="char2">char2 — Errante (livre para o teste)</option>
+      <option value="char1">char1 — Pioneiro (o oficial)</option>
+      <option value="char3">char3</option>
+      <option value="char4">char4</option>
+      <option value="char5">char5</option>
+    </select>
+    <input type="file" id="chArqChar" accept=".glb,model/gltf-binary" style="display:none">
+    <button id="chSobeChar">🧊 Soltar o .glb do treinador</button>
+    <span id="chMsgChar" class="note" style="margin:0"></span>
+  </div>
 </div>
 
 <h2>8 · Reconstrução do mapa — peça por peça, fiel ao original</h2>
@@ -897,6 +916,43 @@ cr.lastElementChild.appendChild(mkBtn(P_CHAR, 'Copiar prompt'));
 </script>
 
 <script>
+// ── Modelo 3D do treinador ────────────────────────────────────────────────
+(function(){
+  const SB='https://gmycqvvvglexbtbqkjzi.supabase.co', KEY='sb_publishable_N4DdqinjzjnMBWsik5qj2A_ksPBX9Av';
+  const $ = id => document.getElementById(id);
+  if (!$('chSobeChar')) return;
+  const eDeTamanho = e => /exceed|maximum allowed size|payload|too large|413/i.test(String((e && e.message) || e));
+  $('chSobeChar').onclick = () => $('chArqChar').click();
+  $('chArqChar').onchange = async e => {
+    const f = e.target.files[0]; if (!f) return;
+    try {
+      if (!window.supabase) { $('chMsgChar').textContent = 'biblioteca carregando — tente de novo'; return; }
+      const sb = window.supabase.createClient(SB, KEY);
+      const id = $('chSelChar').value;
+      // mesma escada de redução usada nas Crias: tenta e encolhe se recusarem
+      const tentativas = [null, 1024, 512, 256, 128];
+      let env = f;
+      for (const lado of tentativas) {
+        if (lado && window.encolheGlbTex) {
+          $('chMsgChar').textContent = 'muito grande — reduzindo as texturas para ' + lado + 'px…';
+          env = await window.encolheGlbTex(f, lado);
+        } else if (lado) break;
+        $('chMsgChar').textContent = 'enviando (' + (env.size/1048576).toFixed(1) + ' MB)…';
+        const up = await sb.storage.from('mapas').upload('chars/' + id + '.glb', env,
+          { upsert: true, cacheControl: '0', contentType: 'model/gltf-binary' });
+        if (!up.error) {
+          $('chMsgChar').textContent = '✅ ' + id + ' publicado (' + (env.size/1048576).toFixed(1) +
+            ' MB) — escolha esse treinador no jogo para vê-lo em 3D';
+          return;
+        }
+        if (!eDeTamanho(up.error)) throw up.error;
+      }
+      $('chMsgChar').textContent = 'o servidor recusou por tamanho. No Meshy, baixe em Low poly.';
+    } catch(err){ $('chMsgChar').textContent = 'erro: ' + (err.message || err); }
+  };
+})();
+</script>
+<script>
 // ── Ateliê de Crias: prompt, upload e publicação num fluxo só ─────────────
 (function(){
   const SB='https://gmycqvvvglexbtbqkjzi.supabase.co', KEY='sb_publishable_N4DdqinjzjnMBWsik5qj2A_ksPBX9Av';
@@ -1075,6 +1131,7 @@ cr.lastElementChild.appendChild(mkBtn(P_CHAR, 'Copiar prompt'));
   // O limite do servidor não é público e varia: em vez de adivinhar, tenta
   // enviar e, quando ele recusa por tamanho, reduz e tenta de novo.
   const eDeTamanho = e => /exceed|maximum allowed size|payload|too large|413/i.test(String((e && e.message) || e));
+  window.encolheGlbTex = (a, l) => encolheGlb(a, l);
   async function encolheGlb(arquivo, ladoMax) {
     const buf = await arquivo.arrayBuffer();
     const dv = new DataView(buf);

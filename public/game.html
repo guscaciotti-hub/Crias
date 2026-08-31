@@ -8418,7 +8418,10 @@ function closeAllOverlays() {
 // ============================================================================
 // PLAYER SPRITE SYSTEM — sprites extraídos das character sheets
 // ============================================================================
-const PLAYER_COMBOS = [{"id": "char1", "name": "Pioneiro", "label": "Treinador Oficial", "gender": "male", "available": true}];
+const PLAYER_COMBOS = [
+  {"id": "char1", "name": "Pioneiro", "label": "Treinador Oficial", "gender": "male", "available": true},
+  {"id": "char2", "name": "Errante",  "label": "Treinador 3D",      "gender": "male", "available": true}
+];
 let PLAYER_SPRITES_DATA = {};
 try { PLAYER_SPRITES_DATA = JSON.parse((document.getElementById("d-sprites-player")||{textContent:"{}"}).textContent); } catch(e) { console.warn("Player sprites parse error",e); }
 
@@ -9046,6 +9049,21 @@ function drawComposedPlayer(px, py, now) {
   if (movingTo && movingTo !== _lastMovingTo) {
     _stepCount = (_stepCount || 0) + 1;
     _lastMovingTo = movingTo;
+  }
+  const _comboAtual = (state && state.appearance && state.appearance.comboId) || selectedCombo;
+  if (!state.sitting && treinador3D(_comboAtual, px, py, !!movingTo, dir)) {
+    ctx.fillStyle = 'rgba(0,0,0,0.4)';
+    ctx.beginPath();
+    ctx.ellipse(px + TILE / 2, py + TILE - 6, 14, 4, 0, 0, Math.PI * 2);
+    ctx.fill();
+    const pn = (state && state.playerName) || 'Treinador';
+    ctx.font = 'bold 11px sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    const pw = ctx.measureText(pn).width;
+    ctx.fillStyle = 'rgba(0,0,0,0.72)';
+    ctx.fillRect(px + TILE/2 - pw/2 - 4, py + TILE + 2, pw + 8, 14);
+    ctx.fillStyle = '#fff';
+    ctx.fillText(pn, px + TILE/2, py + TILE + 10);
+    return;
   }
   let sprite;
   if (state && state.sitting && !movingTo) {
@@ -10597,6 +10615,72 @@ function drawCriaEmbers(cx, baseY, now, fx) {
   ctx.restore();
 }
 
+// ── Treinador em 3D no mapa ─────────────────────────────────────────────
+// Mesmo caminho da Cria: com .glb publicado para o combo escolhido, o
+// jogador aparece como modelo; sem ele, seguem os sprites de sempre.
+const NUVEM_CHARS = 'https://gmycqvvvglexbtbqkjzi.supabase.co/storage/v1/object/public/mapas/chars/';
+const _glbChar = {}, _mvChar = {};
+function _glbTemChar(combo) {
+  if (!(combo in _glbChar)) {
+    _glbChar[combo] = 'buscando';
+    fetch(NUVEM_CHARS + combo + '.glb', { method: 'HEAD' })
+      .then(r => { _glbChar[combo] = r.ok; }).catch(() => { _glbChar[combo] = false; });
+  }
+  return _glbChar[combo] === true;
+}
+function treinador3D(combo, px, py, andando, dir) {
+  if (!_glbTemChar(combo)) return false;
+  let mv = _mvChar[combo];
+  if (!mv) {
+    const cx = document.getElementById('mapa3d') || (() => {
+      const d = document.createElement('div');
+      d.id = 'mapa3d';
+      d.style.cssText = 'position:fixed;inset:0;pointer-events:none;z-index:3';
+      document.body.appendChild(d);
+      return d;
+    })();
+    if (!window.__mvCarregado) {
+      window.__mvCarregado = true;
+      const sc = document.createElement('script');
+      sc.type = 'module'; sc.src = '/model-viewer.min.js';
+      document.head.appendChild(sc);
+    }
+    mv = document.createElement('model-viewer');
+    mv.setAttribute('src', NUVEM_CHARS + combo + '.glb');
+    mv.setAttribute('camera-orbit', '0deg 72deg auto');
+    mv.setAttribute('field-of-view', '30deg');
+    mv.setAttribute('disable-zoom', '');
+    mv.setAttribute('interaction-prompt', 'none');
+    mv.setAttribute('environment-image', 'neutral');
+    mv.setAttribute('exposure', '1.15');
+    mv.setAttribute('shadow-intensity', '0');
+    mv.setAttribute('autoplay', '');
+    mv.style.cssText = 'position:absolute;pointer-events:none;background:transparent';
+    mv.addEventListener('load', () => {
+      const ns = mv.availableAnimations || [];
+      mv._andar = ns.find(n => /walk|run|andar/i.test(n));
+      mv._parado = ns.find(n => /idle|parad/i.test(n));
+      if (mv._parado) mv.setAttribute('animation-name', mv._parado);
+    });
+    cx.appendChild(mv);
+    _mvChar[combo] = mv;
+  }
+  const cv = canvas.getBoundingClientRect();
+  const kx = cv.width / canvas.width, ky = cv.height / canvas.height;
+  const ALT = 74 * ky;                       // mesma altura do sprite do jogador
+  const L = Math.round(ALT * 1.55);
+  mv.style.width = mv.style.height = L + 'px';
+  mv.style.left = Math.round(cv.left + (px + TILE / 2) * kx - L / 2) + 'px';
+  mv.style.top = Math.round(cv.top + (py + TILE) * ky - L * 0.88) + 'px';
+  mv.style.display = 'block';
+  const gr = { down: 0, left: 90, up: 180, right: 270 }[dir || 'down'] || 0;
+  mv.setAttribute('camera-orbit', gr + 'deg 72deg auto');
+  const alvo = andando ? (mv._andar || mv._parado) : mv._parado;
+  if (alvo && mv.getAttribute('animation-name') !== alvo) mv.setAttribute('animation-name', alvo);
+  return true;
+}
+function escondeTreinador3D() { for (const k in _mvChar) _mvChar[k].style.display = 'none'; }
+
 // ── Companheiro em 3D no mapa ───────────────────────────────────────────
 // Quando a Cria tem .glb publicado, ela anda ao lado do treinador como
 // modelo, com os clipes do esqueleto que você montou no Estúdio de Ossos.
@@ -10669,6 +10753,7 @@ function _glbTemMapa(species) {
 }
 function escondeCompanheiro3D() {
   for (const k in _mvMapa) _mvMapa[k].style.display = 'none';
+  escondeTreinador3D();
 }
 
 function drawCriaSprite(px, py, now, dir) {
