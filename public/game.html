@@ -10638,10 +10638,14 @@ function companheiro3D(species, px, py, andando, dir) {
   }
   const cv = canvas.getBoundingClientRect();
   const kx = cv.width / canvas.width, ky = cv.height / canvas.height;
-  const L = Math.round(48 * 2.2 * ky);
+  // o model-viewer enquadra o modelo com folga, então a caixa precisa ser
+  // maior que a altura desejada — mas não tanto: estava com o dobro e a
+  // criatura saía maior que o treinador
+  const ALT = 46 * ky;
+  const L = Math.round(ALT * 1.55);
   mv.style.width = mv.style.height = L + 'px';
   mv.style.left = Math.round(cv.left + (px + TILE / 2) * kx - L / 2) + 'px';
-  mv.style.top = Math.round(cv.top + (py + TILE) * ky - L * 0.78) + 'px';
+  mv.style.top = Math.round(cv.top + (py + TILE) * ky - L * 0.86) + 'px';
   mv.style.display = 'block';
   const gr = { down: 0, left: 90, up: 180, right: 270 }[dir || 'down'] || 0;
   mv.setAttribute('camera-orbit', gr + 'deg 70deg auto');

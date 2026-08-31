@@ -299,18 +299,27 @@ $('auto').onclick = () => {
   limpaJuntas(true);
   const cx = new THREE.Box3().setFromObject(modelo);
   const min = cx.min, max = cx.max, meio = cx.getCenter(new THREE.Vector3());
-  const alt = max.y - min.y, comp = max.z - min.z, larg = max.x - min.x;
-  const P = (x, y, z) => new THREE.Vector3(x, y, z);
-  // o eixo comprido do corpo vira a espinha; as patas vão nos quatro cantos
-  poeJunta('quadril', P(meio.x, min.y + alt * 0.55, meio.z + comp * 0.22), true);
-  poeJunta('tronco',  P(meio.x, min.y + alt * 0.62, meio.z - comp * 0.05), true);
-  poeJunta('cabeca',  P(meio.x, min.y + alt * 0.80, meio.z - comp * 0.34), true);
-  poeJunta('pata_fe', P(meio.x - larg * 0.26, min.y + alt * 0.12, meio.z - comp * 0.22), true);
-  poeJunta('pata_fd', P(meio.x + larg * 0.26, min.y + alt * 0.12, meio.z - comp * 0.22), true);
-  poeJunta('pata_te', P(meio.x - larg * 0.26, min.y + alt * 0.12, meio.z + comp * 0.26), true);
-  poeJunta('pata_td', P(meio.x + larg * 0.26, min.y + alt * 0.12, meio.z + comp * 0.26), true);
-  poeJunta('cauda',   P(meio.x, min.y + alt * 0.58, meio.z + comp * 0.44), true);
-  $('dica').textContent = 'juntas sugeridas — arraste a cena e ajuste o que estiver fora do lugar';
+  const alt = max.y - min.y;
+  // A criatura pode vir deitada em qualquer eixo: o lado MAIS COMPRIDO no
+  // plano do chão é o corpo (nariz-cauda), o outro é a largura. Sem isso as
+  // juntas caíam todas no meio, como aconteceu com o lobo virado em X.
+  const dx = max.x - min.x, dz = max.z - min.z;
+  const eixoZ = dz >= dx;                 // true: corpo ao longo do Z
+  const comp = eixoZ ? dz : dx, larg = eixoZ ? dx : dz;
+  // ponto no corpo: f = ao longo do comprimento (-1 nariz, +1 cauda),
+  //                 l = lado (-1 esquerda, +1 direita), y = altura relativa
+  const P = (f, l, y) => eixoZ
+    ? new THREE.Vector3(meio.x + l * larg / 2, min.y + alt * y, meio.z + f * comp / 2)
+    : new THREE.Vector3(meio.x + f * comp / 2, min.y + alt * y, meio.z + l * larg / 2);
+  poeJunta('quadril', P( 0.22, 0, 0.55), true);
+  poeJunta('tronco',  P(-0.05, 0, 0.62), true);
+  poeJunta('cabeca',  P(-0.38, 0, 0.78), true);
+  poeJunta('pata_fe', P(-0.22, -0.52, 0.12), true);
+  poeJunta('pata_fd', P(-0.22,  0.52, 0.12), true);
+  poeJunta('pata_te', P( 0.26, -0.52, 0.12), true);
+  poeJunta('pata_td', P( 0.26,  0.52, 0.12), true);
+  poeJunta('cauda',   P( 0.46, 0, 0.58), true);
+  $('dica').textContent = 'juntas sugeridas — confira e ajuste o que estiver fora do lugar';
 };
 
 // ── modos ───────────────────────────────────────────────────────────────
@@ -372,7 +381,20 @@ function clipes(ossos, mapa) {
     const q = new THREE.Quaternion().setFromAxisAngle(eixo, ang);
     return osso.quaternion.clone().multiply(q);
   };
-  const X = new THREE.Vector3(1, 0, 0), Y = new THREE.Vector3(0, 1, 0), Z = new THREE.Vector3(0, 0, 1);
+  // Eixos do CORPO, não do mundo. A frente é do quadril para a cabeça, então
+  // 'avançar' e 'dar o bote' funcionam mesmo com o modelo deitado em X — era
+  // por isso que o ataque parecia tombar de lado em vez de atacar.
+  const Y = new THREE.Vector3(0, 1, 0);
+  let frente = new THREE.Vector3(0, 0, -1);
+  const jc = juntas.find(j => j.tipo === 'cabeca'), jq = juntas.find(j => j.tipo === 'quadril');
+  if (jc && jq) {
+    frente = jc.ponto.clone().sub(jq.ponto);
+    frente.y = 0;
+    if (frente.lengthSq() < 1e-6) frente.set(0, 0, -1);
+    frente.normalize();
+  }
+  const LADO = new THREE.Vector3().crossVectors(Y, frente).normalize();  // eixo das passadas
+  const X = LADO, Z = frente;
   const faixas = (osso, tempos, angs, eixo) => new THREE.QuaternionKeyframeTrack(
     osso.name + '.quaternion', tempos,
     angs.flatMap(a => { const q = qx(osso, eixo, a); return [q.x, q.y, q.z, q.w]; })
@@ -380,17 +402,20 @@ function clipes(ossos, mapa) {
 
   if (ativas.parado && (tronco || quadril)) {
     const t = [], alvo = tronco || quadril;
-    t.push(faixas(alvo, [0, 1, 2], [0, 0.06, 0], X));
-    if (cabeca) t.push(faixas(cabeca, [0, 1, 2], [0, -0.08, 0], X));
+    t.push(faixas(alvo, [0, 1, 2], [0, 0.05, 0], LADO));
+    if (cabeca) t.push(faixas(cabeca, [0, 1, 2], [0, -0.07, 0], LADO));
     if (cauda)  t.push(faixas(cauda, [0, 0.7, 1.4, 2], [0, 0.16, -0.16, 0], Y));
     saida.push(new THREE.AnimationClip('idle', 2.0, t));
   }
   if (ativas.andar && patas.length) {
     const t = [], D = 0.8;
-    patas.forEach((p, i) => {
-      const fase = (i % 2) === 0 ? 1 : -1;
+    // trote: as patas cruzadas andam juntas, como em quadrúpede de verdade
+    const ordem = ['pata_fe', 'pata_td', 'pata_fd', 'pata_te'];
+    ordem.forEach((tp, i) => {
+      const p = acha(tp); if (!p) return;
+      const fase = i < 2 ? 1 : -1;
       t.push(faixas(p, [0, D / 4, D / 2, 3 * D / 4, D],
-        [0, 0.5 * fase, 0, -0.5 * fase, 0], X));
+        [0, 0.5 * fase, 0, -0.5 * fase, 0], LADO));
     });
     if (quadril) t.push(new THREE.VectorKeyframeTrack(
       quadril.name + '.position',
@@ -406,16 +431,29 @@ function clipes(ossos, mapa) {
     saida.push(new THREE.AnimationClip('walk', D, t));
   }
   if (ativas.atacar && (tronco || quadril || cabeca)) {
-    const t = [], D = 0.6, alvo = tronco || quadril;
-    t.push(faixas(alvo, [0, 0.18, 0.32, D], [0, -0.35, 0.45, 0], X));
-    if (cabeca) t.push(faixas(cabeca, [0, 0.18, 0.32, D], [0, -0.3, 0.55, 0], X));
-    patas.slice(0, 2).forEach(p => t.push(faixas(p, [0, 0.2, 0.34, D], [0, -0.7, 0.5, 0], X)));
+    // recua para tomar impulso (0.16), estica no bote (0.30) e assenta (D)
+    const t = [], D = 0.62, alvo = tronco || quadril;
+    t.push(faixas(alvo, [0, 0.16, 0.30, 0.44, D], [0, -0.30, 0.42, 0.10, 0], LADO));
+    if (cabeca) t.push(faixas(cabeca, [0, 0.16, 0.30, 0.44, D], [0, -0.34, 0.52, 0.12, 0], LADO));
+    // as patas da frente acompanham o bote, as de trás firmam o apoio
+    const frentes = ['pata_fe', 'pata_fd'].map(acha).filter(Boolean);
+    const tras = ['pata_te', 'pata_td'].map(acha).filter(Boolean);
+    frentes.forEach(p => t.push(faixas(p, [0, 0.16, 0.30, 0.44, D], [0, -0.55, 0.75, 0.15, 0], LADO)));
+    tras.forEach(p => t.push(faixas(p, [0, 0.16, 0.30, D], [0, 0.28, -0.12, 0], LADO)));
+    if (cauda) t.push(faixas(cauda, [0, 0.16, 0.30, D], [0, 0.30, -0.25, 0], LADO));
+    if (quadril) t.push(new THREE.VectorKeyframeTrack(
+      quadril.name + '.position',
+      [0, 0.16, 0.30, D],
+      [quadril.position.x, quadril.position.y, quadril.position.z,
+       quadril.position.x - frente.x * 0.05, quadril.position.y - 0.02, quadril.position.z - frente.z * 0.05,
+       quadril.position.x + frente.x * 0.09, quadril.position.y + 0.02, quadril.position.z + frente.z * 0.09,
+       quadril.position.x, quadril.position.y, quadril.position.z]));
     saida.push(new THREE.AnimationClip('attack', D, t));
   }
   if (ativas.apanhar && (tronco || quadril)) {
     const t = [], D = 0.4, alvo = tronco || quadril;
-    t.push(faixas(alvo, [0, 0.1, 0.22, D], [0, 0.3, -0.15, 0], X));
-    if (cabeca) t.push(faixas(cabeca, [0, 0.1, 0.22, D], [0, 0.4, -0.2, 0], X));
+    t.push(faixas(alvo, [0, 0.1, 0.22, D], [0, 0.3, -0.15, 0], LADO));
+    if (cabeca) t.push(faixas(cabeca, [0, 0.1, 0.22, D], [0, 0.4, -0.2, 0], LADO));
     saida.push(new THREE.AnimationClip('hit', D, t));
   }
   return saida;
@@ -452,8 +490,8 @@ function montaRig() {
   const cxAll = new THREE.Box3().setFromObject(modelo);
   const diag = cxAll.getSize(new THREE.Vector3()).length() || 1;
   const ALCANCE = {
-    pata_fe: 0.26, pata_fd: 0.26, pata_te: 0.26, pata_td: 0.26,
-    cauda: 0.30, asa_e: 0.34, asa_d: 0.34, cabeca: 0.34,
+    pata_fe: 0.30, pata_fd: 0.30, pata_te: 0.30, pata_td: 0.30,
+    cauda: 0.34, asa_e: 0.38, asa_d: 0.38, cabeca: 0.30,
     tronco: Infinity, quadril: Infinity
   };
   const ehCorpo = t => t === 'tronco' || t === 'quadril';
