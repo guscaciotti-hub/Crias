@@ -87,6 +87,55 @@ $('arq').onchange = e => {
   }, undefined, err => { $('infoModelo').textContent = 'não consegui abrir: ' + err; });
 };
 
+// ── desfazer / refazer ──────────────────────────────────────────────────
+// Clicar sem querer no modelo cria uma junta, então tudo que mexe nas juntas
+// passa por aqui primeiro. Guarda o estado inteiro: é barato (são poucas
+// juntas) e nunca deixa a árvore inconsistente.
+const HIST = [], REFAZ = [];
+function estado() {
+  return juntas.map(j => ({ tipo: j.tipo, ponto: j.ponto.clone(),
+                            pai: j.pai ? juntas.indexOf(j.pai) : -1 }));
+}
+function aplica(lista) {
+  bolas.clear(); linhas.clear();
+  juntas = lista.map(d => {
+    const cfg = TIPOS[d.tipo] || TIPOS.tronco;
+    const g = new THREE.Mesh(
+      new THREE.SphereGeometry(cfg.r, 20, 14),
+      new THREE.MeshBasicMaterial({ color: cfg.cor, transparent: true, opacity: 0.92 })
+    );
+    g.position.copy(d.ponto);
+    bolas.add(g);
+    return { tipo: d.tipo, ponto: d.ponto.clone(), bola: g, pai: null };
+  });
+  lista.forEach((d, i) => { if (d.pai >= 0) juntas[i].pai = juntas[d.pai]; });
+  selecionada = juntas[juntas.length - 1] || null;
+  desenhaOssos(); listaJuntas();
+  if (esqueleto) { cena.remove(esqueleto); esqueleto = null; mixer = null; }
+  if (modelo) modelo.visible = true;
+}
+function guarda() { HIST.push(estado()); if (HIST.length > 80) HIST.shift(); REFAZ.length = 0; }
+function desfazer() {
+  if (!HIST.length) { $('dica').textContent = 'nada para desfazer'; return; }
+  REFAZ.push(estado());
+  aplica(HIST.pop());
+  $('dica').textContent = 'desfeito (' + HIST.length + ' passos atrás · Ctrl+Y refaz)';
+}
+function refazer() {
+  if (!REFAZ.length) { $('dica').textContent = 'nada para refazer'; return; }
+  HIST.push(estado());
+  aplica(REFAZ.pop());
+  $('dica').textContent = 'refeito (' + REFAZ.length + ' à frente)';
+}
+$('btDesfazer').onclick = desfazer;
+$('btRefazer').onclick = refazer;
+addEventListener('keydown', e => {
+  const k = (e.key || '').toLowerCase();
+  if ((e.ctrlKey || e.metaKey) && k === 'z' && e.shiftKey) { e.preventDefault(); refazer(); return; }
+  if ((e.ctrlKey || e.metaKey) && k === 'z') { e.preventDefault(); desfazer(); return; }
+  if ((e.ctrlKey || e.metaKey) && k === 'y') { e.preventDefault(); refazer(); return; }
+});
+
 // ── ajustar o modelo (girar, virar de frente, tamanho) ──────────────────
 // O .glb do Meshy às vezes vem deitado, de costas ou fora de escala. Acertar
 // aqui antes de marcar as juntas evita rig torto — e como as juntas seguem o
@@ -109,8 +158,8 @@ function aplicaPose() {
   $('rzV').textContent = $('rz').value + '°';
   $('escV').textContent = (+$('esc').value / 100).toFixed(2);
   if (juntas.length) {
-    limpaJuntas();
-    $('dica').textContent = 'modelo girado — marque as juntas de novo (ou use a sugestão)';
+    limpaJuntas();          // guarda antes: Ctrl+Z traz as juntas de volta
+    $('dica').textContent = 'modelo girado — marque as juntas de novo (Ctrl+Z desfaz)';
   }
 }
 ['rx','ry','rz','esc'].forEach(id => { $(id).oninput = aplicaPose; });
@@ -163,7 +212,8 @@ function temCiclo(j) {
   return false;
 }
 
-function poeJunta(tipo, ponto) {
+function poeJunta(tipo, ponto, semHistorico) {
+  if (!semHistorico) guarda();
   const d = TIPOS[tipo] || TIPOS.tronco;
   const g = new THREE.Mesh(
     new THREE.SphereGeometry(d.r, 20, 14),
@@ -224,6 +274,7 @@ function listaJuntas() {
 }
 
 function removeJunta(i) {
+  guarda();
   const j = juntas[i];
   bolas.remove(j.bola);
   for (const o of juntas) if (o.pai === j) o.pai = j.pai;
@@ -232,7 +283,8 @@ function removeJunta(i) {
   desenhaOssos(); listaJuntas();
 }
 
-function limpaJuntas() {
+function limpaJuntas(semHistorico) {
+  if (!semHistorico && juntas.length) guarda();
   juntas = []; selecionada = null;
   bolas.clear(); linhas.clear();
   if (esqueleto) { cena.remove(esqueleto); esqueleto = null; }
@@ -243,20 +295,21 @@ function limpaJuntas() {
 // ── sugestão automática de juntas ───────────────────────────────────────
 $('auto').onclick = () => {
   if (!malha) return;
-  limpaJuntas();
+  guarda();
+  limpaJuntas(true);
   const cx = new THREE.Box3().setFromObject(modelo);
   const min = cx.min, max = cx.max, meio = cx.getCenter(new THREE.Vector3());
   const alt = max.y - min.y, comp = max.z - min.z, larg = max.x - min.x;
   const P = (x, y, z) => new THREE.Vector3(x, y, z);
   // o eixo comprido do corpo vira a espinha; as patas vão nos quatro cantos
-  poeJunta('quadril', P(meio.x, min.y + alt * 0.55, meio.z + comp * 0.22));
-  poeJunta('tronco',  P(meio.x, min.y + alt * 0.62, meio.z - comp * 0.05));
-  poeJunta('cabeca',  P(meio.x, min.y + alt * 0.80, meio.z - comp * 0.34));
-  poeJunta('pata_fe', P(meio.x - larg * 0.26, min.y + alt * 0.12, meio.z - comp * 0.22));
-  poeJunta('pata_fd', P(meio.x + larg * 0.26, min.y + alt * 0.12, meio.z - comp * 0.22));
-  poeJunta('pata_te', P(meio.x - larg * 0.26, min.y + alt * 0.12, meio.z + comp * 0.26));
-  poeJunta('pata_td', P(meio.x + larg * 0.26, min.y + alt * 0.12, meio.z + comp * 0.26));
-  poeJunta('cauda',   P(meio.x, min.y + alt * 0.58, meio.z + comp * 0.44));
+  poeJunta('quadril', P(meio.x, min.y + alt * 0.55, meio.z + comp * 0.22), true);
+  poeJunta('tronco',  P(meio.x, min.y + alt * 0.62, meio.z - comp * 0.05), true);
+  poeJunta('cabeca',  P(meio.x, min.y + alt * 0.80, meio.z - comp * 0.34), true);
+  poeJunta('pata_fe', P(meio.x - larg * 0.26, min.y + alt * 0.12, meio.z - comp * 0.22), true);
+  poeJunta('pata_fd', P(meio.x + larg * 0.26, min.y + alt * 0.12, meio.z - comp * 0.22), true);
+  poeJunta('pata_te', P(meio.x - larg * 0.26, min.y + alt * 0.12, meio.z + comp * 0.26), true);
+  poeJunta('pata_td', P(meio.x + larg * 0.26, min.y + alt * 0.12, meio.z + comp * 0.26), true);
+  poeJunta('cauda',   P(meio.x, min.y + alt * 0.58, meio.z + comp * 0.44), true);
   $('dica').textContent = 'juntas sugeridas — arraste a cena e ajuste o que estiver fora do lugar';
 };
 
